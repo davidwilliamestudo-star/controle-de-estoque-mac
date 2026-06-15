@@ -1,0 +1,2043 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Controle de Estoque - Dra. Ana Morong</title>
+  <link rel="icon" type="image/x-icon" href="../img/favicon(40 x 40 px)/favicon.ico">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <!-- ============================================== -->
+  <!-- SPLASH SCREEN / LOADING ANIMADO -->
+  <!-- ============================================== -->
+  <div id="splash-screen">
+    <img src="../img/logo-menu-collapsed.svg/LOGO BRANCA (40X40).svg" alt="Logo" class="splash-logo">
+    <div class="splash-title">Controle de Estoque</div>
+    <div class="splash-subtitle">Preparando seu ambiente clínico...</div>
+    <div class="splash-loader"></div>
+  </div>
+
+  <!-- ============================================== -->
+  <!-- TELA DE LOGIN -->
+  <!-- ============================================== -->
+  <div id="login-layout" class="login-layout">
+    <div class="login-left">
+      <div class="login-box">
+        <div class="text-center mb-8">
+          <img src="../img/logo-menu-expanded.svg/LOGO+LETREIRO(VERDE 160X40).svg" alt="Dra. Ana Morong" style="height: 40px; margin-bottom: 8px;">
+          <h1 style="font-size: 20px; color: var(--color-green-deep);">Controle de Estoque</h1>
+          <p class="text-gray-500 text-sm mt-2">Acesso restrito ao painel clínico.</p>
+        </div>
+        <form id="login-form">
+          <div class="form-group">
+            <label class="form-label">E-mail</label>
+            <input type="email" class="form-control" placeholder="dra.ana@clinica.com" value="dra.ana@clinica.com">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Senha</label>
+            <input type="password" class="form-control" placeholder="••••••••" value="password">
+          </div>
+          <div class="flex items-center justify-between mb-6">
+            <label class="flex items-center gap-2 text-sm text-gray-500" style="cursor: pointer;">
+              <input type="checkbox" checked style="accent-color: var(--color-green-deep);"> Lembrar acesso
+            </label>
+            <a href="#" class="text-sm">Esqueceu a senha?</a>
+          </div>
+          <button type="submit" class="btn btn-primary w-full" style="height: 44px;">Entrar no Sistema</button>
+        </form>
+      </div>
+    </div>
+    <div class="login-right">
+      <!-- Decorativo -->
+      <img src="../img/logo-menu-collapsed.svg/LOGO BRANCA (40X40).svg" alt="Logo White" style="height: 120px; opacity: 0.1;">
+    </div>
+  </div>
+
+  <!-- ============================================== -->
+  <!-- LAYOUT PRINCIPAL (APP) -->
+  <!-- ============================================== -->
+  <div id="app-layout" class="app-layout hidden">
+    
+    <!-- SIDEBAR -->
+    <aside class="sidebar" id="main-sidebar">
+      <button class="sidebar-toggle-btn" id="sidebar-toggle" title="Minimizar menu">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><polyline points="15 18 9 12 15 6"></polyline></svg>
+      </button>
+      <div class="sidebar-header">
+        <img src="../img/logo-menu-expanded.svg/LOGO+LETREIRO(VERDE 160X40).svg" alt="Logo" class="sidebar-logo">
+      </div>
+      
+      <div class="sidebar-nav">
+        <div class="nav-section">Visão Geral</div>
+        <div class="nav-item active" data-view="dashboard">
+          <svg><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>
+          Dashboard
+        </div>
+        <div class="nav-item" data-view="agenda">
+          <svg><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+          Agenda
+        </div>
+
+        <div class="nav-section">Clínico</div>
+        <div class="nav-item" data-view="pacientes">
+          <svg><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+          Pacientes
+        </div>
+        <div class="nav-item" data-view="aplicacao">
+          <svg><path d="M22 12h-4l-3 9L9 3l-3 9H2"></path></svg>
+          Aplicações
+        </div>
+        <div class="nav-item" data-view="protocolos">
+          <svg><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+          Protocolos
+        </div>
+
+        <div class="nav-section">Inventário</div>
+        <div class="nav-item" data-view="estoque">
+          <svg><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg>
+          Visão Geral
+        </div>
+        <div class="nav-item" data-view="medicamentos">
+          <svg><circle cx="7" cy="7" r="5"></circle><circle cx="17" cy="17" r="5"></circle><path d="M10.5 13.5l3-3"></path></svg>
+          Medicamentos
+        </div>
+        <div class="nav-item" data-view="materiais">
+          <svg><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path></svg>
+          Materiais
+        </div>
+
+        <div class="nav-section">Gestão</div>
+        <div class="nav-item" data-view="relatorios">
+          <svg><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>
+          Relatórios
+        </div>
+        <div class="nav-item" data-view="auditoria">
+          <svg><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
+          Auditoria
+        </div>
+        
+        <div class="nav-section">Sistema</div>
+        <div class="nav-item" data-view="configuracoes">
+          <svg><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+          Configurações
+        </div>
+        <div class="nav-item" data-view="backup">
+          <svg><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+          Backup
+        </div>
+      </div>
+      
+      <div class="sidebar-footer">
+        <div class="user-profile" data-view="login" onclick="document.getElementById('app-layout').classList.add('hidden'); document.getElementById('login-layout').classList.remove('hidden');" title="Sair do sistema">
+          <div class="user-avatar">AM</div>
+          <div class="user-info">
+            <div class="user-name">Dra. Ana Morong</div>
+            <div class="user-role">Médica</div>
+          </div>
+          <svg style="width:16px;height:16px;color:var(--color-gray-400)" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
+        </div>
+      </div>
+    </aside>
+
+    <!-- CONTENT AREA -->
+    <main class="main-content">
+      
+      <!-- HEADER -->
+      <header class="header">
+        <div class="header-search">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+          <input type="text" placeholder="Buscar pacientes, medicamentos, lotes...">
+        </div>
+        
+        <div class="header-actions">
+          <button class="notification-btn" title="Notificações">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>
+            <span class="notification-badge"></span>
+          </button>
+          <button class="btn btn-primary" onclick="document.querySelector('.nav-item[data-view=\'aplicacao\']').click()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+            Nova Aplicação
+          </button>
+        </div>
+      </header>
+
+      <!-- PAGE CONTAINER -->
+      <div class="page-container">
+        
+        <!-- DASHBOARD VIEW -->
+        <div id="view-dashboard" class="view-section active">
+          <div class="page-header">
+            <div>
+              <h1 class="page-title">Dashboard</h1>
+              <p class="page-subtitle">Resumo operacional e clínico de hoje, 15 de Outubro.</p>
+            </div>
+          </div>
+          
+          <div class="grid-4 mb-8">
+            <div class="card summary-card">
+              <div class="summary-card-header">
+                <span>Atendimentos Hoje</span>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20" style="color:var(--color-info)"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle></svg>
+              </div>
+              <div class="summary-card-value">4</div>
+              <div class="summary-card-subtext">2 finalizados, 2 agendados</div>
+            </div>
+            
+            <div class="card summary-card">
+              <div class="summary-card-header">
+                <span>Estoque Baixo</span>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20" style="color:var(--color-warning)"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+              </div>
+              <div class="summary-card-value">12</div>
+              <div class="summary-card-subtext">Itens abaixo do mínimo</div>
+            </div>
+            
+            <div class="card summary-card">
+              <div class="summary-card-header">
+                <span>Vencem em 30 dias</span>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20" style="color:var(--color-danger)"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+              </div>
+              <div class="summary-card-value">3</div>
+              <div class="summary-card-subtext">Lotes próximos ao vencimento</div>
+            </div>
+            
+            <div class="card summary-card">
+              <div class="summary-card-header">
+                <span>Protocolo mais usado</span>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20" style="color:var(--color-green-deep)"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+              </div>
+              <div class="summary-card-value" style="font-size: 20px; line-height: 1.4;">Vitamina C EV</div>
+              <div class="summary-card-subtext">18 aplicações neste mês</div>
+            </div>
+          </div>
+
+          <div class="grid-2">
+            <!-- Ultimos Atendimentos -->
+            <div class="card">
+              <div class="card-header">
+                <div>
+                  <h3 class="card-title">Últimos Atendimentos</h3>
+                  <p class="card-description">Aplicações realizadas recentemente</p>
+                </div>
+                <button class="btn btn-ghost text-sm" onclick="document.querySelector('.nav-item[data-view=\'pacientes\']').click()">Ver Todos</button>
+              </div>
+              <div class="table-container">
+                <table class="table">
+                  <thead>
+                    <tr>
+                      <th>Paciente</th>
+                      <th>Protocolo</th>
+                      <th>Data</th>
+                      <th>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td class="font-medium cursor-pointer" onclick="document.querySelector('.nav-item[data-view=\'prontuario\']').click()">Mariana Silva</td>
+                      <td>Vitamina C EV</td>
+                      <td>Hoje, 10:30</td>
+                      <td><span class="badge badge-success">Finalizado</span></td>
+                    </tr>
+                    <tr>
+                      <td class="font-medium">Carlos Eduardo</td>
+                      <td>Complexo B IM</td>
+                      <td>Ontem, 16:00</td>
+                      <td><span class="badge badge-success">Finalizado</span></td>
+                    </tr>
+                    <tr>
+                      <td class="font-medium">Fernanda Costa</td>
+                      <td>Glutationa EV</td>
+                      <td>13/10/2026</td>
+                      <td><span class="badge badge-success">Finalizado</span></td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <!-- Movimentações Recentes -->
+            <div class="card">
+              <div class="card-header">
+                <div>
+                  <h3 class="card-title">Movimentações de Estoque</h3>
+                  <p class="card-description">Últimas entradas e saídas</p>
+                </div>
+              </div>
+              <div class="timeline mt-4">
+                <div class="timeline-item">
+                  <div class="timeline-dot"></div>
+                  <div class="timeline-content">
+                    <div class="flex justify-between items-center">
+                      <strong class="text-sm">Baixa Automática</strong>
+                      <span class="text-xs text-gray-500">Hoje, 10:35</span>
+                    </div>
+                    <p class="text-sm mt-1 text-gray-500">-1 Seringa 10mL, -1 Ampola Vit C (Atendimento Mariana S.)</p>
+                  </div>
+                </div>
+                <div class="timeline-item">
+                  <div class="timeline-dot" style="border-color: var(--color-info)"></div>
+                  <div class="timeline-content">
+                    <div class="flex justify-between items-center">
+                      <strong class="text-sm">Entrada Manual</strong>
+                      <span class="text-xs text-gray-500">Hoje, 09:15</span>
+                    </div>
+                    <p class="text-sm mt-1 text-gray-500">+50 Agulhas 30G, +20 Seringas 5mL</p>
+                  </div>
+                </div>
+                <div class="timeline-item">
+                  <div class="timeline-dot"></div>
+                  <div class="timeline-content">
+                    <div class="flex justify-between items-center">
+                      <strong class="text-sm">Baixa Automática</strong>
+                      <span class="text-xs text-gray-500">Ontem, 16:05</span>
+                    </div>
+                    <p class="text-sm mt-1 text-gray-500">-1 Ampola Complexo B (Atendimento Carlos E.)</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- VIEW PACIENTES -->
+        <div id="view-pacientes" class="view-section">
+          <div class="page-header">
+            <div>
+              <h1 class="page-title">Pacientes</h1>
+              <p class="page-subtitle">Central de cadastros, históricos clínicos e prontuários.</p>
+            </div>
+            <button class="btn btn-primary" data-modal-target="modal-novo-paciente">Novo Paciente</button>
+          </div>
+
+          <!-- Cards de Resumo -->
+          <div class="grid-4 mb-6">
+            <div class="card summary-card">
+              <div class="summary-card-header"><span>Total de Pacientes</span><span class="badge badge-neutral">Ativos</span></div>
+              <div class="summary-card-value">142</div>
+              <div class="summary-card-subtext">+12 neste mês</div>
+            </div>
+            <div class="card summary-card">
+              <div class="summary-card-header"><span>Atendidos este mês</span><span class="badge badge-success">Em alta</span></div>
+              <div class="summary-card-value">45</div>
+              <div class="summary-card-subtext">32% do total ativo</div>
+            </div>
+            <div class="card summary-card">
+              <div class="summary-card-header"><span>Histórico Recente</span><span class="badge badge-info">&lt; 7 dias</span></div>
+              <div class="summary-card-value">18</div>
+              <div class="summary-card-subtext">Pacientes com aplicações recentes</div>
+            </div>
+            <div class="card summary-card" style="border-color: var(--color-gray-200);">
+              <div class="summary-card-header"><span>Sem Aplicações</span><span class="badge badge-warning">Atenção</span></div>
+              <div class="summary-card-value">5</div>
+              <div class="summary-card-subtext">Pacientes cadastrados sem histórico</div>
+            </div>
+          </div>
+
+          <div class="card mb-6">
+            <div class="flex flex-col gap-4">
+              <!-- Linha de Busca -->
+              <div class="search-filter-bar" style="margin-bottom: 0;">
+                <div class="search-input" style="flex: 1; max-width: none;">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                  <input type="text" placeholder="Buscar por nome, telefone ou e-mail...">
+                </div>
+              </div>
+              
+              <!-- Linha de Filtros -->
+              <div class="flex gap-4 items-center flex-wrap">
+                <select class="form-control" style="width: 180px;">
+                  <option>Status: Todos</option>
+                  <option>Ativos</option>
+                  <option>Inativos</option>
+                </select>
+                <select class="form-control" style="width: 180px;">
+                  <option>Último Atendimento: Todos</option>
+                  <option>Últimos 7 dias</option>
+                  <option>Últimos 30 dias</option>
+                  <option>Mais de 90 dias</option>
+                </select>
+                <select class="form-control" style="width: 180px;">
+                  <option>Protocolo: Todos</option>
+                  <option>Vitamina C EV</option>
+                  <option>Glutationa EV</option>
+                  <option>Complexo B IM</option>
+                </select>
+                <div class="flex items-center gap-2">
+                  <span class="text-sm text-gray-500">Período:</span>
+                  <input type="date" class="form-control" style="width: 140px;"> 
+                  <span class="text-gray-500">até</span> 
+                  <input type="date" class="form-control" style="width: 140px;">
+                </div>
+                <button class="btn btn-ghost text-sm ml-auto">Limpar Filtros</button>
+              </div>
+            </div>
+
+            <div class="table-container mt-6">
+              <table class="table">
+                <thead>
+                  <tr>
+                    <th>Nome do Paciente</th>
+                    <th>Contato</th>
+                    <th>Última Aplicação</th>
+                    <th>Protocolo Frequente</th>
+                    <th>Total</th>
+                    <th>Status</th>
+                    <th class="text-right">Ações</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>
+                      <div class="font-medium cursor-pointer" onclick="openPatientRecord('1045')">Maria Eduarda Silva</div>
+                      <div class="text-xs text-gray-500">28 anos • ID: #1045</div>
+                    </td>
+                    <td>
+                      <div>(11) 98765-4321</div>
+                      <div class="text-xs text-gray-500">maria.eduarda@email.com</div>
+                    </td>
+                    <td>10/06/2026</td>
+                    <td class="text-sm text-gray-500">Vitamina C EV</td>
+                    <td class="font-medium">8</td>
+                    <td><span class="badge badge-success">Ativo</span></td>
+                    <td class="text-right">
+                      <div class="flex justify-end gap-2">
+                        <button class="btn btn-ghost btn-icon text-green-deep" title="Ver Prontuário" onclick="openPatientRecord('1045')">
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+                        </button>
+                        <button class="btn btn-ghost btn-icon" title="Nova Aplicação" onclick="document.querySelector('.nav-item[data-view=\'aplicacao\']').click()">
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M22 12h-4l-3 9L9 3l-3 9H2"></path></svg>
+                        </button>
+                        <button class="btn btn-ghost btn-icon" title="Gerar Relatório" data-modal-target="modal-emitir-relatorio">
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>
+                      <div class="font-medium cursor-pointer" onclick="openPatientRecord('1045')">Carlos Eduardo Santos</div>
+                      <div class="text-xs text-gray-500">42 anos • ID: #1022</div>
+                    </td>
+                    <td>
+                      <div>(11) 91234-5678</div>
+                      <div class="text-xs text-gray-500">carlos.santos@email.com</div>
+                    </td>
+                    <td>15/05/2026</td>
+                    <td class="text-sm text-gray-500">Emagrecimento IM</td>
+                    <td class="font-medium">3</td>
+                    <td><span class="badge badge-success">Ativo</span></td>
+                    <td class="text-right">
+                      <div class="flex justify-end gap-2">
+                        <button class="btn btn-ghost btn-icon text-green-deep" title="Ver Prontuário" onclick="openPatientRecord('1045')">
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+                        </button>
+                        <button class="btn btn-ghost btn-icon" title="Nova Aplicação" onclick="document.querySelector('.nav-item[data-view=\'aplicacao\']').click()">
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M22 12h-4l-3 9L9 3l-3 9H2"></path></svg>
+                        </button>
+                        <button class="btn btn-ghost btn-icon" title="Gerar Relatório" data-modal-target="modal-emitir-relatorio">
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>
+                      <div class="font-medium cursor-pointer" onclick="openPatientRecord('1045')">Luciana Ferreira</div>
+                      <div class="text-xs text-gray-500">35 anos • ID: #1089</div>
+                    </td>
+                    <td>
+                      <div>(11) 94444-5555</div>
+                      <div class="text-xs text-gray-500">luciana@email.com</div>
+                    </td>
+                    <td class="text-gray-400">Sem aplicações</td>
+                    <td class="text-sm text-gray-400">-</td>
+                    <td class="font-medium text-gray-400">0</td>
+                    <td><span class="badge badge-warning">Novo</span></td>
+                    <td class="text-right">
+                      <div class="flex justify-end gap-2">
+                        <button class="btn btn-ghost btn-icon text-green-deep" title="Ver Prontuário" onclick="document.querySelector('.nav-item[data-view=\'prontuario\']').click()">
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+                        </button>
+                        <button class="btn btn-ghost btn-icon" title="Nova Aplicação" onclick="document.querySelector('.nav-item[data-view=\'aplicacao\']').click()">
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M22 12h-4l-3 9L9 3l-3 9H2"></path></svg>
+                        </button>
+                        <button class="btn btn-ghost btn-icon opacity-50 cursor-not-allowed" title="Gerar Relatório">
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <div class="flex justify-between items-center mt-4 border-t border-gray-100 pt-4">
+              <span class="text-sm text-gray-500">Mostrando 1 a 3 de 142 pacientes</span>
+              <div class="flex gap-2">
+                <button class="btn btn-secondary btn-icon" disabled><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><polyline points="15 18 9 12 15 6"></polyline></svg></button>
+                <div class="flex items-center gap-1">
+                  <button class="btn btn-secondary btn-icon" style="background-color: var(--color-green-deep); color: white; border-color: var(--color-green-deep);">1</button>
+                  <button class="btn btn-secondary btn-icon border-transparent">2</button>
+                  <button class="btn btn-secondary btn-icon border-transparent">3</button>
+                  <span class="text-gray-400 mx-1">...</span>
+                  <button class="btn btn-secondary btn-icon border-transparent">10</button>
+                </div>
+                <button class="btn btn-secondary btn-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><polyline points="9 18 15 12 9 6"></polyline></svg></button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- VIEW PRONTUÁRIO / PERFIL -->
+        <div id="view-prontuario" class="view-section">
+          <div class="mb-4">
+            <button class="btn btn-ghost text-sm" style="padding-left:0;" onclick="backToPatients()">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><polyline points="15 18 9 12 15 6"></polyline></svg>
+              Voltar para Pacientes
+            </button>
+          </div>
+          
+          <div class="card mb-6" style="border-top: 4px solid var(--color-green-deep);">
+            <div class="flex justify-between items-start">
+              <div class="flex items-center gap-6">
+                <div class="user-avatar" style="width: 80px; height: 80px; font-size: 24px;">ME</div>
+                <div>
+                  <div class="flex items-center gap-3 mb-1">
+                    <h1 class="page-title" style="margin-bottom: 0;">Maria Eduarda Silva</h1>
+                    <span class="badge badge-success">Ativa</span>
+                  </div>
+                  <div class="flex gap-4 text-sm text-gray-500">
+                    <span>ID: #1045</span>
+                    <span>•</span>
+                    <span>(11) 98765-4321</span>
+                    <span>•</span>
+                    <span>28 anos (15/04/1998)</span>
+                    <span>•</span>
+                    <span>maria.eduarda@email.com</span>
+                  </div>
+                  <div class="mt-2 text-sm text-gray-700 bg-yellow-50 px-2 py-1 rounded border border-yellow-200 inline-block" style="background-color: #FFFBEB; border-color: #FEF08A;">
+                    <strong class="text-warning">Atenção:</strong> Alergia a Dipirona reportada na anamnese.
+                  </div>
+                </div>
+              </div>
+              <div class="flex gap-2">
+                <button class="btn btn-secondary" onclick="showToast('Funcionalidade de copiar evolução.')">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+                  Copiar Última Evolução
+                </button>
+                <button class="btn btn-secondary" data-modal-target="modal-emitir-relatorio">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                  Emitir Relatório PDF
+                </button>
+                <button class="btn btn-primary" onclick="document.querySelector('.nav-item[data-view=\'aplicacao\']').click()">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M22 12h-4l-3 9L9 3l-3 9H2"></path></svg>
+                  Nova Aplicação
+                </button>
+              </div>
+            </div>
+            
+            <div class="grid-4 mt-6 pt-6 border-t border-gray-100">
+              <div><p class="text-xs text-gray-500 uppercase">Total de Aplicações</p><p class="font-semibold text-lg text-gray-900">8</p></div>
+              <div><p class="text-xs text-gray-500 uppercase">Última Aplicação</p><p class="font-semibold text-lg text-gray-900">10/06/2026</p></div>
+              <div><p class="text-xs text-gray-500 uppercase">Protocolo Principal</p><p class="font-semibold text-lg text-gray-900">Vitamina C EV</p></div>
+              <div><p class="text-xs text-gray-500 uppercase">Intercorrências</p><p class="font-semibold text-lg text-gray-900">0</p></div>
+            </div>
+          </div>
+
+          <div class="tabs overflow-x-auto whitespace-nowrap">
+            <div class="tab active" data-tab-target="tab-visao-geral">Visão Geral</div>
+            <div class="tab" data-tab-target="tab-historico">Histórico de Aplicações</div>
+            <div class="tab" data-tab-target="tab-evolucoes">Evoluções</div>
+            <div class="tab" data-tab-target="tab-medicamentos-materiais">Medicamentos e Materiais</div>
+            <div class="tab" data-tab-target="tab-lotes">Lotes Utilizados</div>
+            <div class="tab" data-tab-target="tab-areas">Áreas Corporais</div>
+            <div class="tab" data-tab-target="tab-relatorios">Relatórios</div>
+          </div>
+
+          <div class="tab-content-container">
+            <!-- ABA VISÃO GERAL -->
+            <div id="tab-visao-geral" class="tab-pane">
+              <div class="grid-3 gap-6 mb-6">
+                <div class="card col-span-2">
+                  <div class="card-header">
+                    <h3 class="card-title">Atividade Recente (Timeline Resumida)</h3>
+                    <button class="btn btn-ghost text-sm" onclick="document.querySelector('[data-tab-target=\'tab-historico\']').click()">Ver Histórico Completo</button>
+                  </div>
+                  <div class="timeline mt-4">
+                    <div class="timeline-item">
+                      <div class="timeline-dot"></div>
+                      <div class="timeline-content">
+                        <div class="flex justify-between items-center mb-1">
+                          <strong class="text-sm">Vitamina C EV - Endovenosa</strong>
+                          <span class="text-xs text-gray-500">10/06/2026, 14:30</span>
+                        </div>
+                        <p class="text-sm text-gray-500">Área: Braço Direito. Medicamento: Vitamina C 10mL.</p>
+                      </div>
+                    </div>
+                    <div class="timeline-item">
+                      <div class="timeline-dot"></div>
+                      <div class="timeline-content">
+                        <div class="flex justify-between items-center mb-1">
+                          <strong class="text-sm">Complexo B IM - Intramuscular</strong>
+                          <span class="text-xs text-gray-500">15/05/2026, 09:15</span>
+                        </div>
+                        <p class="text-sm text-gray-500">Área: Glúteo Direito. Medicamento: Complexo B 2mL.</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="flex flex-col gap-6">
+                  <!-- Gráfico de Barras Simulado -->
+                  <div class="card p-5">
+                    <h3 class="text-sm font-semibold text-gray-500 uppercase mb-4">Aplicações por Mês</h3>
+                    <div class="flex items-end gap-2 h-24 mt-2 border-b border-gray-100 pb-2">
+                      <div class="w-full bg-green-100 rounded-t" style="height: 20%; background-color: var(--color-beige-light);" title="Jan: 2"></div>
+                      <div class="w-full bg-green-100 rounded-t" style="height: 30%; background-color: var(--color-beige-light);" title="Fev: 3"></div>
+                      <div class="w-full bg-green-100 rounded-t" style="height: 50%; background-color: var(--color-beige-camel);" title="Mar: 5"></div>
+                      <div class="w-full bg-green-100 rounded-t" style="height: 80%; background-color: var(--color-green-light);" title="Abr: 8"></div>
+                      <div class="w-full bg-green-100 rounded-t" style="height: 100%; background-color: var(--color-green-deep);" title="Mai: 10"></div>
+                      <div class="w-full bg-green-100 rounded-t" style="height: 40%; background-color: var(--color-beige-camel);" title="Jun: 4"></div>
+                    </div>
+                    <div class="flex justify-between text-xs text-gray-400 mt-2">
+                      <span>Jan</span><span>Fev</span><span>Mar</span><span>Abr</span><span>Mai</span><span>Jun</span>
+                    </div>
+                  </div>
+
+                  <div class="card p-5">
+                    <h3 class="text-sm font-semibold text-gray-500 uppercase mb-2">Área Mais Utilizada</h3>
+                    <div class="flex items-center gap-3">
+                      <div class="bg-gray-100 p-3 rounded-full text-gray-600">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="24" height="24"><path d="M20.82 20.82a2 2 0 0 1-2.83 0l-5.66-5.66a5 5 0 1 1 2.83-2.83l5.66 5.66a2 2 0 0 1 0 2.83Z"></path><path d="M12 7v5l3 3"></path></svg>
+                      </div>
+                      <div>
+                        <div class="text-lg font-semibold text-gray-900">Braço Direito</div>
+                        <div class="text-sm text-gray-500">4 aplicações</div>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div class="card p-5">
+                    <h3 class="text-sm font-semibold text-gray-500 uppercase mb-2">Medicamento Mais Utilizado</h3>
+                    <div class="flex items-center gap-3">
+                      <div class="bg-gray-100 p-3 rounded-full text-gray-600">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="24" height="24"><circle cx="7" cy="7" r="5"></circle><circle cx="17" cy="17" r="5"></circle><path d="M10.5 13.5l3-3"></path></svg>
+                      </div>
+                      <div>
+                        <div class="text-lg font-semibold text-gray-900">Vitamina C</div>
+                        <div class="text-sm text-gray-500">50mL totais</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            <!-- ABA HISTÓRICO DE APLICAÇÕES -->
+            <div id="tab-historico" class="tab-pane hidden">
+              <div class="card mb-6">
+                <div class="search-filter-bar" style="margin-bottom:0;">
+                  <div class="flex gap-4 items-center flex-wrap">
+                    <div class="form-group" style="margin-bottom:0;">
+                      <label class="form-label text-xs">Período</label>
+                      <div class="flex items-center gap-2">
+                        <input type="date" class="form-control" style="width: 140px; padding: 6px;">
+                        <span class="text-gray-500">até</span>
+                        <input type="date" class="form-control" style="width: 140px; padding: 6px;">
+                      </div>
+                    </div>
+                    <div class="form-group" style="margin-bottom:0;">
+                      <label class="form-label text-xs">Protocolo</label>
+                      <select class="form-control" style="padding: 6px;"><option>Todos</option></select>
+                    </div>
+                    <div class="form-group" style="margin-bottom:0;">
+                      <label class="form-label text-xs">Área Corporal</label>
+                      <select class="form-control" style="padding: 6px;"><option>Todas</option></select>
+                    </div>
+                    <div class="form-group" style="margin-bottom:0;">
+                      <label class="form-label text-xs">Intercorrência</label>
+                      <select class="form-control" style="padding: 6px;">
+                        <option>Qualquer</option>
+                        <option>Com Intercorrência</option>
+                        <option>Sem Intercorrência</option>
+                      </select>
+                    </div>
+                  </div>
+                  <button class="btn btn-secondary mt-5">Exportar CSV</button>
+                </div>
+              </div>
+
+              <div class="timeline ml-4">
+                <div class="timeline-item">
+                  <div class="timeline-dot" style="border-color: var(--color-green-deep);"></div>
+                  <div class="timeline-content card p-6 w-full">
+                    <div class="flex justify-between items-start mb-4 border-b border-gray-100 pb-4">
+                      <div>
+                        <div class="flex items-center gap-2">
+                          <h3 class="text-lg font-semibold">Vitamina C EV</h3>
+                          <span class="badge badge-success">Finalizado</span>
+                        </div>
+                        <p class="text-sm text-gray-500 mt-1">10 de Junho de 2026, 14:30 • Dra. Ana Morong</p>
+                      </div>
+                      <div class="flex gap-2">
+                        <button class="btn btn-secondary text-sm" data-modal-target="modal-detalhes-aplicacao">Ver Detalhes</button>
+                        <button class="btn btn-ghost text-sm" onclick="showToast('Evolução copiada!')">Copiar Evolução</button>
+                      </div>
+                    </div>
+                    <div class="grid-3 gap-4 mb-4">
+                      <div>
+                        <span class="text-xs text-gray-500 uppercase block mb-1">Área Corporal</span>
+                        <span class="text-sm font-medium">Braço Direito</span>
+                      </div>
+                      <div>
+                        <span class="text-xs text-gray-500 uppercase block mb-1">Medicamentos</span>
+                        <span class="text-sm">Vitamina C (10mL)</span>
+                      </div>
+                      <div>
+                        <span class="text-xs text-gray-500 uppercase block mb-1">Intercorrência</span>
+                        <span class="text-sm">Não</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="timeline-item">
+                  <div class="timeline-dot" style="border-color: var(--color-green-deep);"></div>
+                  <div class="timeline-content card p-6 w-full">
+                    <div class="flex justify-between items-start mb-4 border-b border-gray-100 pb-4">
+                      <div>
+                        <div class="flex items-center gap-2">
+                          <h3 class="text-lg font-semibold">Complexo B IM</h3>
+                          <span class="badge badge-success">Finalizado</span>
+                        </div>
+                        <p class="text-sm text-gray-500 mt-1">15 de Maio de 2026, 09:15 • Dra. Ana Morong</p>
+                      </div>
+                      <div class="flex gap-2">
+                        <button class="btn btn-secondary text-sm">Ver Detalhes</button>
+                        <button class="btn btn-ghost text-sm" onclick="showToast('Evolução copiada!')">Copiar Evolução</button>
+                      </div>
+                    </div>
+                    <div class="grid-3 gap-4 mb-4">
+                      <div>
+                        <span class="text-xs text-gray-500 uppercase block mb-1">Área Corporal</span>
+                        <span class="text-sm font-medium">Glúteo Direito</span>
+                      </div>
+                      <div>
+                        <span class="text-xs text-gray-500 uppercase block mb-1">Medicamentos</span>
+                        <span class="text-sm">Complexo B (2mL)</span>
+                      </div>
+                      <div>
+                        <span class="text-xs text-gray-500 uppercase block mb-1">Intercorrência</span>
+                        <span class="text-sm text-warning font-medium">Sim - Hematoma leve</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- ABA EVOLUÇÕES -->
+            <div id="tab-evolucoes" class="tab-pane hidden">
+              <div class="flex flex-col gap-4">
+                <div class="card p-6">
+                  <div class="flex justify-between items-start mb-4">
+                    <div>
+                      <h4 class="font-semibold text-gray-900">Evolução - 10/06/2026</h4>
+                      <p class="text-xs text-gray-500">Referente a: Vitamina C EV no Braço Direito</p>
+                    </div>
+                    <div class="flex gap-2">
+                      <button class="btn btn-ghost btn-icon" title="Visualizar Atendimento" data-modal-target="modal-detalhes-aplicacao"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg></button>
+                      <button class="btn btn-secondary text-sm" onclick="showToast('Copiado para área de transferência!')">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14" class="mr-1"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+                        Copiar
+                      </button>
+                    </div>
+                  </div>
+                  <div class="bg-gray-50 p-4 rounded border border-gray-100 text-sm font-mono text-gray-700 leading-relaxed">
+                    Paciente Maria Eduarda Silva realizou Protocolo Vitamina C EV em 10/06/2026. 
+                    Área registrada: Braço Direito. 
+                    Medicamento utilizado: Vitamina C, quantidade 10 mL, lote VC2026A, validade 12/2026. 
+                    Materiais utilizados: Seringa 10 mL, Álcool swab e Luva. 
+                    Procedimento registrado sem intercorrências. Acesso venoso pérvio e sem flebite.
+                  </div>
+                </div>
+
+                <div class="card p-6">
+                  <div class="flex justify-between items-start mb-4">
+                    <div>
+                      <h4 class="font-semibold text-gray-900">Evolução - 15/05/2026</h4>
+                      <p class="text-xs text-gray-500">Referente a: Complexo B IM no Glúteo Direito</p>
+                    </div>
+                    <div class="flex gap-2">
+                      <button class="btn btn-ghost btn-icon" title="Visualizar Atendimento"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg></button>
+                      <button class="btn btn-secondary text-sm" onclick="showToast('Copiado para área de transferência!')">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14" class="mr-1"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+                        Copiar
+                      </button>
+                    </div>
+                  </div>
+                  <div class="bg-gray-50 p-4 rounded border border-gray-100 text-sm font-mono text-gray-700 leading-relaxed">
+                    Paciente Maria Eduarda Silva realizou Protocolo Complexo B IM em 15/05/2026. 
+                    Área registrada: Glúteo Direito. 
+                    Medicamento utilizado: Complexo B, quantidade 2 mL, lote CB991, validade 08/2027. 
+                    Materiais utilizados: Seringa 3 mL, Agulha 30x7, Álcool swab. 
+                    Procedimento apresentou leve hematoma no local da aplicação. Orientada a fazer compressa fria.
+                  </div>
+                </div>
+              </div>
+
+              <!-- EMPTY STATE (Mostrar quando não houver dados) -->
+              <!--
+              <div class="empty-state mt-6">
+                <div class="empty-state-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+                </div>
+                <h4 class="empty-state-title">Nenhuma evolução registrada</h4>
+                <p class="empty-state-description">As evoluções clínicas são geradas automaticamente ao final de cada aplicação. Registre um procedimento para ver as evoluções aqui.</p>
+              </div>
+              -->
+            </div>
+
+            <!-- ABA MEDICAMENTOS E MATERIAIS -->
+            <div id="tab-medicamentos-materiais" class="tab-pane hidden">
+              <div class="grid-2 gap-6">
+                <!-- Medicamentos -->
+                <div class="card">
+                  <div class="card-header"><h3 class="card-title">Medicamentos Utilizados</h3></div>
+                  <div class="table-container">
+                    <table class="table">
+                      <thead>
+                        <tr>
+                          <th>Medicamento</th>
+                          <th>Total Utilizado</th>
+                          <th>Nº Aplicações</th>
+                          <th>Último Uso</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr>
+                          <td class="font-medium">Vitamina C</td>
+                          <td>50 mL</td>
+                          <td>5</td>
+                          <td>10/06/2026</td>
+                        </tr>
+                        <tr>
+                          <td class="font-medium">Complexo B</td>
+                          <td>6 mL</td>
+                          <td>3</td>
+                          <td>15/05/2026</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                <!-- Materiais -->
+                <div class="card">
+                  <div class="card-header"><h3 class="card-title">Materiais Utilizados</h3></div>
+                  <div class="table-container">
+                    <table class="table">
+                      <thead>
+                        <tr>
+                          <th>Material</th>
+                          <th>Qtd Total</th>
+                          <th>Nº Utilizações</th>
+                          <th>Último Uso</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr>
+                          <td class="font-medium">Seringa 10 mL</td>
+                          <td>5 un.</td>
+                          <td>5</td>
+                          <td>10/06/2026</td>
+                        </tr>
+                        <tr>
+                          <td class="font-medium">Álcool swab</td>
+                          <td>8 un.</td>
+                          <td>8</td>
+                          <td>10/06/2026</td>
+                        </tr>
+                        <tr>
+                          <td class="font-medium">Seringa 3 mL</td>
+                          <td>3 un.</td>
+                          <td>3</td>
+                          <td>15/05/2026</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- ABA LOTES UTILIZADOS -->
+            <div id="tab-lotes" class="tab-pane hidden">
+              <div class="card">
+                <div class="card-header">
+                  <div>
+                    <h3 class="card-title">Rastreabilidade por Lote</h3>
+                    <p class="card-description">Registro de todos os lotes consumidos por este paciente.</p>
+                  </div>
+                </div>
+                <div class="table-container">
+                  <table class="table">
+                    <thead>
+                      <tr>
+                        <th>Lote</th>
+                        <th>Item</th>
+                        <th>Tipo</th>
+                        <th>Validade do Lote</th>
+                        <th>Data de Uso</th>
+                        <th>Qtd.</th>
+                        <th>Status Atual do Lote</th>
+                        <th class="text-right">Ação</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <td class="font-medium">VC2026A</td>
+                        <td>Vitamina C</td>
+                        <td><span class="badge badge-accent">Medicamento</span></td>
+                        <td>12/2026</td>
+                        <td>10/06/2026</td>
+                        <td>10 mL</td>
+                        <td><span class="badge badge-success">Válido</span></td>
+                        <td class="text-right"><button class="btn btn-secondary text-sm" data-modal-target="modal-detalhes-aplicacao">Atendimento</button></td>
+                      </tr>
+                      <tr>
+                        <td class="font-medium">SER10M</td>
+                        <td>Seringa 10 mL</td>
+                        <td><span class="badge badge-neutral">Material</span></td>
+                        <td>05/2028</td>
+                        <td>10/06/2026</td>
+                        <td>1 un.</td>
+                        <td><span class="badge badge-success">Válido</span></td>
+                        <td class="text-right"><button class="btn btn-secondary text-sm">Atendimento</button></td>
+                      </tr>
+                      <tr>
+                        <td class="font-medium">CB991</td>
+                        <td>Complexo B</td>
+                        <td><span class="badge badge-accent">Medicamento</span></td>
+                        <td>08/2027</td>
+                        <td>15/05/2026</td>
+                        <td>2 mL</td>
+                        <td><span class="badge badge-success">Válido</span></td>
+                        <td class="text-right"><button class="btn btn-secondary text-sm">Atendimento</button></td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+
+            <!-- ABA ÁREAS CORPORAIS -->
+            <div id="tab-areas" class="tab-pane hidden">
+              <div class="grid-2 gap-6">
+                <!-- Gráfico/Placeholder -->
+                <div class="card flex flex-col items-center justify-center p-8 border border-dashed border-gray-300" style="min-height: 400px; background-color: var(--color-gray-50);">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="64" height="64" class="text-gray-400 mb-4"><path d="M20.82 20.82a2 2 0 0 1-2.83 0l-5.66-5.66a5 5 0 1 1 2.83-2.83l5.66 5.66a2 2 0 0 1 0 2.83Z"></path><path d="M12 7v5l3 3"></path><circle cx="12" cy="12" r="10"></circle></svg>
+                  <h3 class="text-gray-600 font-medium">Mapa Corporal de Aplicações</h3>
+                  <p class="text-sm text-gray-500 text-center mt-2 max-w-xs">O mapa visual em SVG com heatmaps das aplicações aparecerá aqui na versão final em React.</p>
+                </div>
+                
+                <!-- Ranking -->
+                <div class="card">
+                  <div class="card-header"><h3 class="card-title">Ranking de Áreas Utilizadas</h3></div>
+                  <div class="flex flex-col gap-3">
+                    <div class="flex items-center justify-between p-4 bg-gray-50 rounded-md border border-gray-100">
+                      <div class="flex items-center gap-3">
+                        <div class="font-bold text-lg text-green-deep w-6">1º</div>
+                        <div class="font-medium">Braço Direito</div>
+                      </div>
+                      <div class="badge badge-success font-bold" style="font-size: 14px;">4 aplicações</div>
+                    </div>
+                    <div class="flex items-center justify-between p-4 bg-gray-50 rounded-md border border-gray-100">
+                      <div class="flex items-center gap-3">
+                        <div class="font-bold text-lg text-gray-400 w-6">2º</div>
+                        <div class="font-medium">Braço Esquerdo</div>
+                      </div>
+                      <div class="badge badge-neutral font-bold" style="font-size: 14px;">2 aplicações</div>
+                    </div>
+                    <div class="flex items-center justify-between p-4 bg-gray-50 rounded-md border border-gray-100">
+                      <div class="flex items-center gap-3">
+                        <div class="font-bold text-lg text-gray-400 w-6">3º</div>
+                        <div class="font-medium">Glúteo Direito</div>
+                      </div>
+                      <div class="badge badge-neutral font-bold" style="font-size: 14px;">1 aplicação</div>
+                    </div>
+                    <div class="flex items-center justify-between p-4 bg-gray-50 rounded-md border border-gray-100">
+                      <div class="flex items-center gap-3">
+                        <div class="font-bold text-lg text-gray-400 w-6">4º</div>
+                        <div class="font-medium">Abdômen</div>
+                      </div>
+                      <div class="badge badge-neutral font-bold" style="font-size: 14px;">1 aplicação</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- ABA RELATÓRIOS -->
+            <div id="tab-relatorios" class="tab-pane hidden">
+              <div class="card max-w-2xl mx-auto">
+                <div class="card-header">
+                  <div>
+                    <h3 class="card-title">Emitir Relatório do Paciente</h3>
+                    <p class="card-description">Selecione as informações que deseja incluir no documento.</p>
+                  </div>
+                </div>
+                
+                <div class="form-group mt-4">
+                  <label class="form-label">Período do Relatório</label>
+                  <select class="form-control mb-4">
+                    <option>Todo o Histórico</option>
+                    <option>Últimos 30 dias</option>
+                    <option>Últimos 6 meses</option>
+                    <option>Último ano</option>
+                  </select>
+                </div>
+
+                <div class="form-group">
+                  <label class="form-label mb-3">Seções a Incluir</label>
+                  <div class="flex flex-col gap-3 ml-2">
+                    <label class="flex items-center gap-3 text-sm text-gray-700 cursor-pointer">
+                      <input type="checkbox" checked disabled style="accent-color: var(--color-green-deep); width: 16px; height: 16px;"> Dados Cadastrais (Obrigatório)
+                    </label>
+                    <label class="flex items-center gap-3 text-sm text-gray-700 cursor-pointer">
+                      <input type="checkbox" checked style="accent-color: var(--color-green-deep); width: 16px; height: 16px;"> Histórico Cronológico de Aplicações
+                    </label>
+                    <label class="flex items-center gap-3 text-sm text-gray-700 cursor-pointer">
+                      <input type="checkbox" checked style="accent-color: var(--color-green-deep); width: 16px; height: 16px;"> Evoluções Registradas
+                    </label>
+                    <label class="flex items-center gap-3 text-sm text-gray-700 cursor-pointer">
+                      <input type="checkbox" style="accent-color: var(--color-green-deep); width: 16px; height: 16px;"> Resumo de Medicamentos Utilizados
+                    </label>
+                    <label class="flex items-center gap-3 text-sm text-gray-700 cursor-pointer">
+                      <input type="checkbox" style="accent-color: var(--color-green-deep); width: 16px; height: 16px;"> Rastreabilidade de Lotes
+                    </label>
+                    <label class="flex items-center gap-3 text-sm text-gray-700 cursor-pointer">
+                      <input type="checkbox" style="accent-color: var(--color-green-deep); width: 16px; height: 16px;"> Mapa de Áreas Corporais
+                    </label>
+                    <label class="flex items-center gap-3 text-sm text-gray-700 cursor-pointer">
+                      <input type="checkbox" checked style="accent-color: var(--color-green-deep); width: 16px; height: 16px;"> Intercorrências e Alertas
+                    </label>
+                  </div>
+                </div>
+
+                <div class="flex justify-end gap-3 mt-8 border-t border-gray-100 pt-6">
+                  <button class="btn btn-secondary" data-modal-target="modal-preview-relatorio">Pré-visualizar</button>
+                  <button class="btn btn-primary" onclick="alert('Gerando PDF...')">Exportar PDF</button>
+                </div>
+              </div>
+              
+              <!-- EMPTY STATE PARA BUSCA VAZIA EM TABELAS GERAIS -->
+              <div id="empty-search-state" class="empty-state hidden mt-6">
+                <div class="empty-state-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                </div>
+                <h4 class="empty-state-title">Nenhum resultado encontrado</h4>
+                <p class="empty-state-description">Não encontramos registros para a sua busca atual. Tente alterar os filtros ou pesquisar com outros termos.</p>
+                <button class="btn btn-secondary">Limpar Busca</button>
+              </div>
+            </div>
+
+            <!-- Empty state genérico (exemplo caso uma aba esteja vazia) -->
+            <!-- 
+            <div class="empty-state">
+              <div class="empty-state-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg></div>
+              <h4 class="empty-state-title">Nenhum dado encontrado</h4>
+              <p class="empty-state-description">Ainda não há registros para exibir nesta seção.</p>
+            </div>
+            -->
+          </div>
+        </div>
+
+        <!-- VIEW APLICAÇÃO (WIZARD EM ETAPAS) -->
+        <div id="view-aplicacao" class="view-section stepper-flow-container" data-current-step="0">
+          <div class="page-header">
+            <div>
+              <h1 class="page-title">Nova Aplicação</h1>
+              <p class="page-subtitle">Siga as etapas para registrar o procedimento clínico.</p>
+            </div>
+            <button class="btn btn-ghost text-danger">Cancelar Aplicação</button>
+          </div>
+
+          <!-- Stepper Head -->
+          <div class="stepper">
+            <div class="step active">
+              <div class="step-circle">1</div>
+              <span class="step-label">Paciente e Protocolo</span>
+            </div>
+            <div class="step">
+              <div class="step-circle">2</div>
+              <span class="step-label">Área Corporal</span>
+            </div>
+            <div class="step">
+              <div class="step-circle">3</div>
+              <span class="step-label">Conferência de Itens</span>
+            </div>
+            <div class="step">
+              <div class="step-circle">4</div>
+              <span class="step-label">Evolução e Finalização</span>
+            </div>
+          </div>
+
+          <!-- Step 1 Content -->
+          <div class="step-pane">
+            <div class="card mb-6">
+              <div class="card-header"><h3 class="card-title">Selecione o Paciente e o Protocolo</h3></div>
+              <div class="grid-2">
+                <div class="form-group">
+                  <label class="form-label">Buscar Paciente</label>
+                  <select class="form-control">
+                    <option value="" disabled selected>Selecione um paciente...</option>
+                    <option>Mariana Silva Oliveira</option>
+                    <option>Carlos Eduardo Santos</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Selecionar Protocolo</label>
+                  <select class="form-control">
+                    <option value="" disabled selected>Selecione um protocolo...</option>
+                    <option>Vitamina C EV (Endovenosa)</option>
+                    <option>Complexo B IM (Intramuscular)</option>
+                    <option>Glutationa EV (Endovenosa)</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+            <div class="flex justify-end">
+              <button class="btn btn-primary next-step-btn">Avançar para Área Corporal</button>
+            </div>
+          </div>
+
+          <!-- Step 2 Content -->
+          <div class="step-pane hidden">
+            <div class="card mb-6">
+              <div class="card-header">
+                <div>
+                  <h3 class="card-title">Selecione a Área Corporal</h3>
+                  <p class="card-description">O protocolo selecionado (Vitamina C) exige aplicação <strong>Endovenosa</strong>.</p>
+                </div>
+              </div>
+              <div class="grid-2">
+                <div class="body-svg-container">
+                  <!-- Boneco SVG Simulado -->
+                  <div class="body-svg-placeholder">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.82 20.82a2 2 0 0 1-2.83 0l-5.66-5.66a5 5 0 1 1 2.83-2.83l5.66 5.66a2 2 0 0 1 0 2.83Z"></path><path d="M12 7v5l3 3"></path><circle cx="12" cy="12" r="10"></circle></svg>
+                    <span>Boneco SVG Interativo</span>
+                    <span class="text-xs mt-2 text-center" style="max-width: 200px;">Clique nas áreas permitidas (braços, antebraços, mãos).</span>
+                  </div>
+                </div>
+                <div>
+                  <div class="bg-gray-50 p-4 rounded-md border border-gray-200 h-full">
+                    <h4 class="font-semibold mb-4">Área Selecionada</h4>
+                    <div class="p-3 border border-green-deep bg-white text-green-deep rounded-md font-medium flex justify-between items-center">
+                      Braço Direito
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                    </div>
+                    <p class="text-sm text-gray-500 mt-4">As áreas incompatíveis com a via Endovenosa estão bloqueadas (ex: glúteos, deltoides).</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="flex justify-between">
+              <button class="btn btn-secondary prev-step-btn">Voltar</button>
+              <button class="btn btn-primary next-step-btn">Avançar para Itens</button>
+            </div>
+          </div>
+
+          <!-- Step 3 Content -->
+          <div class="step-pane hidden">
+            <div class="card mb-6">
+              <div class="card-header">
+                <div>
+                  <h3 class="card-title">Conferência de Itens do Protocolo</h3>
+                  <p class="card-description">Verifique os lotes e validades. O estoque será baixado ao finalizar.</p>
+                </div>
+                <button class="btn btn-secondary text-sm">+ Adicionar Item Extra</button>
+              </div>
+              <div class="table-container">
+                <table class="table">
+                  <thead>
+                    <tr>
+                      <th>Tipo</th>
+                      <th>Item</th>
+                      <th>Qtd</th>
+                      <th>Lote</th>
+                      <th>Estoque Disponível</th>
+                      <th></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td><span class="badge badge-accent">Medicamento</span></td>
+                      <td class="font-medium">Vitamina C 10mL</td>
+                      <td>
+                        <input type="number" class="form-control" style="width: 70px; padding: 4px;" value="1">
+                      </td>
+                      <td>
+                        <select class="form-control" style="padding: 4px;">
+                          <option>Lote A123 (Val: 10/2027)</option>
+                          <option>Lote B456 (Val: 12/2027)</option>
+                        </select>
+                      </td>
+                      <td class="text-success font-medium">45 un.</td>
+                      <td><button class="btn btn-ghost btn-icon text-danger"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M3 6h18"></path><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg></button></td>
+                    </tr>
+                    <tr>
+                      <td><span class="badge badge-neutral">Material</span></td>
+                      <td class="font-medium">Seringa 10mL</td>
+                      <td>
+                        <input type="number" class="form-control" style="width: 70px; padding: 4px;" value="1">
+                      </td>
+                      <td>
+                        <select class="form-control" style="padding: 4px;">
+                          <option>Lote S45 (Val: 05/2028)</option>
+                        </select>
+                      </td>
+                      <td class="text-success font-medium">120 un.</td>
+                      <td><button class="btn btn-ghost btn-icon text-danger"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M3 6h18"></path><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg></button></td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            <div class="flex justify-between">
+              <button class="btn btn-secondary prev-step-btn">Voltar</button>
+              <button class="btn btn-primary next-step-btn">Avançar para Evolução</button>
+            </div>
+          </div>
+
+          <!-- Step 4 Content -->
+          <div class="step-pane hidden">
+            <div class="grid-2 gap-6 mb-6">
+              <div class="card">
+                <div class="card-header"><h3 class="card-title">Intercorrências e Observações</h3></div>
+                <div class="form-group">
+                  <label class="form-label">Houve intercorrência?</label>
+                  <select class="form-control mb-4">
+                    <option value="false">Não, procedimento realizado com sucesso</option>
+                    <option value="true">Sim, houve intercorrência</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Observações adicionais do procedimento</label>
+                  <textarea class="form-control" placeholder="Anotações para a evolução..."></textarea>
+                </div>
+                <button class="btn btn-secondary w-full mt-2">Gerar Evolução Automática</button>
+              </div>
+
+              <div class="card">
+                <div class="card-header">
+                  <h3 class="card-title">Evolução</h3>
+                  <button class="btn btn-ghost text-sm">Copiar</button>
+                </div>
+                <div class="bg-gray-50 p-4 rounded-md border border-gray-200 h-64 overflow-y-auto text-sm font-mono text-gray-700" contenteditable="true">
+                  Paciente Mariana Silva Oliveira realizou protocolo Vitamina C EV em 15/10/2026.<br><br>
+                  Área registrada: Braço Direito.<br><br>
+                  Medicamentos utilizados:<br>
+                  - 1x Vitamina C 10mL (Lote: A123)<br><br>
+                  Materiais utilizados:<br>
+                  - 1x Seringa 10mL (Lote: S45)<br><br>
+                  Procedimento realizado sem intercorrências.<br>
+                </div>
+                <p class="text-xs text-gray-500 mt-2 text-right">O texto acima pode ser editado manualmente.</p>
+              </div>
+            </div>
+            <div class="flex justify-between">
+              <button class="btn btn-secondary prev-step-btn">Voltar</button>
+              <button class="btn btn-primary" style="background-color: var(--color-success); border-color: var(--color-success);" onclick="document.querySelector('.nav-item[data-view=\'dashboard\']').click()">Finalizar e Baixar Estoque</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- VIEW PROTOCOLOS -->
+        <div id="view-protocolos" class="view-section">
+          <div class="page-header">
+            <div>
+              <h1 class="page-title">Protocolos Clínicos</h1>
+              <p class="page-subtitle">Gerencie os conjuntos predefinidos de medicamentos e materiais.</p>
+            </div>
+            <button class="btn btn-primary" data-modal-target="modal-protocolo">Novo Protocolo</button>
+          </div>
+
+          <div class="card mb-6">
+            <div class="search-filter-bar">
+              <div class="search-input">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                <input type="text" placeholder="Buscar protocolos...">
+              </div>
+              <select class="form-control" style="width: 200px;">
+                <option>Todas as Categorias</option>
+                <option>Endovenoso</option>
+                <option>Intramuscular</option>
+                <option>Subcutâneo</option>
+              </select>
+            </div>
+
+            <div class="grid-3 mt-4">
+              <!-- Protocol Card -->
+              <div class="card" style="padding: 16px;">
+                <div class="flex justify-between items-start mb-2">
+                  <h3 class="font-semibold text-gray-900">Vitamina C EV</h3>
+                  <span class="badge badge-success">Ativo</span>
+                </div>
+                <div class="text-sm text-gray-500 mb-4">Via: Endovenosa</div>
+                <div class="text-sm text-gray-700 bg-gray-50 p-2 rounded-md mb-4">
+                  <strong class="block mb-1">Itens Padrão:</strong>
+                  • 1x Vitamina C 10mL<br>
+                  • 1x Seringa 10mL<br>
+                  • 1x Agulha 30G
+                </div>
+                <div class="flex justify-end gap-2 border-t border-gray-100 pt-3">
+                  <button class="btn btn-ghost text-sm text-danger">Inativar</button>
+                  <button class="btn btn-secondary text-sm">Editar</button>
+                </div>
+              </div>
+
+              <!-- Protocol Card -->
+              <div class="card" style="padding: 16px;">
+                <div class="flex justify-between items-start mb-2">
+                  <h3 class="font-semibold text-gray-900">Complexo B IM</h3>
+                  <span class="badge badge-success">Ativo</span>
+                </div>
+                <div class="text-sm text-gray-500 mb-4">Via: Intramuscular</div>
+                <div class="text-sm text-gray-700 bg-gray-50 p-2 rounded-md mb-4">
+                  <strong class="block mb-1">Itens Padrão:</strong>
+                  • 1x Complexo B 2mL<br>
+                  • 1x Seringa 3mL<br>
+                  • 1x Agulha 25x7
+                </div>
+                <div class="flex justify-end gap-2 border-t border-gray-100 pt-3">
+                  <button class="btn btn-ghost text-sm text-danger">Inativar</button>
+                  <button class="btn btn-secondary text-sm">Editar</button>
+                </div>
+              </div>
+
+              <!-- Protocol Card -->
+              <div class="card" style="padding: 16px;">
+                <div class="flex justify-between items-start mb-2">
+                  <h3 class="font-semibold text-gray-900">Glutationa EV</h3>
+                  <span class="badge badge-neutral">Inativo</span>
+                </div>
+                <div class="text-sm text-gray-500 mb-4">Via: Endovenosa</div>
+                <div class="text-sm text-gray-700 bg-gray-50 p-2 rounded-md mb-4">
+                  <strong class="block mb-1">Itens Padrão:</strong>
+                  • 1x Glutationa 600mg<br>
+                  • 1x Seringa 10mL<br>
+                  • 1x Soro Fisiológico 100mL
+                </div>
+                <div class="flex justify-end gap-2 border-t border-gray-100 pt-3">
+                  <button class="btn btn-ghost text-sm" style="color: var(--color-success)">Ativar</button>
+                  <button class="btn btn-secondary text-sm">Editar</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- VIEW ESTOQUE GERAL -->
+        <div id="view-estoque" class="view-section">
+          <div class="page-header">
+            <div>
+              <h1 class="page-title">Visão Geral do Estoque</h1>
+              <p class="page-subtitle">Acompanhe o volume, alertas e movimentações de todos os itens.</p>
+            </div>
+          </div>
+          
+          <div class="grid-4 mb-6">
+            <div class="card summary-card">
+              <div class="summary-card-header"><span>Medicamentos</span><span class="badge badge-success">Regular</span></div>
+              <div class="summary-card-value">124</div>
+              <div class="summary-card-subtext">Itens em estoque</div>
+            </div>
+            <div class="card summary-card">
+              <div class="summary-card-header"><span>Materiais</span><span class="badge badge-success">Regular</span></div>
+              <div class="summary-card-value">845</div>
+              <div class="summary-card-subtext">Unidades disponíveis</div>
+            </div>
+            <div class="card summary-card" style="border-color: var(--color-warning);">
+              <div class="summary-card-header"><span>Estoque Baixo</span><span class="badge badge-warning">Atenção</span></div>
+              <div class="summary-card-value">12</div>
+              <div class="summary-card-subtext">Itens abaixo do mínimo</div>
+            </div>
+            <div class="card summary-card" style="border-color: var(--color-danger);">
+              <div class="summary-card-header"><span>Vencimento Próximo</span><span class="badge badge-danger">Crítico</span></div>
+              <div class="summary-card-value">3</div>
+              <div class="summary-card-subtext">Lotes vencem em < 30 dias</div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-header">
+              <h3 class="card-title">Itens que exigem atenção</h3>
+            </div>
+            <div class="table-container">
+              <table class="table">
+                <thead>
+                  <tr>
+                    <th>Item</th>
+                    <th>Tipo</th>
+                    <th>Lote / Validade</th>
+                    <th>Qtd Atual</th>
+                    <th>Mínimo</th>
+                    <th>Status</th>
+                    <th>Ação</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr style="background-color: #FEF2F2;">
+                    <td class="font-medium">Complexo B 2mL</td>
+                    <td>Medicamento</td>
+                    <td>Lote: X88 <br><span class="text-danger font-medium">Val: 18/10/2026 (3 dias)</span></td>
+                    <td>15 un.</td>
+                    <td>20 un.</td>
+                    <td><span class="badge badge-danger">Vencimento Próximo</span></td>
+                    <td><button class="btn btn-secondary text-sm">Ver Detalhes</button></td>
+                  </tr>
+                  <tr>
+                    <td class="font-medium">Seringa 10mL</td>
+                    <td>Material</td>
+                    <td>Vários Lotes</td>
+                    <td class="text-warning font-medium">8 un.</td>
+                    <td>50 un.</td>
+                    <td><span class="badge badge-warning">Estoque Baixo</span></td>
+                    <td><button class="btn btn-secondary text-sm">Entrada Manual</button></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- VIEW MEDICAMENTOS -->
+        <div id="view-medicamentos" class="view-section">
+          <div class="page-header">
+            <div>
+              <h1 class="page-title">Medicamentos</h1>
+              <p class="page-subtitle">Cadastro e controle de medicamentos injetáveis e orais.</p>
+            </div>
+            <button class="btn btn-primary" data-modal-target="modal-medicamento">Novo Medicamento</button>
+          </div>
+
+          <div class="card">
+            <div class="search-filter-bar">
+              <div class="search-input">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                <input type="text" placeholder="Buscar medicamento...">
+              </div>
+              <div class="flex gap-2">
+                <select class="form-control" style="width: auto;">
+                  <option>Todas as Categorias</option>
+                  <option>Vitaminas</option>
+                  <option>Analgésicos</option>
+                </select>
+                <select class="form-control" style="width: auto;">
+                  <option>Todas as Vias</option>
+                  <option>EV</option>
+                  <option>IM</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="table-container">
+              <table class="table">
+                <thead>
+                  <tr>
+                    <th>Nome do Medicamento</th>
+                    <th>Categoria</th>
+                    <th>Via</th>
+                    <th>Estoque Total</th>
+                    <th>Estoque Mínimo</th>
+                    <th class="text-right">Ações</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td class="font-medium">Vitamina C 10mL</td>
+                    <td>Vitamina</td>
+                    <td>Endovenosa</td>
+                    <td class="text-success font-medium">45 un.</td>
+                    <td>10 un.</td>
+                    <td class="text-right">
+                      <button class="btn btn-ghost btn-icon" title="Ver Lotes"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><polyline points="21 8 21 21 3 21 3 8"></polyline><rect x="1" y="3" width="22" height="5"></rect><line x1="10" y1="12" x2="14" y2="12"></line></svg></button>
+                      <button class="btn btn-ghost btn-icon" title="Editar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><polygon points="16 3 21 8 8 21 3 21 3 16 16 3"></polygon></svg></button>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td class="font-medium">Complexo B 2mL</td>
+                    <td>Vitamina</td>
+                    <td>Intramuscular</td>
+                    <td class="text-warning font-medium">15 un.</td>
+                    <td>20 un.</td>
+                    <td class="text-right">
+                      <button class="btn btn-ghost btn-icon" title="Ver Lotes"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><polyline points="21 8 21 21 3 21 3 8"></polyline><rect x="1" y="3" width="22" height="5"></rect><line x1="10" y1="12" x2="14" y2="12"></line></svg></button>
+                      <button class="btn btn-ghost btn-icon" title="Editar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><polygon points="16 3 21 8 8 21 3 21 3 16 16 3"></polygon></svg></button>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- VIEW MATERIAIS -->
+        <div id="view-materiais" class="view-section">
+          <div class="page-header">
+            <div>
+              <h1 class="page-title">Materiais de Enfermagem</h1>
+              <p class="page-subtitle">Cadastro e controle de descartáveis e insumos.</p>
+            </div>
+            <button class="btn btn-primary" data-modal-target="modal-material">Novo Material</button>
+          </div>
+
+          <div class="card">
+            <div class="search-filter-bar">
+              <div class="search-input">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                <input type="text" placeholder="Buscar material...">
+              </div>
+              <div class="flex gap-2">
+                <select class="form-control" style="width: auto;">
+                  <option>Todas as Categorias</option>
+                  <option>Seringas</option>
+                  <option>Agulhas</option>
+                  <option>Descartáveis Gerais</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="table-container">
+              <table class="table">
+                <thead>
+                  <tr>
+                    <th>Nome do Material</th>
+                    <th>Categoria</th>
+                    <th>Unidade</th>
+                    <th>Estoque Total</th>
+                    <th>Estoque Mínimo</th>
+                    <th class="text-right">Ações</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td class="font-medium">Seringa 10mL</td>
+                    <td>Seringas</td>
+                    <td>Unidade</td>
+                    <td class="text-warning font-medium">8 un.</td>
+                    <td>50 un.</td>
+                    <td class="text-right">
+                      <button class="btn btn-ghost btn-icon" title="Ver Lotes"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><polyline points="21 8 21 21 3 21 3 8"></polyline><rect x="1" y="3" width="22" height="5"></rect><line x1="10" y1="12" x2="14" y2="12"></line></svg></button>
+                      <button class="btn btn-ghost btn-icon" title="Editar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><polygon points="16 3 21 8 8 21 3 21 3 16 16 3"></polygon></svg></button>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td class="font-medium">Agulha 30G</td>
+                    <td>Agulhas</td>
+                    <td>Caixa c/ 100</td>
+                    <td class="text-success font-medium">2 cx.</td>
+                    <td>1 cx.</td>
+                    <td class="text-right">
+                      <button class="btn btn-ghost btn-icon" title="Ver Lotes"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><polyline points="21 8 21 21 3 21 3 8"></polyline><rect x="1" y="3" width="22" height="5"></rect><line x1="10" y1="12" x2="14" y2="12"></line></svg></button>
+                      <button class="btn btn-ghost btn-icon" title="Editar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><polygon points="16 3 21 8 8 21 3 21 3 16 16 3"></polygon></svg></button>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- VIEW RELATÓRIOS -->
+        <div id="view-relatorios" class="view-section">
+          <div class="page-header">
+            <div>
+              <h1 class="page-title">Relatórios</h1>
+              <p class="page-subtitle">Exportação de dados clínicos e gerenciais.</p>
+            </div>
+          </div>
+          
+          <div class="grid-3">
+            <div class="card cursor-pointer hover:bg-gray-50 transition-colors">
+              <div class="flex items-center gap-4 mb-4">
+                <div class="bg-green-100 text-green-800 p-3 rounded-full" style="background-color: #ECFDF5; color: var(--color-green-deep);">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="24" height="24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+                </div>
+                <h3 class="font-semibold text-gray-900">Relatório de Consumo</h3>
+              </div>
+              <p class="text-sm text-gray-500 mb-4">Itens utilizados por período, protocolo ou paciente.</p>
+              <button class="btn btn-secondary w-full">Configurar e Gerar</button>
+            </div>
+
+            <div class="card cursor-pointer hover:bg-gray-50 transition-colors">
+              <div class="flex items-center gap-4 mb-4">
+                <div class="bg-blue-100 text-blue-800 p-3 rounded-full" style="background-color: #EFF6FF; color: #1D4ED8;">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="24" height="24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+                </div>
+                <h3 class="font-semibold text-gray-900">Aplicações por Paciente</h3>
+              </div>
+              <p class="text-sm text-gray-500 mb-4">Histórico detalhado de todos os procedimentos de um paciente.</p>
+              <button class="btn btn-secondary w-full">Configurar e Gerar</button>
+            </div>
+
+            <div class="card cursor-pointer hover:bg-gray-50 transition-colors">
+              <div class="flex items-center gap-4 mb-4">
+                <div class="bg-yellow-100 text-yellow-800 p-3 rounded-full" style="background-color: #FEF3C7; color: #B45309;">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="24" height="24"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path></svg>
+                </div>
+                <h3 class="font-semibold text-gray-900">Estoque Atual e Vencimentos</h3>
+              </div>
+              <p class="text-sm text-gray-500 mb-4">Posição de inventário, lotes próximos do vencimento e abaixo do mínimo.</p>
+              <button class="btn btn-secondary w-full">Configurar e Gerar</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- VIEW AUDITORIA -->
+        <div id="view-auditoria" class="view-section">
+          <div class="page-header">
+            <div>
+              <h1 class="page-title">Auditoria do Sistema</h1>
+              <p class="page-subtitle">Registro imutável de todas as ações relevantes realizadas no sistema.</p>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="search-filter-bar">
+              <div class="flex gap-4">
+                <div class="form-group" style="margin-bottom:0;">
+                  <input type="date" class="form-control">
+                </div>
+                <div class="form-group" style="margin-bottom:0;">
+                  <select class="form-control">
+                    <option>Todas as Ações</option>
+                    <option>Baixa de Estoque</option>
+                    <option>Login</option>
+                    <option>Evolução Gerada</option>
+                  </select>
+                </div>
+              </div>
+              <button class="btn btn-secondary">Exportar Logs</button>
+            </div>
+
+            <div class="table-container mt-4">
+              <table class="table" style="font-family: monospace; font-size: 13px;">
+                <thead>
+                  <tr>
+                    <th>Data/Hora</th>
+                    <th>Usuário</th>
+                    <th>Ação</th>
+                    <th>Entidade</th>
+                    <th>Detalhes</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td class="text-gray-500">15/10/2026 10:35:12</td>
+                    <td>Dra. Ana Morong</td>
+                    <td><span class="badge badge-neutral">BAIXA_ESTOQUE</span></td>
+                    <td>Atendimento #1042</td>
+                    <td class="text-gray-500">Auto-baixa: -1 Vit C (Lote A123), -1 Seringa 10mL (Lote S45)</td>
+                  </tr>
+                  <tr>
+                    <td class="text-gray-500">15/10/2026 10:30:05</td>
+                    <td>Dra. Ana Morong</td>
+                    <td><span class="badge badge-success">ATENDIMENTO_FIM</span></td>
+                    <td>Atendimento #1042</td>
+                    <td class="text-gray-500">Atendimento finalizado com sucesso. Paciente ID 45.</td>
+                  </tr>
+                  <tr>
+                    <td class="text-gray-500">15/10/2026 08:15:00</td>
+                    <td>Dra. Ana Morong</td>
+                    <td><span class="badge badge-info">LOGIN_SUCESSO</span></td>
+                    <td>Sistema</td>
+                    <td class="text-gray-500">Login realizado (IP: Localhost)</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- VIEW AGENDA -->
+        <div id="view-agenda" class="view-section">
+          <div class="page-header">
+            <div>
+              <h1 class="page-title">Agenda</h1>
+              <p class="page-subtitle">Agendamentos clínicos integrados (Sincronização Google Calendar opcional).</p>
+            </div>
+            <div class="flex gap-4 items-center">
+              <span class="text-xs text-gray-500 flex items-center gap-1">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12" class="text-success"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+                Sincronizado
+              </span>
+              <button class="btn btn-primary" data-modal-target="modal-agendamento">Novo Agendamento</button>
+            </div>
+          </div>
+
+          <div class="card">
+            <!-- Simulação de calendário/lista -->
+            <div class="flex justify-between items-center mb-6 border-b border-gray-100 pb-4">
+              <div class="flex gap-2">
+                <button class="btn btn-secondary btn-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><polyline points="15 18 9 12 15 6"></polyline></svg></button>
+                <button class="btn btn-secondary btn-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><polyline points="9 18 15 12 9 6"></polyline></svg></button>
+                <span class="font-semibold text-gray-900 ml-4 flex items-center">Hoje, 15 de Outubro de 2026</span>
+              </div>
+              <div class="tabs" style="margin-bottom:0; border:none; gap:12px;">
+                <div class="tab active" style="padding:4px 8px;">Lista</div>
+                <div class="tab" style="padding:4px 8px;">Calendário</div>
+              </div>
+            </div>
+
+            <div class="timeline" style="margin-left: 20px;">
+              <div class="timeline-item">
+                <div class="timeline-dot" style="border-color: var(--color-green-deep);"></div>
+                <div class="timeline-content flex justify-between items-center">
+                  <div>
+                    <h3 class="font-semibold">Mariana Silva Oliveira</h3>
+                    <p class="text-sm text-gray-500">Vitamina C EV</p>
+                  </div>
+                  <div class="flex items-center gap-4">
+                    <span class="font-medium text-gray-900">10:30 - 11:30</span>
+                    <span class="badge badge-success">Realizado</span>
+                  </div>
+                </div>
+              </div>
+              
+              <div class="timeline-item">
+                <div class="timeline-dot" style="border-color: var(--color-warning);"></div>
+                <div class="timeline-content flex justify-between items-center">
+                  <div>
+                    <h3 class="font-semibold">Carlos Eduardo Santos</h3>
+                    <p class="text-sm text-gray-500">Retorno - Protocolo Emagrecimento</p>
+                  </div>
+                  <div class="flex items-center gap-4">
+                    <span class="font-medium text-gray-900">14:00 - 15:00</span>
+                    <span class="badge badge-warning">Aguardando</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- VIEW CONFIGURAÇÕES -->
+        <div id="view-configuracoes" class="view-section">
+          <div class="page-header">
+            <div>
+              <h1 class="page-title">Configurações do Sistema</h1>
+              <p class="page-subtitle">Ajuste preferências, alertas e integrações.</p>
+            </div>
+            <button class="btn btn-primary">Salvar Alterações</button>
+          </div>
+
+          <div class="grid-2 gap-6">
+            <div class="card">
+              <div class="card-header"><h3 class="card-title">Dados da Clínica</h3></div>
+              <div class="form-group"><label class="form-label">Nome do Profissional/Clínica</label><input type="text" class="form-control" value="Dra. Ana Morong"></div>
+              <div class="form-group"><label class="form-label">E-mail Principal</label><input type="email" class="form-control" value="dra.ana@clinica.com"></div>
+            </div>
+
+            <div class="card">
+              <div class="card-header"><h3 class="card-title">Alertas de Estoque</h3></div>
+              <div class="form-group"><label class="form-label">Dias para alerta de vencimento</label><input type="number" class="form-control" value="30"></div>
+              <div class="form-group">
+                <label class="flex items-center gap-2 text-sm text-gray-700">
+                  <input type="checkbox" checked style="accent-color: var(--color-green-deep);"> Bloquear finalização se houver item vencido
+                </label>
+              </div>
+            </div>
+
+            <div class="card">
+              <div class="card-header"><h3 class="card-title">Integração Google Calendar</h3></div>
+              <p class="text-sm text-gray-500 mb-4">Sincronize sua agenda local com o Google Agenda via Apps Script.</p>
+              <div class="form-group"><label class="form-label">URL do Webhook (Apps Script)</label><input type="text" class="form-control" placeholder="https://script.google.com/macros/s/..."></div>
+              <button class="btn btn-secondary text-sm">Testar Conexão</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- VIEW BACKUP -->
+        <div id="view-backup" class="view-section">
+          <div class="page-header">
+            <div>
+              <h1 class="page-title">Segurança e Backup</h1>
+              <p class="page-subtitle">Gerencie cópias de segurança do banco de dados local.</p>
+            </div>
+          </div>
+
+          <div class="grid-2 gap-6">
+            <div class="card">
+              <div class="card-header">
+                <div>
+                  <h3 class="card-title">Backup Manual</h3>
+                  <p class="card-description">Exporte uma cópia criptografada agora.</p>
+                </div>
+              </div>
+              <div class="flex items-center justify-center p-8 border-2 border-dashed border-gray-200 rounded-lg mb-4 bg-gray-50">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="48" height="48" class="text-gray-400"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+              </div>
+              <button class="btn btn-primary w-full text-center justify-center">Gerar Backup Local</button>
+            </div>
+
+            <div class="card">
+              <div class="card-header">
+                <div>
+                  <h3 class="card-title">Restauração</h3>
+                  <p class="card-description">Restaure o sistema a partir de um arquivo .bak.</p>
+                </div>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Arquivo de Backup</label>
+                <input type="file" class="form-control">
+              </div>
+              <div class="bg-red-50 text-danger p-3 rounded-md text-sm mb-4" style="background-color: #FEF2F2;">
+                <strong>Atenção:</strong> Restaurar um backup substituirá todos os dados atuais do sistema. Uma cópia de segurança automática será gerada antes do processo.
+              </div>
+              <button class="btn btn-danger w-full text-center justify-center">Restaurar Sistema</button>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </main>
+  </div>
+
+  <!-- ============================================== -->
+  <!-- MODAIS E COMPONENTES GLOBAIS -->
+  <!-- ============================================== -->
+
+  <!-- Modal Novo Protocolo -->
+  <div class="modal-overlay" id="modal-protocolo">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 class="card-title">Novo Protocolo</h3>
+        <button class="modal-close" data-modal-close><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label class="form-label">Nome do Protocolo</label>
+          <input type="text" class="form-control" placeholder="Ex: Vitamina C EV">
+        </div>
+        <div class="grid-2">
+          <div class="form-group">
+            <label class="form-label">Via de Aplicação</label>
+            <select class="form-control">
+              <option>Endovenosa</option>
+              <option>Intramuscular</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Categoria</label>
+            <input type="text" class="form-control" placeholder="Ex: Vitaminas">
+          </div>
+        </div>
+        <div class="form-group mt-4">
+          <label class="form-label">Itens Padrão (Medicamentos e Materiais)</label>
+          <div class="border border-gray-200 rounded-md p-3 bg-gray-50 text-sm text-center text-gray-500">
+            Nenhum item adicionado. <a href="#" class="text-green-deep font-medium">+ Adicionar Item</a>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" data-modal-close>Cancelar</button>
+        <button class="btn btn-primary" data-modal-close>Salvar Protocolo</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Novo Paciente -->
+  <div class="modal-overlay" id="modal-novo-paciente">
+    <div class="modal-content" style="max-width: 600px;">
+      <div class="modal-header">
+        <h3 class="card-title">Cadastrar Novo Paciente</h3>
+        <button class="modal-close" data-modal-close><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></button>
+      </div>
+      <div class="modal-body">
+        <div class="grid-2">
+          <div class="form-group col-span-2">
+            <label class="form-label">Nome Completo</label>
+            <input type="text" class="form-control" placeholder="Nome completo do paciente">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Data de Nascimento</label>
+            <input type="date" class="form-control">
+          </div>
+          <div class="form-group">
+            <label class="form-label">CPF</label>
+            <input type="text" class="form-control" placeholder="000.000.000-00">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Telefone (WhatsApp)</label>
+            <input type="tel" class="form-control" placeholder="(00) 00000-0000">
+          </div>
+          <div class="form-group">
+            <label class="form-label">E-mail</label>
+            <input type="email" class="form-control" placeholder="email@exemplo.com">
+          </div>
+          <div class="form-group col-span-2">
+            <label class="form-label">Alertas Médicos Iniciais</label>
+            <textarea class="form-control" placeholder="Alergias, condições pré-existentes ou restrições..."></textarea>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" data-modal-close>Cancelar</button>
+        <button class="btn btn-primary" onclick="alert('Paciente cadastrado com sucesso!'); document.getElementById('modal-novo-paciente').classList.remove('active'); document.querySelector('.nav-item[data-view=\'prontuario\']').click()">Salvar e Ir para Prontuário</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Detalhes da Aplicação -->
+  <div class="modal-overlay" id="modal-detalhes-aplicacao">
+    <div class="modal-content" style="max-width: 700px;">
+      <div class="modal-header">
+        <h3 class="card-title">Detalhes do Atendimento</h3>
+        <button class="modal-close" data-modal-close><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></button>
+      </div>
+      <div class="modal-body p-0">
+        <div class="bg-gray-50 p-6 border-b border-gray-100 flex justify-between items-center">
+          <div>
+            <h2 class="text-xl font-semibold mb-1">Vitamina C EV</h2>
+            <p class="text-sm text-gray-500">10/06/2026 às 14:30 • Dra. Ana Morong</p>
+          </div>
+          <span class="badge badge-success">Finalizado</span>
+        </div>
+        <div class="p-6">
+          <div class="grid-2 gap-8 mb-6">
+            <div>
+              <h4 class="text-xs font-semibold text-gray-500 uppercase mb-3">Informações Técnicas</h4>
+              <div class="flex flex-col gap-2">
+                <div class="flex justify-between border-b border-gray-50 pb-2"><span class="text-sm text-gray-600">Área Corporal</span><span class="text-sm font-medium">Braço Direito</span></div>
+                <div class="flex justify-between border-b border-gray-50 pb-2"><span class="text-sm text-gray-600">Via</span><span class="text-sm font-medium">Endovenosa</span></div>
+                <div class="flex justify-between border-b border-gray-50 pb-2"><span class="text-sm text-gray-600">Intercorrência</span><span class="text-sm font-medium">Não</span></div>
+              </div>
+            </div>
+            <div>
+              <h4 class="text-xs font-semibold text-gray-500 uppercase mb-3">Consumo Registrado</h4>
+              <ul class="text-sm text-gray-700 flex flex-col gap-2">
+                <li class="flex items-start gap-2"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16" class="text-green-deep mt-0.5"><polyline points="20 6 9 17 4 12"></polyline></svg> Vitamina C 10mL (Lote: VC2026A)</li>
+                <li class="flex items-start gap-2"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16" class="text-green-deep mt-0.5"><polyline points="20 6 9 17 4 12"></polyline></svg> Seringa 10mL (Lote: SER10M)</li>
+                <li class="flex items-start gap-2"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16" class="text-green-deep mt-0.5"><polyline points="20 6 9 17 4 12"></polyline></svg> Álcool swab</li>
+                <li class="flex items-start gap-2"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16" class="text-green-deep mt-0.5"><polyline points="20 6 9 17 4 12"></polyline></svg> Luva Descartável P</li>
+              </ul>
+            </div>
+          </div>
+          <div>
+            <h4 class="text-xs font-semibold text-gray-500 uppercase mb-3">Evolução Clínica</h4>
+            <div class="bg-gray-50 p-4 rounded border border-gray-100 text-sm font-mono text-gray-700 leading-relaxed">
+              Paciente Maria Eduarda Silva realizou Protocolo Vitamina C EV em 10/06/2026. Área registrada: Braço Direito. Medicamento utilizado: Vitamina C, quantidade 10 mL. Materiais utilizados: Seringa 10 mL, Álcool swab e Luva. Procedimento registrado sem intercorrências. Acesso venoso pérvio e sem flebite.
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary mr-auto">Gerar Recibo/Termo</button>
+        <button class="btn btn-ghost" data-modal-close>Fechar</button>
+        <button class="btn btn-primary" onclick="showToast('Copiado para a área de transferência!');">Copiar Evolução</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Emitir Relatório -->
+  <div class="modal-overlay" id="modal-emitir-relatorio">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 class="card-title">Opções Rápidas de Relatório</h3>
+        <button class="modal-close" data-modal-close><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></button>
+      </div>
+      <div class="modal-body text-center py-6">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="48" height="48" class="text-green-deep mx-auto mb-4"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+        <h4 class="text-lg font-medium text-gray-900 mb-2">Relatório do Paciente</h4>
+        <p class="text-sm text-gray-500 mb-6">O relatório consolidado será gerado em formato PDF. Você pode personalizá-lo na aba "Relatórios" do prontuário.</p>
+        <div class="flex flex-col gap-3">
+          <button class="btn btn-primary w-full justify-center" onclick="alert('Gerando PDF padrão...')">Gerar PDF Padrão Completo</button>
+          <button class="btn btn-secondary w-full justify-center" onclick="document.getElementById('modal-emitir-relatorio').classList.remove('active'); document.querySelector('.nav-item[data-view=\'prontuario\']').click(); document.querySelector('[data-tab-target=\'tab-relatorios\']').click();">Personalizar Relatório</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Preview Relatório -->
+  <div class="modal-overlay" id="modal-preview-relatorio">
+    <div class="modal-content" style="max-width: 800px; height: 80vh; display: flex; flex-direction: column;">
+      <div class="modal-header">
+        <h3 class="card-title">Pré-visualização do Relatório</h3>
+        <button class="modal-close" data-modal-close><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></button>
+      </div>
+      <div class="modal-body bg-gray-100 flex-1 overflow-y-auto flex justify-center p-6">
+        <!-- Simulação de página A4 -->
+        <div class="bg-white shadow-sm" style="width: 210mm; min-height: 297mm; padding: 20mm; font-family: serif;">
+          <div class="border-b-2 border-black pb-4 mb-8 text-center">
+            <h1 class="text-2xl font-bold uppercase tracking-widest">Dra. Ana Morong</h1>
+            <p class="text-sm text-gray-600 mt-1">CRM/SP 123456 • Clínica Médica</p>
+          </div>
+          <h2 class="text-xl font-bold mb-6 text-center">RELATÓRIO DE PROCEDIMENTOS CLÍNICOS</h2>
+          
+          <div class="mb-8">
+            <h3 class="font-bold border-b border-gray-300 pb-1 mb-3">1. IDENTIFICAÇÃO DO PACIENTE</h3>
+            <div class="grid grid-cols-2 gap-2 text-sm">
+              <p><strong>Nome:</strong> Maria Eduarda Silva</p>
+              <p><strong>Data de Nasc.:</strong> 15/04/1998 (28 anos)</p>
+              <p><strong>Documento/ID:</strong> #1045</p>
+              <p><strong>Contato:</strong> (11) 98765-4321</p>
+            </div>
+          </div>
+
+          <div class="mb-8">
+            <h3 class="font-bold border-b border-gray-300 pb-1 mb-3">2. RESUMO DE ATENDIMENTOS</h3>
+            <p class="text-sm mb-4">Período analisado: Todo o histórico (Total de 8 sessões).</p>
+            <table class="w-full text-sm text-left border-collapse">
+              <thead>
+                <tr class="bg-gray-100">
+                  <th class="border border-gray-300 p-2">Data</th>
+                  <th class="border border-gray-300 p-2">Protocolo</th>
+                  <th class="border border-gray-300 p-2">Via/Área</th>
+                  <th class="border border-gray-300 p-2">Intercorrência</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td class="border border-gray-300 p-2">10/06/2026</td>
+                  <td class="border border-gray-300 p-2">Vitamina C EV</td>
+                  <td class="border border-gray-300 p-2">EV / Braço Direito</td>
+                  <td class="border border-gray-300 p-2">Não</td>
+                </tr>
+                <tr>
+                  <td class="border border-gray-300 p-2">15/05/2026</td>
+                  <td class="border border-gray-300 p-2">Complexo B IM</td>
+                  <td class="border border-gray-300 p-2">IM / Glúteo Direito</td>
+                  <td class="border border-gray-300 p-2">Sim</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="mb-8">
+            <h3 class="font-bold border-b border-gray-300 pb-1 mb-3">3. EVOLUÇÕES SELECIONADAS</h3>
+            <div class="mb-4 text-sm">
+              <p class="font-bold">10/06/2026 - 14:30</p>
+              <p class="mt-1">Paciente Maria Eduarda Silva realizou Protocolo Vitamina C EV em 10/06/2026. Área registrada: Braço Direito. Medicamento utilizado: Vitamina C, quantidade 10 mL. Materiais utilizados: Seringa 10 mL, Álcool swab e Luva. Procedimento registrado sem intercorrências. Acesso venoso pérvio e sem flebite.</p>
+            </div>
+          </div>
+
+          <div class="mt-20 text-center">
+            <div class="border-t border-black w-64 mx-auto mb-2"></div>
+            <p class="font-bold text-sm">Dra. Ana Morong</p>
+            <p class="text-xs text-gray-600">Médica Responsável</p>
+            <p class="text-xs text-gray-600 mt-4">São Paulo, 10 de Junho de 2026</p>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer bg-white border-t border-gray-100">
+        <button class="btn btn-ghost" data-modal-close>Fechar Pré-visualização</button>
+        <button class="btn btn-primary" onclick="alert('Exportando PDF...')">Exportar PDF Agora</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

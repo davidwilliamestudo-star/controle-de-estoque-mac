@@ -1,0 +1,36 @@
+name: Build Mac App (Cloud)
+
+on:
+  workflow_dispatch: # Permite rodar o processo manualmente clicando num botão no GitHub
+
+jobs:
+  build:
+    runs-on: macos-latest
+    
+    steps:
+      - name: Checkout do Código
+        uses: actions/checkout@v4
+
+      - name: Instalar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Instalar Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin, x86_64-apple-darwin
+
+      - name: Instalar Dependências (NPM)
+        run: npm install
+        working-directory: ./app
+
+      - name: Compilar o Aplicativo para Mac
+        run: npm run macos:build
+        working-directory: ./app
+
+      - name: Salvar o Instalador (DMG) para Download
+        uses: actions/upload-artifact@v4
+        with:
+          name: Instalador-Mac-DMG
+          path: app/src-tauri/target/release/bundle/dmg/*.dmg
