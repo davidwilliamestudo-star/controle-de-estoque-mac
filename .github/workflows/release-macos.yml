@@ -1,14 +1,9 @@
-# Build e release do app para macOS (roda na nuvem — você usa Windows)
-# Uso:
-#   1) git tag v1.0.1 && git push origin v1.0.1
-#   2) Actions gera .app/.dmg e anexa ao GitHub Release
+# Build e release macOS (roda na nuvem — dev no Windows)
+# Disparo: git tag v1.0.1 && git push origin v1.0.1
 #
-# Secrets necessários (Settings → Secrets → Actions):
-#   TAURI_SIGNING_PRIVATE_KEY          (chave privada do tauri signer)
-#   TAURI_SIGNING_PRIVATE_KEY_PASSWORD (se a chave tiver senha; senão pode omitir)
-#
-# Opcional (assinatura Apple — só se tiver conta Developer):
-#   APPLE_CERTIFICATE, APPLE_CERTIFICATE_PASSWORD, APPLE_SIGNING_IDENTITY, etc.
+# Secrets (Actions):
+#   TAURI_SIGNING_PRIVATE_KEY
+#   TAURI_SIGNING_PRIVATE_KEY_PASSWORD  (pode ser vazio)
 
 name: Release macOS
 
@@ -17,13 +12,13 @@ on:
     tags:
       - "v*"
   workflow_dispatch:
-    inputs:
-      tag:
-        description: "Tag da versão (ex: v1.0.1) — opcional no dispatch"
-        required: false
 
 permissions:
   contents: write
+
+defaults:
+  run:
+    working-directory: app
 
 jobs:
   build-macos:
@@ -31,11 +26,9 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # Macs novos (M1/M2/M3/M4) — caso mais comum
           - platform: macos-14
             args: --target aarch64-apple-darwin
             target: aarch64-apple-darwin
-          # Macs Intel (opcional; comente se a doutora for só Apple Silicon)
           - platform: macos-13
             args: --target x86_64-apple-darwin
             target: x86_64-apple-darwin
@@ -52,7 +45,7 @@ jobs:
         with:
           node-version: 20
           cache: npm
-          cache-dependency-path: package-lock.json
+          cache-dependency-path: app/package-lock.json
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
@@ -72,17 +65,17 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
-          # Cria/atualiza o Release da tag
+          projectPath: app
           tagName: ${{ github.ref_name }}
           releaseName: "Controle de Estoque ${{ github.ref_name }}"
           releaseBody: |
             Atualização do sistema Controle de Estoque — Dra. Ana Morong.
 
-            **macOS:** baixe o `.dmg` correspondente ao chip do Mac:
-            - **Apple Silicon (M1/M2/M3/M4):** aarch64
-            - **Intel:** x86_64
+            **macOS**
+            - Apple Silicon (M1/M2/M3/M4): pacote **aarch64**
+            - Intel: pacote **x86_64**
 
-            Os dados locais (pacientes, estoque) são preservados na atualização.
-          releaseDraft: true
+            Os dados locais (pacientes, estoque, financeiro) são preservados.
+          releaseDraft: false
           prerelease: false
           args: ${{ matrix.args }}
