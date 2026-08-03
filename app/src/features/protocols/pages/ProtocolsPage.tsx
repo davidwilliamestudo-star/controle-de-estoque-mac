@@ -8,11 +8,12 @@ import {
   getSortedRowModel,
   useReactTable,
 } from "@tanstack/react-table";
-import { FileText, Plus, Search, Edit3, Settings, Trash2 } from "lucide-react";
+import { FileText, Plus, Search, Edit3, Trash2, AlertTriangle } from "lucide-react";
 import { useProtocols, useProtocolWithItems, useDeleteProtocol } from "../hooks/useProtocols";
 import type { Protocol } from "../types";
 import { ProtocolFormModal } from "../components/ProtocolFormModal";
 import { EvolutionTemplatesTab } from "../components/EvolutionTemplatesTab";
+import { useProtocolSetupFlags } from "@/features/monthly-summary/hooks/useMonthlySummary";
 
 const columnHelper = createColumnHelper<Protocol>();
 
@@ -26,6 +27,9 @@ export default function ProtocolsPage() {
   const deleteProtocol = useDeleteProtocol();
   const [editingProtocolId, setEditingProtocolId] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
+
+  const protocolIds = useMemo(() => protocols.map((p) => p.id), [protocols]);
+  const { data: setupFlags = {} } = useProtocolSetupFlags(protocolIds);
 
   // When editing, fetch the full protocol with items
   const { data: editingData } = useProtocolWithItems(editingProtocolId);
@@ -43,14 +47,29 @@ export default function ProtocolsPage() {
   const columns = useMemo(() => [
     columnHelper.accessor("name", {
       header: "Protocolo",
-      cell: ({ row }) => (
-        <div>
-          <p className="font-medium" style={{ color: "var(--color-gray-900)" }}>{row.original.name}</p>
-          <p className="text-xs mt-1" style={{ color: "var(--color-gray-500)" }}>
-            ID: #{row.original.id.slice(0, 8)}
-          </p>
-        </div>
-      ),
+      cell: ({ row }) => {
+        const flags = setupFlags[row.original.id];
+        const missingSupplies = flags && (!flags.hasSyringe || !flags.hasNeedle);
+        return (
+          <div>
+            <p className="font-medium" style={{ color: "var(--color-gray-900)" }}>{row.original.name}</p>
+            {missingSupplies ? (
+              <p className="text-xs mt-1 flex items-center gap-1" style={{ color: "#B45309" }}>
+                <AlertTriangle size={12} />
+                {!flags.hasSyringe && !flags.hasNeedle
+                  ? "Ainda sem seringa/agulha definida"
+                  : !flags.hasSyringe
+                    ? "Ainda sem seringa definida"
+                    : "Ainda sem agulha definida"}
+              </p>
+            ) : (
+              <p className="text-xs mt-1" style={{ color: "var(--color-gray-500)" }}>
+                ID: #{row.original.id.slice(0, 8)}
+              </p>
+            )}
+          </div>
+        );
+      },
     }),
     columnHelper.accessor("categoryName", {
       header: "Categoria",
@@ -59,6 +78,27 @@ export default function ProtocolsPage() {
     columnHelper.accessor("routeName", {
       header: "Via de Aplicacao",
       cell: ({ getValue }) => <span style={{ color: "var(--color-gray-500)" }}>{getValue() || "-"}</span>,
+    }),
+    columnHelper.display({
+      id: "insumos",
+      header: "Insumos",
+      cell: ({ row }) => {
+        const flags = setupFlags[row.original.id];
+        if (!flags) return <span className="text-xs text-gray-400">—</span>;
+        const ok = flags.hasSyringe && flags.hasNeedle;
+        return (
+          <span
+            className={`badge ${ok ? "badge-success" : "badge-warning"}`}
+            title={
+              ok
+                ? "Seringa e agulha configuradas"
+                : "Este protocolo ainda não tem seringa/agulha definida"
+            }
+          >
+            {ok ? "Completo" : "Incompleto"}
+          </span>
+        );
+      },
     }),
     columnHelper.accessor("isActive", {
       header: "Status",
@@ -99,7 +139,7 @@ export default function ProtocolsPage() {
         </div>
       ),
     }),
-  ], [deleteProtocol.isPending]);
+  ], [deleteProtocol.isPending, setupFlags]);
 
   const table = useReactTable({
     data: displayedProtocols,
@@ -163,6 +203,24 @@ export default function ProtocolsPage() {
 
       {activeTab === "protocols" ? (
         <>
+          {Object.values(setupFlags).some((f) => !f.hasSyringe || !f.hasNeedle) && (
+            <div
+              className="card mb-4 flex items-start gap-3"
+              style={{ backgroundColor: "#FFFBEB", borderColor: "#FDE68A" }}
+            >
+              <AlertTriangle size={18} style={{ color: "#B45309", marginTop: 2 }} />
+              <div>
+                <p className="text-sm font-semibold" style={{ color: "#92400E" }}>
+                  Alguns protocolos ainda não têm seringa e/ou agulha
+                </p>
+                <p className="text-xs mt-1" style={{ color: "#A16207" }}>
+                  Edite o protocolo e preencha o bloco <strong>Insumos do Atendimento</strong>.
+                  Assim, na aplicação, seringa e agulha já entram automaticamente.
+                </p>
+              </div>
+            </div>
+          )}
+
           <div className="card mb-6">
             <div className="search-filter-bar" style={{ marginBottom: 0 }}>
               <div className="search-input" style={{ flex: 1, maxWidth: "none" }}>

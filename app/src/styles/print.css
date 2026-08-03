@@ -1,5 +1,18 @@
 /* Estilos Globais de Impressão (PDF) */
 @media print {
+  /* Sobrescreve restrições de layout que causam cortes de páginas */
+  html, 
+  body, 
+  #root, 
+  .app-layout, 
+  .main-content, 
+  .page-container {
+    height: auto !important;
+    min-height: auto !important;
+    overflow: visible !important;
+    position: static !important;
+  }
+
   body * {
     visibility: hidden;
   }
@@ -18,18 +31,34 @@
     display: none !important;
   }
 
-  /* Configuração da Página A4 (Orientação gerada dinamicamente via style no JS) */
+  /* Configuração da Página A4 */
   @page {
-    margin: 10mm 15mm;
+    margin: 15mm 15mm;
   }
 
-  /* Elementos específicos do relatório de impressão */
+  /* Controle de quebras de página */
   .print-page-break {
     page-break-before: always;
+    break-before: page;
   }
   
   .print-avoid-break {
     page-break-inside: avoid;
+    break-inside: avoid;
+  }
+
+  /* Repetição de cabeçalhos e rodapés de tabela */
+  thead {
+    display: table-header-group !important;
+  }
+
+  tfoot {
+    display: table-footer-group !important;
+  }
+
+  tr {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
   }
 
   /* Forçar as cores dos backgrounds e bordas no Chrome (necessário para PDF colorido) */
@@ -40,8 +69,9 @@
 
   /* Typography ajustada para PDF */
   .report-print-root {
-    font-size: 11pt;
+    font-size: 10pt;
     color: #000;
+    line-height: 1.4;
   }
 
   .report-print-root .card {
@@ -62,5 +92,6 @@
     margin-top: 30px;
     padding-bottom: 10mm;
     page-break-inside: avoid;
+    break-inside: avoid;
   }
 }

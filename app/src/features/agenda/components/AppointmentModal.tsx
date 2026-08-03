@@ -106,14 +106,14 @@ export function AppointmentModal({ initialDate, appointment, defaultPatientId, d
 
   return (
     <div className="modal-overlay active">
-      <div className="modal-content" style={{ maxWidth: 600 }}>
+      <div className="modal-content" style={{ maxWidth: 720, maxHeight: "90vh" }}>
         <div className="modal-header">
           <h2 className="modal-title">{isEditing ? "Editar Agendamento" : "Novo Agendamento"}</h2>
-          <button className="btn btn-ghost" onClick={onClose}><X size={20} /></button>
+          <button className="btn btn-ghost" onClick={onClose} type="button"><X size={20} /></button>
         </div>
 
-        <form onSubmit={handleSubmit}>
-          <div className="modal-body flex-col gap-4">
+        <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0 overflow-hidden">
+          <div className="modal-body flex flex-col gap-4 overflow-y-auto">
             
             <div className="grid-2">
               <div className="form-group">
@@ -158,7 +158,7 @@ export function AppointmentModal({ initialDate, appointment, defaultPatientId, d
                       checked={applicationMode === "existing"}
                       onChange={() => setApplicationMode("existing")}
                     />
-                    <span>Usar aplicação já planejada</span>
+                    <span className="text-sm font-medium">Usar aplicação já planejada</span>
                   </label>
                   <label className="flex items-center gap-2 cursor-pointer">
                     <input 
@@ -167,7 +167,7 @@ export function AppointmentModal({ initialDate, appointment, defaultPatientId, d
                       checked={applicationMode === "new"}
                       onChange={() => setApplicationMode("new")}
                     />
-                    <span>Criar nova aplicação</span>
+                    <span className="text-sm font-medium">Criar nova aplicação</span>
                   </label>
                 </div>
 
@@ -295,7 +295,7 @@ export function AppointmentModal({ initialDate, appointment, defaultPatientId, d
 
           </div>
 
-          <div className="modal-footer flex justify-end gap-3 mt-4">
+          <div className="modal-footer flex justify-end gap-3">
             <button type="button" className="btn btn-secondary" onClick={onClose} disabled={isPending}>
               Cancelar
             </button>

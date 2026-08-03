@@ -16,7 +16,7 @@ export class PatientApplicationsRepository {
       FROM patient_application_plans pap
       LEFT JOIN protocols p ON pap.protocol_id = p.id
       LEFT JOIN administration_routes r ON pap.route_id = r.id
-      WHERE pap.patient_id = $1 AND pap.deleted_at IS NULL
+      WHERE pap.patient_id = ? AND pap.deleted_at IS NULL
       ORDER BY
         CASE WHEN pap.scheduled_at IS NULL THEN 1 ELSE 0 END,
         pap.scheduled_at ASC,
@@ -40,7 +40,7 @@ export class PatientApplicationsRepository {
       LEFT JOIN protocols p ON pap.protocol_id = p.id
       LEFT JOIN administration_routes r ON pap.route_id = r.id
       LEFT JOIN patients pat ON pap.patient_id = pat.id
-      WHERE pap.id = $1 AND pap.deleted_at IS NULL
+      WHERE pap.id = ? AND pap.deleted_at IS NULL
       LIMIT 1
       `,
       [id]
@@ -68,9 +68,9 @@ export class PatientApplicationsRepository {
         appointment_id, scheduled_at, status, notes, 
         created_at, updated_at
       ) VALUES (
-        $1, $2, $3, $4, $5, 
-        $6, $7, $8, $9, 
-        $10, $11
+        ?, ?, ?, ?, ?, 
+        ?, ?, ?, ?, 
+        ?, ?
       )
       `,
       [
@@ -108,32 +108,31 @@ export class PatientApplicationsRepository {
   async update(id: string, input: UpdatePatientApplicationPlanInput & { appointmentId?: string | null }): Promise<PatientApplicationPlan> {
     const now = new Date().toISOString();
 
-    const updates: string[] = ["updated_at = $1"];
+    const updates: string[] = ["updated_at = ?"];
     const values: any[] = [now];
-    let paramIndex = 2;
 
     if (input.protocolId !== undefined) {
-      updates.push(`protocol_id = $${paramIndex++}`);
+      updates.push(`protocol_id = ?`);
       values.push(input.protocolId);
     }
     if (input.routeId !== undefined) {
-      updates.push(`route_id = $${paramIndex++}`);
+      updates.push(`route_id = ?`);
       values.push(input.routeId);
     }
     if (input.scheduledAt !== undefined) {
-      updates.push(`scheduled_at = $${paramIndex++}`);
+      updates.push(`scheduled_at = ?`);
       values.push(input.scheduledAt);
     }
     if (input.appointmentId !== undefined) {
-      updates.push(`appointment_id = $${paramIndex++}`);
+      updates.push(`appointment_id = ?`);
       values.push(input.appointmentId);
     }
     if (input.status !== undefined) {
-      updates.push(`status = $${paramIndex++}`);
+      updates.push(`status = ?`);
       values.push(input.status);
     }
     if (input.notes !== undefined) {
-      updates.push(`notes = $${paramIndex++}`);
+      updates.push(`notes = ?`);
       values.push(input.notes);
     }
 
@@ -143,7 +142,7 @@ export class PatientApplicationsRepository {
       `
       UPDATE patient_application_plans 
       SET ${updates.join(", ")}
-      WHERE id = $${paramIndex}
+      WHERE id = ?
       `,
       values
     );
@@ -155,8 +154,8 @@ export class PatientApplicationsRepository {
     const now = new Date().toISOString();
     await dbExecute(
       `UPDATE patient_application_plans
-       SET status = 'cancelled', appointment_id = NULL, updated_at = $1
-       WHERE id = $2 AND deleted_at IS NULL`,
+       SET status = 'cancelled', appointment_id = NULL, updated_at = ?
+       WHERE id = ? AND deleted_at IS NULL`,
       [now, id]
     );
   }

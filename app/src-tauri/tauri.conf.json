@@ -54,5 +54,16 @@
     "publisher": "VoltQ",
     "shortDescription": "Sistema exclusivo para Dra. Ana Morong.",
     "copyright": "Desenvolvido por VoltQ"
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "DW1_REPLACE_WITH_TAURI_PUBKEY",
+      "endpoints": [
+        "https://github.com/davidwilliamestudo-star/controle-de-estoque-mac/releases/latest/download/latest.json"
+      ],
+      "windows": {
+        "installMode": "passive"
+      }
+    }
   }
 }

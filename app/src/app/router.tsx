@@ -30,10 +30,18 @@ const LabelsPage      = lazy(() => import("@/features/labels/pages/LabelsPage"))
 const ProtocolsPage   = lazy(() => import("@/features/protocols/pages/ProtocolsPage"));
 const ReportsPage     = lazy(() => import("@/features/reports/pages/ReportsPage.tsx"));
 const PurchasePlanPage = lazy(() => import("@/features/reports/pages/PurchasePlanPage.tsx"));
+const MonthlySummaryPage = lazy(() => import("@/features/monthly-summary/pages/MonthlySummaryPage"));
 const AuditPage       = lazy(() => import("@/features/audit/pages/AuditPage"));
 const SettingsPage    = lazy(() => import("@/features/settings/pages/SettingsPage"));
 const ImportExportPage = lazy(() => import("@/features/import-export/pages/ImportExportPage"));
 const BackupPage      = lazy(() => import("@/features/backup/pages/BackupPage"));
+
+const FinancialDashboardPage = lazy(() => import("@/features/financial/pages/FinancialDashboardPage"));
+const ReceivablesPage = lazy(() => import("@/features/financial/pages/ReceivablesPage"));
+const PayablesPage = lazy(() => import("@/features/financial/pages/PayablesPage"));
+const CashFlowPage = lazy(() => import("@/features/financial/pages/CashFlowPage"));
+const FinancialCategoriesPage = lazy(() => import("@/features/financial/pages/FinancialCategoriesPage"));
+const FinancialReportsPage = lazy(() => import("@/features/financial/pages/FinancialReportsPage"));
 
 const PageLoader = () => (
   <div className="flex items-center justify-center h-full">
@@ -213,6 +221,42 @@ const inventoryLocationsRoute = createRoute({
   component: () => <InventoryLocationsPage />,
 });
 
+const financialDashboardRoute = createRoute({
+  getParentRoute: () => shellRoute,
+  path: "/financial",
+  component: () => <FinancialDashboardPage />,
+});
+
+const financialReceivablesRoute = createRoute({
+  getParentRoute: () => shellRoute,
+  path: "/financial/receivables",
+  component: () => <ReceivablesPage />,
+});
+
+const financialPayablesRoute = createRoute({
+  getParentRoute: () => shellRoute,
+  path: "/financial/payables",
+  component: () => <PayablesPage />,
+});
+
+const financialCashFlowRoute = createRoute({
+  getParentRoute: () => shellRoute,
+  path: "/financial/cash-flow",
+  component: () => <CashFlowPage />,
+});
+
+const financialCategoriesRoute = createRoute({
+  getParentRoute: () => shellRoute,
+  path: "/financial/categories",
+  component: () => <FinancialCategoriesPage />,
+});
+
+const financialReportsRoute = createRoute({
+  getParentRoute: () => shellRoute,
+  path: "/financial/reports",
+  component: () => <FinancialReportsPage />,
+});
+
 const labelsRoute = createRoute({
   getParentRoute: () => shellRoute,
   path: "/labels",
@@ -242,6 +286,12 @@ const purchasePlanRoute = createRoute({
   getParentRoute: () => shellRoute,
   path: "/reports/purchase-plan",
   component: () => <PurchasePlanPage />,
+});
+
+const monthlySummaryRoute = createRoute({
+  getParentRoute: () => shellRoute,
+  path: "/resumo-mes",
+  component: () => <MonthlySummaryPage />,
 });
 
 const auditRoute = createRoute({
@@ -288,12 +338,19 @@ const routeTree = rootRoute.addChildren([
     inventoryItemEditRoute,
     inventoryFinancialRoute,
     inventoryLocationsRoute,
+    financialDashboardRoute,
+    financialReceivablesRoute,
+    financialPayablesRoute,
+    financialCashFlowRoute,
+    financialCategoriesRoute,
+    financialReportsRoute,
     medicationsRoute,
     materialsRoute,
     equipmentRoute,
     suppliersRoute,
     labelsRoute,
     protocolsRoute,
+    monthlySummaryRoute,
     reportsRoute,
     purchasePlanRoute,
     auditRoute,

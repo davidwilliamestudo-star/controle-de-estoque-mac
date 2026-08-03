@@ -55,8 +55,8 @@ export default function PatientsPage() {
             {row.original.full_name}
           </button>
           <p className="text-xs mt-1" style={{ color: "var(--color-gray-500)" }}>
-            {row.original.birth_date ? `${calcAge(row.original.birth_date)} anos - ` : ""}
-            ID: #{row.original.id.slice(0, 8)}
+            {row.original.document ? `CPF ${row.original.document} · ` : ""}
+            {row.original.birth_date ? `${calcAge(row.original.birth_date)} anos` : row.original.document ? "" : `ID #${row.original.id.slice(0, 8)}`}
           </p>
         </div>
       ),
@@ -203,7 +203,7 @@ export default function PatientsPage() {
             <Search size={16} />
             <input
               type="text"
-              placeholder="Buscar por nome, telefone ou e-mail..."
+              placeholder="Buscar por nome, CPF, telefone ou e-mail..."
               value={search}
               onChange={event => setSearch(event.target.value)}
             />

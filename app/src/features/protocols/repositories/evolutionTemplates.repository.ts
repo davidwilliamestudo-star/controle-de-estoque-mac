@@ -19,7 +19,7 @@ class EvolutionTemplatesRepository {
     const sql = `
       INSERT INTO evolution_templates (
         id, name, template_text, applies_to_protocol_id, is_default, is_active, created_at, updated_at
-      ) VALUES ($1, $2, $3, $4, $5, $6, datetime('now'), datetime('now'))
+      ) VALUES (?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
     `;
     await dbExecute(sql, [
       data.id,
@@ -34,40 +34,39 @@ class EvolutionTemplatesRepository {
   async update(id: string, data: Partial<EvolutionTemplate>): Promise<void> {
     const fields: string[] = [];
     const values: any[] = [];
-    let i = 1;
 
     if (data.name !== undefined) {
-      fields.push(`name = $${i++}`);
+      fields.push(`name = ?`);
       values.push(data.name);
     }
     if (data.templateText !== undefined) {
-      fields.push(`template_text = $${i++}`);
+      fields.push(`template_text = ?`);
       values.push(data.templateText);
     }
     if (data.appliesToProtocolId !== undefined) {
-      fields.push(`applies_to_protocol_id = $${i++}`);
+      fields.push(`applies_to_protocol_id = ?`);
       values.push(data.appliesToProtocolId);
     }
     if (data.isDefault !== undefined) {
-      fields.push(`is_default = $${i++}`);
+      fields.push(`is_default = ?`);
       values.push(data.isDefault);
     }
     if (data.isActive !== undefined) {
-      fields.push(`is_active = $${i++}`);
+      fields.push(`is_active = ?`);
       values.push(data.isActive);
     }
 
     if (fields.length === 0) return;
 
     fields.push(`updated_at = datetime('now')`);
-    const sql = `UPDATE evolution_templates SET ${fields.join(", ")} WHERE id = $${i}`;
+    const sql = `UPDATE evolution_templates SET ${fields.join(", ")} WHERE id = ?`;
     values.push(id);
 
     await dbExecute(sql, values);
   }
 
   async delete(id: string): Promise<void> {
-    const sql = `UPDATE evolution_templates SET deleted_at = datetime('now') WHERE id = $1`;
+    const sql = `UPDATE evolution_templates SET deleted_at = datetime('now') WHERE id = ?`;
     await dbExecute(sql, [id]);
   }
 }

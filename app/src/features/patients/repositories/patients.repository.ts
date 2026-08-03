@@ -14,9 +14,9 @@ export const patientsRepository = {
     const params: unknown[] = [CLINIC_ID];
 
     if (search) {
-      conditions.push("(p.full_name LIKE ? OR p.phone LIKE ? OR p.email LIKE ?)");
+      conditions.push("(p.full_name LIKE ? OR p.phone LIKE ? OR p.email LIKE ? OR p.document LIKE ?)");
       const s = `%${search}%`;
-      params.push(s, s, s);
+      params.push(s, s, s, s);
     }
     if (activeOnly) {
       conditions.push("p.is_active = 1");

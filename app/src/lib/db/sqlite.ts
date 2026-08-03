@@ -105,6 +105,8 @@ async function ensureCompatibilitySchema(db: Database): Promise<void> {
     "equipment_next_maintenance TEXT",
     "equipment_location TEXT",
     "equipment_maintenance_status TEXT DEFAULT 'ativo'",
+    "cost_price REAL DEFAULT 0",
+    "selling_price REAL DEFAULT 0",
   ];
   for (const column of inventoryItemColumns) {
     await addColumnIfMissing(db, "inventory_items", column);
@@ -112,6 +114,10 @@ async function ensureCompatibilitySchema(db: Database): Promise<void> {
 
   for (const column of ["contact_name TEXT", "address TEXT"]) {
     await addColumnIfMissing(db, "suppliers", column);
+  }
+
+  for (const column of ["base_price REAL DEFAULT 0"]) {
+    await addColumnIfMissing(db, "protocols", column);
   }
 
   for (const column of [
@@ -132,6 +138,12 @@ async function ensureCompatibilitySchema(db: Database): Promise<void> {
     "is_corrected INTEGER NOT NULL DEFAULT 0",
     "corrected_at TEXT",
     "correction_reason TEXT",
+    "subtotal REAL DEFAULT 0",
+    "discount_amount REAL DEFAULT 0",
+    "discount_type TEXT DEFAULT 'fixed'",
+    "total_amount REAL DEFAULT 0",
+    "payment_method TEXT",
+    "payment_status TEXT DEFAULT 'pending'",
   ]) {
     await addColumnIfMissing(db, "procedures", column);
   }
@@ -140,6 +152,7 @@ async function ensureCompatibilitySchema(db: Database): Promise<void> {
     "is_corrected INTEGER NOT NULL DEFAULT 0",
     "corrected_at TEXT",
     "correction_group_id TEXT",
+    "procedure_application_id TEXT",
   ]) {
     await addColumnIfMissing(db, "procedure_items_used", column);
   }

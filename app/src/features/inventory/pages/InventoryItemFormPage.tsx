@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams, useSearch } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Package, ArrowLeft, Pill, Stethoscope, Monitor, Plus, Scale, Type, Tag, LayoutGrid, Zap, Syringe, Building2, MapPin, Hash, Calendar, Settings, Info, Beaker } from "lucide-react";
+import { Package, ArrowLeft, Pill, Stethoscope, Monitor, Plus, Scale, Type, Tag, LayoutGrid, Zap, Syringe, Building2, MapPin, Hash, Calendar, Settings, Info, Beaker, CircleDollarSign } from "lucide-react";
 import { inventoryService } from "../services/inventory.service";
 import type { InventoryItem, InventoryItemType, InventoryItemUpdateInput } from "../types";
 import { QuickCategoryModal } from "../components/QuickCategoryModal";
@@ -23,6 +23,8 @@ const emptyItemTemplate: InventoryItem = {
   supplier_id: null,
   supplier_name: null,
   usage_in_protocol: 0,
+  cost_price: 0,
+  selling_price: 0,
   administration_route_id: null,
   notes: null,
   active_batches: 0,
@@ -65,6 +67,8 @@ export default function InventoryItemFormPage() {
     notes: "",
     isActive: true,
     initialStock: 0,
+    costPrice: 0,
+    sellingPrice: 0,
     commercialName: "",
     activePrinciple: "",
     concentration: "",
@@ -101,6 +105,8 @@ export default function InventoryItemFormPage() {
         supplierId: itemData.supplier_id ?? "",
         notes: itemData.notes ?? "",
         isActive: Number(itemData.is_active) !== 0,
+        costPrice: Number(itemData.cost_price ?? 0),
+        sellingPrice: Number(itemData.selling_price ?? 0),
         commercialName: itemData.commercial_name ?? "",
         activePrinciple: itemData.active_principle ?? "",
         concentration: itemData.concentration ?? "",
@@ -292,6 +298,47 @@ export default function InventoryItemFormPage() {
                   <option value="0">Inativo</option>
                 </select>
               </div>
+            </div>
+          </div>
+        </section>
+
+        {/* Informações Financeiras */}
+        <section className="mt-8 bg-green-50/30 p-6 rounded-xl border border-green-100">
+          <h4 className="font-semibold text-green-800 mb-6 flex items-center gap-2 border-b border-green-200 pb-2">
+            <CircleDollarSign size={18} className="text-green-600" />
+            Informações Financeiras
+          </h4>
+          <div className="grid-2 mb-2 gap-6">
+            <div className="form-group">
+              <label className="form-label text-gray-700">Preço de Custo (R$)</label>
+              <div className="input-with-icon">
+                <span className="text-gray-500 font-semibold absolute left-3 top-1/2 -translate-y-1/2 z-10 pointer-events-none">R$</span>
+                <input 
+                  type="number" 
+                  step="0.01" 
+                  min="0"
+                  className="form-control pl-10" 
+                  value={form.costPrice ?? 0} 
+                  onChange={e => updateForm({ costPrice: Number(e.target.value) })} 
+                />
+              </div>
+              <p className="text-xs text-gray-500 mt-1">Quanto a clínica paga pela menor unidade ({form.unit || 'un'})</p>
+            </div>
+            
+            <div className="form-group">
+              <label className="form-label text-gray-700">Preço Base de Aplicação (R$)</label>
+              <div className="input-with-icon">
+                <span className="text-gray-500 font-semibold absolute left-3 top-1/2 -translate-y-1/2 z-10 pointer-events-none">R$</span>
+                <input 
+                  type="number" 
+                  step="0.01" 
+                  min="0"
+                  className="form-control pl-10 font-medium text-green-700" 
+                  value={form.sellingPrice ?? 0} 
+                  onChange={e => updateForm({ sellingPrice: Number(e.target.value) })} 
+                />
+              </div>
+              <p className="text-xs text-gray-500 mt-1">Valor sugerido de cobrança por {form.unit || 'un'} aplicada</p>
             </div>
           </div>
         </section>

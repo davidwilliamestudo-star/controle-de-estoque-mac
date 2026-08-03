@@ -29,7 +29,7 @@ export default function AgendaPage() {
   const [selectedAppointment, setSelectedAppointment] = useState<Appointment | undefined>();
 
   const dateStr = format(currentDate, "yyyy-MM-dd");
-  const { data: appointments = [], isLoading } = useAppointmentsByDate(dateStr);
+  const { data: appointments = [], isLoading, error } = useAppointmentsByDate(dateStr);
   const updateMutation = useUpdateAppointment();
   const navigate = useNavigate();
 
@@ -98,6 +98,11 @@ export default function AgendaPage() {
       <div className="card">
         {isLoading ? (
           <div className="p-8 text-center text-gray-500">Carregando agenda...</div>
+        ) : error ? (
+          <div className="empty-state">
+            <div className="empty-state-title" style={{ color: "var(--color-danger)" }}>Erro ao carregar agenda</div>
+            <div className="empty-state-description">{String(error)}</div>
+          </div>
         ) : appointments.length === 0 ? (
           <EmptyState
             icon={<Calendar />}

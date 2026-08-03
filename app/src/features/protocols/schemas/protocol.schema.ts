@@ -9,6 +9,7 @@ export const protocolSchema = z.object({
   internalNotes: z.string().optional().nullable(),
   defaultEvolutionTemplateId: z.string().optional().nullable(),
   isActive: z.number().default(1),
+  basePrice: z.number().default(0),
 });
 
 export const protocolItemSchema = z.object({

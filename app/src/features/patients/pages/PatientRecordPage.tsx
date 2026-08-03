@@ -15,18 +15,19 @@ import { PatientUsedItemsTab } from "../components/PatientUsedItemsTab";
 import { PatientUsedBatchesTab } from "../components/PatientUsedBatchesTab";
 import { ProcedureCorrectionModal } from "@/features/procedures/components/ProcedureCorrectionModal";
 import { PatientRecordReportPanel } from "../components/PatientRecordReportPanel";
+import { PatientMonthlyCostPanel } from "@/features/monthly-summary/components/PatientMonthlyCostPanel";
 
-type Tab = "overview" | "applications" | "history" | "evolutions" | "medications" | "lots" | "areas" | "reports";
+// FIX: Removida tab "Relatórios" redundante — botão já existe no PatientHeader
+type Tab = "overview" | "applications" | "history" | "evolutions" | "medications" | "lots" | "areas";
 
 const tabs: { id: Tab; label: string }[] = [
   { id: "overview", label: "Visão Geral" },
   { id: "applications", label: "Aplicações" },
-  { id: "history", label: "Histórico de Procedimentos" },
-  { id: "evolutions", label: "Evolucoes" },
+  { id: "history", label: "Histórico" },
+  { id: "evolutions", label: "Evoluções" },
   { id: "medications", label: "Medicamentos e Materiais" },
   { id: "lots", label: "Lotes Utilizados" },
-  { id: "areas", label: "Areas Corporais" },
-  { id: "reports", label: "Relatorios" },
+  { id: "areas", label: "Áreas Corporais" },
 ];
 
 function safeFormatDate(value: string | null | undefined, pattern: string) {
@@ -205,7 +206,6 @@ export default function PatientRecordPage() {
       {activeTab === "medications" && <PatientUsedItemsTab patientId={record.id} />}
       {activeTab === "lots" && <PatientUsedBatchesTab patientId={record.id} />}
       {activeTab === "areas" && <AreasTab procedures={finalizedProcedures} />}
-      {activeTab === "reports" && <ReportsTab onPrintReport={() => setIsReportOpen(true)} />}
 
       {isReportOpen && (
         <PatientRecordReportPanel 
@@ -326,41 +326,46 @@ function Metric({ label, value }: { label: string; value: string | number }) {
 
 function OverviewTab({ record, procedures }: { record: PatientRecord; procedures: ProcedureSummary[] }) {
   return (
-    <div className="grid-2">
-      <div className="card">
-        <div className="card-header">
-          <div>
-            <h3 className="card-title">Informacoes do Paciente</h3>
-            <p className="card-description">Dados principais do cadastro real</p>
+    <div className="flex flex-col gap-4">
+      <div className="grid-2">
+        <div className="card">
+          <div className="card-header">
+            <div>
+              <h3 className="card-title">Informacoes do Paciente</h3>
+              <p className="card-description">Dados principais do cadastro real</p>
+            </div>
+          </div>
+          <div className="flex flex-col gap-2 text-sm" style={{ color: "var(--color-gray-700)" }}>
+            <InfoLine label="CPF" value={record.document} />
+            <InfoLine label="Telefone" value={record.phone} />
+            <InfoLine label="E-mail" value={record.email} />
+            <InfoLine label="Nascimento" value={safeFormatDate(record.birth_date, "dd/MM/yyyy")} />
+            <InfoLine label="Observacoes" value={record.notes} />
           </div>
         </div>
-        <div className="flex flex-col gap-2 text-sm" style={{ color: "var(--color-gray-700)" }}>
-          <InfoLine label="Telefone" value={record.phone} />
-          <InfoLine label="E-mail" value={record.email} />
-          <InfoLine label="Nascimento" value={safeFormatDate(record.birth_date, "dd/MM/yyyy")} />
-          <InfoLine label="Observacoes" value={record.notes} />
+
+        <div className="card">
+          <div className="card-header">
+            <div>
+              <h3 className="card-title">Resumo Clinico</h3>
+              <p className="card-description">Resumo calculado com dados existentes</p>
+            </div>
+          </div>
+          {procedures.length === 0 ? (
+            <p className="text-sm" style={{ color: "var(--color-gray-500)" }}>
+              Este paciente ainda nao possui aplicacoes finalizadas.
+            </p>
+          ) : (
+            <div className="flex flex-col gap-2 text-sm">
+              <InfoLine label="Total de aplicacoes" value={String(procedures.length)} />
+              <InfoLine label="Ultimo protocolo" value={procedures[0]?.protocol_name} />
+              <InfoLine label="Ultima area" value={procedures[0]?.body_area_name} />
+            </div>
+          )}
         </div>
       </div>
 
-      <div className="card">
-        <div className="card-header">
-          <div>
-            <h3 className="card-title">Resumo Clinico</h3>
-            <p className="card-description">Resumo calculado com dados existentes</p>
-          </div>
-        </div>
-        {procedures.length === 0 ? (
-          <p className="text-sm" style={{ color: "var(--color-gray-500)" }}>
-            Este paciente ainda nao possui aplicacoes finalizadas.
-          </p>
-        ) : (
-          <div className="flex flex-col gap-2 text-sm">
-            <InfoLine label="Total de aplicacoes" value={String(procedures.length)} />
-            <InfoLine label="Ultimo protocolo" value={procedures[0]?.protocol_name} />
-            <InfoLine label="Ultima area" value={procedures[0]?.body_area_name} />
-          </div>
-        )}
-      </div>
+      <PatientMonthlyCostPanel patientId={record.id} />
     </div>
   );
 }
@@ -385,25 +390,26 @@ function HistoryPanel({
   warnings: string[];
   onCorrectProcedure: (p: PatientProcedureHistoryItem) => void;
 }) {
+  // FIX: verificar isLoading ANTES de warnings para não exibir erro enquanto ainda carrega
+  if (isLoading) {
+    return (
+      <div className="card">
+        <div className="flex items-center justify-center" style={{ padding: "48px 0" }}>
+          <div className="splash-loader" style={{ borderTopColor: "var(--color-green-deep)", borderColor: "var(--color-gray-200)" }} />
+        </div>
+      </div>
+    );
+  }
+
   if (warnings.length > 0) {
     return (
       <div className="card">
         <div className="flex items-start gap-3">
           <AlertTriangle size={18} style={{ color: "var(--color-warning)", marginTop: 2 }} />
           <div>
-            <h3 className="card-title" style={{ color: "#92400E" }}>Paciente carregado, mas houve erro ao carregar historico.</h3>
+            <h3 className="card-title" style={{ color: "#92400E" }}>Erro ao carregar histórico de procedimentos.</h3>
             <p className="text-sm mt-1" style={{ color: "var(--color-gray-600)" }}>{warnings.join(" ")}</p>
           </div>
-        </div>
-      </div>
-    );
-  }
-
-  if (isLoading) {
-    return (
-      <div className="card">
-        <div className="flex items-center justify-center" style={{ padding: "48px 0" }}>
-          <div className="splash-loader" style={{ borderTopColor: "var(--color-green-deep)", borderColor: "var(--color-gray-200)" }} />
         </div>
       </div>
     );
@@ -471,7 +477,7 @@ function HistoryTab({ procedures, onCorrectProcedure }: { procedures: PatientPro
                 )}
               </div>
 
-              {procedure.items_used && procedure.items_used.length > 0 && (
+              {procedure.items_used && procedure.items_used.length > 0 ? (
                 <div className="patient-history-items">
                   <h5 className="font-medium text-gray-700 mb-2">Itens Utilizados</h5>
                   <ul className="space-y-1">
@@ -517,7 +523,7 @@ function HistoryTab({ procedures, onCorrectProcedure }: { procedures: PatientPro
                     </div>
                   )}
                 </div>
-              )}
+              ) : null}
 
               {procedure.had_intercurrence && procedure.intercurrence_description && (
                 <p className="text-xs mt-2 p-2 rounded" style={{ backgroundColor: "#FFFBEB", color: "#92400E" }}>
@@ -605,12 +611,13 @@ function EmptyClinicalData({ icon, title, description }: { icon: ReactNode; titl
   );
 }
 
-function calcAge(birthDate: string): number {
+// FIX: retorna string para poder exibir "-" em vez de "0 anos" para datas inválidas
+function calcAge(birthDate: string): string {
   const today = new Date();
   const birth = new Date(birthDate);
-  if (Number.isNaN(birth.getTime())) return 0;
+  if (Number.isNaN(birth.getTime())) return "-";
   let age = today.getFullYear() - birth.getFullYear();
   const monthDiff = today.getMonth() - birth.getMonth();
   if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) age--;
-  return age;
+  return String(age);
 }

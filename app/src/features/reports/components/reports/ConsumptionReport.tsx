@@ -1,55 +1,91 @@
+/**
+ * ConsumptionDocument.tsx
+ *
+ * Documento PDF de Consumo por Período.
+ * RECEBE dados como props — NÃO faz fetch interno.
+ */
+import { View, Text } from "@react-pdf/renderer";
 import { format } from "date-fns";
-import { ptBR } from "date-fns/locale";
-import { useConsumptionReport } from "../../hooks/useReports";
-import { ReportDocumentLayout } from "../ReportDocumentLayout";
-import type { ReportFilter } from "../../schemas/report.schema";
+import { PdfDocumentLayout, pdfStyles, PdfTable, PdfTableHeader, PdfTableRow, PdfTableCell } from "../../pdf";
+import type { ConsumptionRow, ReportFilter } from "../../schemas/report.schema";
 
 interface Props {
+  data: ConsumptionRow[];
   filter: ReportFilter;
+  orientation?: "portrait" | "landscape";
 }
 
-export function ConsumptionReport({ filter }: Props) {
-  const { data: consumption = [], isLoading } = useConsumptionReport(filter, true);
+export function ConsumptionDocument({ data: consumption, filter, orientation = "portrait" }: Props) {
+  const subtitle = [
+    filter.startDate ? `De ${format(new Date(filter.startDate), "dd/MM/yy")}` : "Início",
+    filter.endDate ? `até ${format(new Date(filter.endDate), "dd/MM/yy")}` : "Hoje",
+  ].filter(Boolean).join(" ");
 
-  if (isLoading) return <div className="p-8 text-center">Carregando relatório...</div>;
+  const filtersText = [
+    filter.startDate ? `De: ${filter.startDate}` : null,
+    filter.endDate ? `Até: ${filter.endDate}` : null,
+    filter.itemType ? `Tipo: ${filter.itemType === "medication" ? "Medicamentos" : "Materiais"}` : null,
+    filter.categoryId ? "Categoria Filtrada" : null,
+  ].filter(Boolean).join(" | ") || "Todos os itens consumidos no período";
+
+  const totalConsumed = consumption.reduce((sum, r) => sum + Number(r.total_consumed), 0);
+  const uniqueItems = consumption.length;
 
   return (
-    <ReportDocumentLayout 
-      title="Consumo por Período" 
-      subtitle={`Período: ${filter.startDate ? format(new Date(filter.startDate), "dd/MM/yy") : "Início"} até ${filter.endDate ? format(new Date(filter.endDate), "dd/MM/yy") : "Hoje"}`}
+    <PdfDocumentLayout
+      title="Consumo por Período"
+      subtitle={subtitle}
+      filtersText={filtersText}
+      orientation={orientation}
     >
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-        {/* Sumário */}
-        <div className="card text-center bg-gray-50 border-none">
-          <h4 className="text-gray-500 text-sm uppercase">Total de Itens Diferentes</h4>
-          <p className="text-3xl font-bold text-gray-900">{consumption.length}</p>
-        </div>
-      </div>
+      {/* KPIs */}
+      <View style={pdfStyles.kpiRow}>
+        <View style={[pdfStyles.kpiCard, pdfStyles.kpiNeutral]}>
+          <Text style={[pdfStyles.kpiLabel, pdfStyles.kpiNeutralText]}>Itens Distintos</Text>
+          <Text style={[pdfStyles.kpiValue, pdfStyles.kpiNeutralText]}>{uniqueItems}</Text>
+        </View>
+        <View style={[pdfStyles.kpiCard, pdfStyles.kpiBrand]}>
+          <Text style={[pdfStyles.kpiLabel, pdfStyles.kpiBrandText]}>Unidades Consumidas</Text>
+          <Text style={[pdfStyles.kpiValue, pdfStyles.kpiBrandText]}>
+            {totalConsumed.toLocaleString("pt-BR")}
+          </Text>
+          <Text style={[pdfStyles.kpiSubtext, pdfStyles.kpiBrandText]}>total geral</Text>
+        </View>
+      </View>
 
-      <table className="table">
-        <thead>
-          <tr className="bg-gray-50 border-b border-gray-200">
-            <th className="text-left text-xs text-gray-500 font-bold uppercase tracking-wider py-3">Item Consumido</th>
-            <th className="text-right text-xs text-gray-500 font-bold uppercase tracking-wider py-3">Quantidade Total Debitada</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-gray-200">
-          {consumption.map((item) => (
-            <tr key={item.item_id}>
-              <td className="py-3 text-sm font-medium">{item.item_name}</td>
-              <td className="py-3 text-sm text-right font-bold text-red-600">
-                {item.total_consumed} <span className="text-xs font-normal text-gray-500">{item.control_unit}</span>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-
-      {consumption.length === 0 && (
-        <div className="text-center text-gray-500 py-10 border border-dashed rounded-lg mt-4">
-          Nenhum consumo registrado neste período.
-        </div>
-      )}
-    </ReportDocumentLayout>
+      {/* Tabela */}
+      <View style={pdfStyles.section}>
+        {consumption.length === 0 ? (
+          <Text style={[pdfStyles.tableCell, pdfStyles.textMuted]}>
+            Nenhum consumo registrado para o período selecionado.
+          </Text>
+        ) : (
+          <PdfTable>
+            <PdfTableHeader>
+              <PdfTableCell isHeader flex={5}>Item Consumido</PdfTableCell>
+              <PdfTableCell isHeader align="right" flex={2}>Qtd. Total</PdfTableCell>
+              <PdfTableCell isHeader align="center" flex={1}>Un.</PdfTableCell>
+            </PdfTableHeader>
+            {consumption.map((row, index) => (
+              <PdfTableRow key={row.item_id || index} isStriped={index % 2 === 1}>
+                <PdfTableCell flex={5}>
+                  <Text style={pdfStyles.textBold}>{row.item_name}</Text>
+                </PdfTableCell>
+                <PdfTableCell align="right" flex={2}>
+                  <Text style={[pdfStyles.textBold, { color: "#b91c1c" }]}>
+                    {Number(row.total_consumed).toLocaleString("pt-BR")}
+                  </Text>
+                </PdfTableCell>
+                <PdfTableCell align="center" flex={1}>
+                  <Text style={{ fontSize: 7, color: "#9ca3af" }}>{row.control_unit}</Text>
+                </PdfTableCell>
+              </PdfTableRow>
+            ))}
+          </PdfTable>
+        )}
+      </View>
+    </PdfDocumentLayout>
   );
 }
+
+export { ConsumptionDocument as ConsumptionReport };

@@ -1,72 +1,112 @@
+/**
+ * PatientHistoryDocument.tsx
+ *
+ * Documento PDF de Histórico de Aplicações.
+ * RECEBE dados como props — NÃO faz fetch interno.
+ */
+import { View, Text } from "@react-pdf/renderer";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { usePatientHistoryReport } from "../../hooks/useReports";
-import { ReportDocumentLayout } from "../ReportDocumentLayout";
-import type { ReportFilter } from "../../schemas/report.schema";
+import { PdfDocumentLayout, pdfStyles, PdfTable, PdfTableHeader, PdfTableRow, PdfTableCell } from "../../pdf";
+import type { PatientHistoryRow, ReportFilter } from "../../schemas/report.schema";
 
 interface Props {
+  data: PatientHistoryRow[];
   filter: ReportFilter;
+  orientation?: "portrait" | "landscape";
 }
 
-export function PatientHistoryReport({ filter }: Props) {
-  const { data: history = [], isLoading } = usePatientHistoryReport(filter, true);
+export function PatientHistoryDocument({ data: history, filter, orientation = "landscape" }: Props) {
+  const subtitle = [
+    filter.startDate ? `De ${format(new Date(filter.startDate), "dd/MM/yy")}` : "Início",
+    filter.endDate ? `até ${format(new Date(filter.endDate), "dd/MM/yy")}` : "Hoje",
+  ].filter(Boolean).join(" ");
 
-  if (isLoading) return <div className="p-8 text-center">Carregando histórico...</div>;
+  const filtersText = [
+    filter.startDate ? `De: ${filter.startDate}` : null,
+    filter.endDate ? `Até: ${filter.endDate}` : null,
+    filter.patientId ? "Paciente Específico" : null,
+    filter.userId ? "Profissional Específico" : null,
+  ].filter(Boolean).join(" | ") || "Todos os atendimentos do período";
 
-  const subtitle = `Atendimentos de ${filter.startDate ? format(new Date(filter.startDate), "dd/MM/yy") : "Início"} até ${filter.endDate ? format(new Date(filter.endDate), "dd/MM/yy") : "Hoje"}`;
+  const withIntercurrence = history.filter(h => h.had_intercurrence).length;
+  const uniquePatients = new Set(history.map(h => h.patient_id)).size;
+  const finalized = history.filter(h => h.total_items_used > 0).length;
 
   return (
-    <ReportDocumentLayout 
-      title="Histórico Geral de Aplicações" 
+    <PdfDocumentLayout
+      title="Histórico Geral de Aplicações"
       subtitle={subtitle}
+      filtersText={filtersText}
+      orientation={orientation}
     >
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-        <div className="card text-center bg-indigo-50 border-none">
-          <h4 className="text-indigo-800 text-sm uppercase">Total de Atendimentos</h4>
-          <p className="text-3xl font-bold text-indigo-900">{history.length}</p>
-        </div>
-        <div className="card text-center bg-red-50 border-none">
-          <h4 className="text-red-800 text-sm uppercase">Com Intercorrência</h4>
-          <p className="text-3xl font-bold text-red-900">{history.filter(h => h.had_intercurrence).length}</p>
-        </div>
-      </div>
+      {/* KPIs */}
+      <View style={pdfStyles.kpiRow}>
+        <View style={[pdfStyles.kpiCard, pdfStyles.kpiInfo]}>
+          <Text style={[pdfStyles.kpiLabel, pdfStyles.kpiInfoText]}>Total de Atendimentos</Text>
+          <Text style={[pdfStyles.kpiValue, pdfStyles.kpiInfoText]}>{history.length}</Text>
+        </View>
+        <View style={[pdfStyles.kpiCard, pdfStyles.kpiBrand]}>
+          <Text style={[pdfStyles.kpiLabel, pdfStyles.kpiBrandText]}>Pacientes Atendidos</Text>
+          <Text style={[pdfStyles.kpiValue, pdfStyles.kpiBrandText]}>{uniquePatients}</Text>
+        </View>
+        <View style={[pdfStyles.kpiCard, withIntercurrence > 0 ? pdfStyles.kpiWarning : pdfStyles.kpiSuccess]}>
+          <Text style={[pdfStyles.kpiLabel, withIntercurrence > 0 ? pdfStyles.kpiWarningText : pdfStyles.kpiSuccessText]}>
+            Com Intercorrência
+          </Text>
+          <Text style={[pdfStyles.kpiValue, withIntercurrence > 0 ? pdfStyles.kpiWarningText : pdfStyles.kpiSuccessText]}>
+            {withIntercurrence}
+          </Text>
+        </View>
+      </View>
 
-      <table className="table mt-4">
-        <thead>
-          <tr className="bg-gray-50 border-b border-gray-200">
-            <th className="text-left text-xs text-gray-500 font-bold uppercase tracking-wider py-3">Data</th>
-            <th className="text-left text-xs text-gray-500 font-bold uppercase tracking-wider py-3">Paciente</th>
-            <th className="text-left text-xs text-gray-500 font-bold uppercase tracking-wider py-3">Protocolo</th>
-            <th className="text-left text-xs text-gray-500 font-bold uppercase tracking-wider py-3">Área Tratada</th>
-            <th className="text-center text-xs text-gray-500 font-bold uppercase tracking-wider py-3">Itens Usados</th>
-            <th className="text-center text-xs text-gray-500 font-bold uppercase tracking-wider py-3">Alertas</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-gray-200">
-          {history.map((row) => (
-            <tr key={row.procedure_id}>
-              <td className="py-3 text-sm text-gray-500">{format(new Date(row.performed_at), "dd/MM/yyyy HH:mm", { locale: ptBR })}</td>
-              <td className="py-3 text-sm font-bold text-gray-900">{row.patient_name}</td>
-              <td className="py-3 text-sm font-medium">{row.protocol_name || "Procedimento Avulso"}</td>
-              <td className="py-3 text-sm text-gray-500">{row.body_area_name || "-"}</td>
-              <td className="py-3 text-sm text-center font-bold text-gray-700">{row.total_items_used}</td>
-              <td className="py-3 text-sm text-center">
-                {row.had_intercurrence && (
-                  <span className="bg-red-100 text-red-800 text-xs px-2 py-1 rounded-full print:border print:border-red-300">
-                    Intercorrência
-                  </span>
-                )}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-
-      {history.length === 0 && (
-        <div className="text-center text-gray-500 py-10 border border-dashed rounded-lg mt-4">
-          Nenhuma aplicação foi finalizada no período selecionado.
-        </div>
-      )}
-    </ReportDocumentLayout>
+      {/* Tabela */}
+      <View style={pdfStyles.section}>
+        {history.length === 0 ? (
+          <Text style={[pdfStyles.tableCell, pdfStyles.textMuted]}>
+            Nenhum atendimento encontrado para os filtros selecionados.
+          </Text>
+        ) : (
+          <PdfTable>
+            <PdfTableHeader>
+              <PdfTableCell isHeader flex={2}>Data/Hora</PdfTableCell>
+              <PdfTableCell isHeader flex={4}>Paciente</PdfTableCell>
+              <PdfTableCell isHeader flex={4}>Protocolo</PdfTableCell>
+              <PdfTableCell isHeader flex={2}>Área Tratada</PdfTableCell>
+              <PdfTableCell isHeader align="center" flex={1}>Itens</PdfTableCell>
+              <PdfTableCell isHeader align="center" flex={2}>Status</PdfTableCell>
+            </PdfTableHeader>
+            {history.map((row, index) => (
+              <PdfTableRow key={row.procedure_id || index} isStriped={index % 2 === 1}>
+                <PdfTableCell flex={2}>
+                  {format(new Date(row.performed_at), "dd/MM/yy HH:mm", { locale: ptBR })}
+                </PdfTableCell>
+                <PdfTableCell flex={4}>
+                  <Text style={pdfStyles.textBold}>{row.patient_name}</Text>
+                </PdfTableCell>
+                <PdfTableCell flex={4}>
+                  {row.protocol_name || "Procedimento Avulso"}
+                </PdfTableCell>
+                <PdfTableCell flex={2}>
+                  {row.body_area_name || "—"}
+                </PdfTableCell>
+                <PdfTableCell align="center" flex={1}>
+                  <Text style={pdfStyles.textBold}>{row.total_items_used}</Text>
+                </PdfTableCell>
+                <PdfTableCell align="center" flex={2}>
+                  {row.had_intercurrence ? (
+                    <Text style={pdfStyles.badgeWarning}>Intercorrência</Text>
+                  ) : (
+                    <Text style={pdfStyles.badgeSuccess}>Normal</Text>
+                  )}
+                </PdfTableCell>
+              </PdfTableRow>
+            ))}
+          </PdfTable>
+        )}
+      </View>
+    </PdfDocumentLayout>
   );
 }
+
+export { PatientHistoryDocument as PatientHistoryReport };

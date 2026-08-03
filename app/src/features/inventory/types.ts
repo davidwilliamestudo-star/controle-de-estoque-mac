@@ -19,6 +19,8 @@ export interface InventoryItem {
   supplier_name?: string | null;
   notes?: string | null;
   is_active: number;
+  cost_price: number;
+  selling_price: number;
   active_batches?: number;
   next_expiration_date?: string | null;
   last_entry_date?: string | null;
@@ -140,6 +142,8 @@ export interface InventoryItemUpdateInput {
   notes?: string | null;
   isActive: boolean;
   initialStock?: number;
+  costPrice?: number;
+  sellingPrice?: number;
 
   // Medicamentos
   commercialName?: string | null;

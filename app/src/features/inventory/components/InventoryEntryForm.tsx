@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
-import { Save } from "lucide-react";
+import { AlertTriangle, Save, X } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { inventoryService } from "../services/inventory.service";
 import { inventoryReceiptService } from "../services/inventoryReceipt.service";
@@ -10,39 +10,47 @@ import { EntryReviewStep } from "./EntryReviewStep";
 import { UnitConversionFields } from "./UnitConversionFields";
 import { XmlImportPanel } from "./XmlImportPanel";
 
-const today = new Date().toISOString().slice(0, 10);
+// FIX: `today` calculado dentro do componente para evitar bug de data em sessões overnight
+function getToday() {
+  return new Date().toISOString().slice(0, 10);
+}
 
-const initialForm: ManualInventoryEntryInput = {
-  supplierName: "",
-  invoiceNumber: "",
-  invoiceKey: "",
-  entryDate: today,
-  receiptNotes: "",
-  itemMode: "existing",
-  itemType: "medication",
-  itemName: "",
-  inventoryItemId: "",
-  minimumStock: 0,
-  commercialQuantity: 1,
-  commercialUnit: "unidade",
-  contentPerCommercialUnit: 1,
-  controlUnit: "unidade",
-  batchNumber: "",
-  manufacturingDate: "",
-  expirationDate: "",
-  unitCost: 0,
-  notes: "",
-  locationId: "",
-  generateLabels: true,
-  labelQuantity: 1,
-};
+function makeInitialForm(): ManualInventoryEntryInput {
+  return {
+    supplierName: "",
+    invoiceNumber: "",
+    invoiceKey: "",
+    entryDate: getToday(),
+    receiptNotes: "",
+    itemMode: "existing",
+    itemType: "medication",
+    itemName: "",
+    inventoryItemId: "",
+    minimumStock: 0,
+    commercialQuantity: 1,
+    commercialUnit: "unidade",
+    contentPerCommercialUnit: 1,
+    controlUnit: "unidade",
+    batchNumber: "",
+    manufacturingDate: "",
+    expirationDate: "",
+    unitCost: 0,
+    notes: "",
+    locationId: "",
+    generateLabels: true,
+    labelQuantity: 1,
+  };
+}
 
 export function InventoryEntryForm() {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const [mode, setMode] = useState<"manual" | "xml">("manual");
-  const [form, setForm] = useState<ManualInventoryEntryInput>(initialForm);
+  const [form, setForm] = useState<ManualInventoryEntryInput>(makeInitialForm);
   const [success, setSuccess] = useState<string | null>(null);
+
+  // FIX: busca/filtro no select de item para listas longas
+  const [itemSearch, setItemSearch] = useState("");
 
   const optionsQuery = useQuery({
     queryKey: ["inventory-options"],
@@ -53,6 +61,14 @@ export function InventoryEntryForm() {
   const itemDisplayName = selectedItem?.name ?? "";
   const currentItemType = selectedItem?.item_type ?? "medication";
 
+  // Itens filtrados pela busca
+  const filteredItems = useMemo(() => {
+    const items = optionsQuery.data?.items ?? [];
+    if (!itemSearch.trim()) return items;
+    const q = itemSearch.toLowerCase();
+    return items.filter(i => i.name.toLowerCase().includes(q));
+  }, [optionsQuery.data?.items, itemSearch]);
+
   const defaultTemplateId = useMemo(() => {
     return optionsQuery.data?.labelTemplates.find(template => template.is_default === 1)?.id
       ?? optionsQuery.data?.labelTemplates[0]?.id
@@ -60,8 +76,8 @@ export function InventoryEntryForm() {
   }, [optionsQuery.data?.labelTemplates]);
 
   const defaultLocationId = useMemo(() => {
-    return optionsQuery.data?.locations?.find(loc => loc.is_default === 1)?.id 
-      ?? optionsQuery.data?.locations?.[0]?.id 
+    return optionsQuery.data?.locations?.find(loc => loc.is_default === 1)?.id
+      ?? optionsQuery.data?.locations?.[0]?.id
       ?? "";
   }, [optionsQuery.data?.locations]);
 
@@ -91,8 +107,10 @@ export function InventoryEntryForm() {
     }));
   }
 
+  // FIX: guarda explícita contra duplo envio (além do disabled no botão)
   function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (saveMutation.isPending) return;
     saveMutation.mutate({
       ...form,
       labelTemplateId: form.labelTemplateId || defaultTemplateId,
@@ -101,11 +119,48 @@ export function InventoryEntryForm() {
   }
 
   if (optionsQuery.isLoading) {
-    return <div className="card">Carregando dados do estoque...</div>;
+    return (
+      <div className="card">
+        {/* Skeleton loader em vez de texto simples */}
+        <div className="animate-pulse flex flex-col gap-4 p-2">
+          <div className="h-4 bg-gray-200 rounded w-1/3" />
+          <div className="grid grid-cols-4 gap-3">
+            {[...Array(4)].map((_, i) => (
+              <div key={i} className="h-9 bg-gray-100 rounded-lg" />
+            ))}
+          </div>
+          <div className="h-4 bg-gray-200 rounded w-1/4 mt-2" />
+          <div className="h-24 bg-gray-100 rounded-lg" />
+        </div>
+      </div>
+    );
   }
 
   return (
     <div className="flex-col gap-6">
+      {/* FIX: Toast de erro fixo no topo — visível independente do scroll */}
+      {saveMutation.error && (
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50
+                        bg-red-600 text-white px-5 py-3 rounded-xl shadow-xl
+                        flex items-center gap-3 text-sm font-medium
+                        animate-in slide-in-from-top duration-300 max-w-lg w-full mx-4">
+          <AlertTriangle size={16} className="shrink-0" />
+          <span className="flex-1">
+            {saveMutation.error instanceof Error
+              ? saveMutation.error.message
+              : "Erro ao salvar a entrada. Tente novamente."}
+          </span>
+          <button
+            type="button"
+            onClick={() => saveMutation.reset()}
+            className="shrink-0 hover:bg-red-500 rounded-lg p-1 transition-colors"
+            aria-label="Fechar"
+          >
+            <X size={14} />
+          </button>
+        </div>
+      )}
+
       <div className="tabs">
         <button className={`tab ${mode === "manual" ? "active" : ""}`} type="button" onClick={() => setMode("manual")}>
           Entrada manual
@@ -149,7 +204,13 @@ export function InventoryEntryForm() {
 
               <div className="form-group">
                 <label className="form-label">Chave da nota</label>
-                <input className="form-control" value={form.invoiceKey} onChange={(event) => update("invoiceKey", event.target.value)} />
+                <input
+                  className="form-control"
+                  value={form.invoiceKey}
+                  onChange={(event) => update("invoiceKey", event.target.value)}
+                  maxLength={44}
+                  placeholder="44 dígitos"
+                />
               </div>
 
               <div className="form-group">
@@ -169,26 +230,32 @@ export function InventoryEntryForm() {
 
             <div className="grid-2 mt-4">
               <div className="form-group col-span-2">
-                <label className="form-label">Item existente</label>
-                <select className="form-control" value={form.inventoryItemId ?? ""} onChange={(event) => handleSelectExistingItem(event.target.value)} required>
+                <label className="form-label">Item existente *</label>
+                {/* FIX: campo de busca antes do select para listas longas */}
+                <input
+                  className="form-control mb-2"
+                  placeholder="Buscar item pelo nome..."
+                  value={itemSearch}
+                  onChange={e => setItemSearch(e.target.value)}
+                />
+                <select
+                  className="form-control"
+                  value={form.inventoryItemId ?? ""}
+                  onChange={(event) => handleSelectExistingItem(event.target.value)}
+                  required
+                >
                   <option value="">-- Selecione o item --</option>
-                  {optionsQuery.data?.items.map(item => <option key={item.id} value={item.id}>{item.name} ({item.unit})</option>)}
+                  {filteredItems.map(item => (
+                    <option key={item.id} value={item.id}>{item.name} ({item.unit})</option>
+                  ))}
                 </select>
+                {itemSearch && filteredItems.length === 0 && (
+                  <p className="text-xs text-gray-400 mt-1">Nenhum item encontrado para "{itemSearch}".</p>
+                )}
               </div>
 
               {form.inventoryItemId && (
                 <>
-                  <div className="form-group">
-                    <label className="form-label">Categoria atual</label>
-                    <select className="form-control" value={form.categoryId ?? ""} onChange={(event) => update("categoryId", event.target.value)}>
-                      <option value="">Sem categoria</option>
-                      {optionsQuery.data?.categories.map(category => <option key={category.id} value={category.id}>{category.name}</option>)}
-                    </select>
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">Ajustar estoque minimo</label>
-                    <input type="number" min="0" step="0.01" className="form-control" value={form.minimumStock} onChange={(event) => update("minimumStock", Number(event.target.value))} />
-                  </div>
                   <div className="form-group">
                     <label className="form-label">Destino (Local/Armário) *</label>
                     <select className="form-control" value={form.locationId || defaultLocationId} onChange={(event) => update("locationId", event.target.value)} required>
@@ -226,32 +293,48 @@ export function InventoryEntryForm() {
                 <p className="card-description">Gere etiquetas com QR Code interno apos salvar a entrada.</p>
               </div>
             </div>
-            <div className="grid-3">
-              <label className="flex items-center gap-2 text-sm text-gray-500">
-                <input type="checkbox" checked={form.generateLabels} onChange={(event) => update("generateLabels", event.target.checked)} />
-                Gerar etiquetas apos salvar
+            <div className="flex flex-col gap-4">
+              <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={form.generateLabels}
+                  onChange={(event) => update("generateLabels", event.target.checked)}
+                />
+                Gerar etiquetas após salvar
               </label>
 
-              <div className="form-group">
-                <label className="form-label">Template</label>
-                <select className="form-control" value={form.labelTemplateId || defaultTemplateId} onChange={(event) => update("labelTemplateId", event.target.value)}>
-                  {optionsQuery.data?.labelTemplates.map(template => <option key={template.id} value={template.id}>{template.name}</option>)}
-                </select>
-              </div>
+              {/* FIX: campos desabilitados e visualmente apagados quando checkbox desmarcado */}
+              <div className={`grid-2 transition-opacity duration-200 ${!form.generateLabels ? "opacity-40 pointer-events-none" : ""}`}>
+                <div className="form-group">
+                  <label className="form-label">Template</label>
+                  <select
+                    className="form-control"
+                    value={form.labelTemplateId || defaultTemplateId}
+                    onChange={(event) => update("labelTemplateId", event.target.value)}
+                    disabled={!form.generateLabels}
+                  >
+                    {optionsQuery.data?.labelTemplates.map(template => (
+                      <option key={template.id} value={template.id}>{template.name}</option>
+                    ))}
+                  </select>
+                </div>
 
-              <div className="form-group">
-                <label className="form-label">Quantidade de etiquetas</label>
-                <input type="number" min="1" className="form-control" value={form.labelQuantity} onChange={(event) => update("labelQuantity", Number(event.target.value))} />
+                <div className="form-group">
+                  <label className="form-label">Quantidade de etiquetas</label>
+                  <input
+                    type="number"
+                    min="1"
+                    className="form-control"
+                    value={form.labelQuantity}
+                    onChange={(event) => update("labelQuantity", Number(event.target.value))}
+                    disabled={!form.generateLabels}
+                  />
+                </div>
               </div>
             </div>
           </div>
 
           {success && <div className="badge badge-success">{success}</div>}
-          {saveMutation.error && (
-            <div className="badge badge-danger">
-              {saveMutation.error instanceof Error ? saveMutation.error.message : String(saveMutation.error)}
-            </div>
-          )}
 
           <div className="flex justify-between">
             <Link to="/inventory" search={{ success: undefined }} className="btn btn-secondary">Voltar para estoque</Link>
@@ -265,4 +348,3 @@ export function InventoryEntryForm() {
     </div>
   );
 }
-

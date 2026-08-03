@@ -1,7 +1,9 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "@tanstack/react-router";
-import { ArrowLeft, Save, Check, AlertTriangle, Loader2 } from "lucide-react";
+import { ArrowLeft, Save, Check, AlertTriangle, Plus, Loader2 } from "lucide-react";
 import { useForm } from "react-hook-form";
+import { Controller } from "react-hook-form";
+import Select from "react-select";
 
 // Hooks
 import { useSaveDraftProcedure, useFinalizeProcedure } from "../hooks/useProcedures";
@@ -14,18 +16,15 @@ import { patientApplicationsService } from "@/features/patients/services/patient
 import { protocolsService } from "@/features/protocols/services/protocols.service";
 
 // Components
-import { BodyAreaSelector } from "../components/BodyAreaSelector";
-import { ProcedureContextCard } from "../components/ProcedureContextCard";
-import { ProcedureAreaDetails } from "../components/ProcedureAreaDetails";
-import { ProcedureItemsPanel } from "../components/ProcedureItemsPanel";
+import { MultiBodyAreaSelector } from "../components/MultiBodyAreaSelector";
+import { ProcedureApplicationCard } from "../components/ProcedureApplicationCard";
 import { ProcedureEvolutionPanel } from "../components/ProcedureEvolutionPanel";
 import { PatientProcedureHistory } from "../components/PatientProcedureHistory";
-import { ProcedureExecutionSidebar } from "../components/ProcedureExecutionSidebar";
+import { FinancialCheckoutPanel } from "../components/FinancialCheckoutPanel";
 
-// Types & Constants
-import type { Procedure, ProcedureItemUsed } from "../types";
-import type { BodyArea } from "../repositories/procedures.repository";
-import { BODY_AREA_MAP, ROUTE_COLORS, type RouteCode } from "../constants/bodyAreaMap";
+// Types
+import type { Procedure, ProcedureApplication } from "../types";
+import { type RouteCode } from "../constants/bodyAreaMap";
 
 function toRouteCode(name: string | null | undefined): RouteCode | null {
   if (!name) return null;
@@ -36,18 +35,24 @@ function toRouteCode(name: string | null | undefined): RouteCode | null {
   return null;
 }
 
-function safeRouteColor(code: RouteCode | null | string | undefined) {
-  if (!code) return null;
-  const key = String(code).toUpperCase();
-  return (ROUTE_COLORS as any)[key] ?? null;
+function newEmptyApplication(bodyAreaId?: string, bodyAreaName?: string): ProcedureApplication {
+  return {
+    id: crypto.randomUUID(),
+    protocolId: null,
+    bodyAreaId: bodyAreaId ?? null,
+    bodyAreaName: bodyAreaName ?? null,
+    notes: null,
+    items: [],
+  };
 }
 
 export default function ExecuteProcedurePage() {
-  const { applicationPlanId } = useParams({ from: "/shell/procedures/execute/$applicationPlanId" });
+  const { applicationPlanId } = useParams({ strict: false }) as { applicationPlanId: string };
   const navigate = useNavigate();
 
   const { data: patients = [] } = usePatients("", true);
   const { data: protocols = [] } = useProtocols();
+  const { data: templates = [] } = useEvolutionTemplates();
   const { data: inventoryData } = useInventoryOptions();
   const { data: bodyAreas = [] } = useBodyAreas();
   const { data: routes = [] } = useAdministrationRoutes();
@@ -55,34 +60,37 @@ export default function ExecuteProcedurePage() {
   const saveDraft = useSaveDraftProcedure();
   const finalizeProcedure = useFinalizeProcedure();
 
-  const [items, setItems] = useState<Partial<ProcedureItemUsed>[]>([]);
-  const [selectedRouteCode, setSelectedRouteCode] = useState<RouteCode | null>(null);
-  const [selectedAreaKey, setSelectedAreaKey] = useState<string | null>(null);
-  const [manualRouteId, setManualRouteId] = useState<string>("");
+  const [loadingPlan, setLoadingPlan] = useState(true);
+  const [applications, setApplications] = useState<ProcedureApplication[]>([newEmptyApplication()]);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-
-  const [loadingPlan, setLoadingPlan] = useState(true);
+  
+  /** ID da aplicação que deve ser destacada/com foco (clicou no mapa em área já usada) */
+  const [focusedAppId, setFocusedAppId] = useState<string | null>(null);
+  
+  const [financialData, setFinancialData] = useState<any>({
+    subtotal: 0,
+    discountAmount: 0,
+    discountType: "fixed",
+    totalAmount: 0,
+    paymentMethod: "",
+    paymentStatus: "pending"
+  });
 
   const { register, handleSubmit, watch, setValue, control } = useForm<Partial<Procedure>>({
     defaultValues: {
       patientId: "",
-      protocolId: "",
-      bodyAreaId: "",
       notes: "",
       hadIntercurrence: 0,
       intercurrenceDescription: "",
-      applicationPlanId: applicationPlanId,
-    }
+      applicationPlanId,
+    },
   });
 
   const patientId = watch("patientId");
-  const protocolId = watch("protocolId");
-  const bodyAreaId = watch("bodyAreaId");
-  const notes = watch("notes");
-  const intercurrenceDescription = watch("intercurrenceDescription");
-  const evolutionText = watch("evolutionText");
   const hadIntercurrence = Boolean(watch("hadIntercurrence"));
+  const intercurrenceDescription = watch("intercurrenceDescription");
+  const notes = watch("notes");
 
   // Load plan data
   useEffect(() => {
@@ -91,20 +99,28 @@ export default function ExecuteProcedurePage() {
         const plan = await patientApplicationsService.getById(applicationPlanId);
         if (plan) {
           setValue("patientId", plan.patientId);
-          setValue("protocolId", plan.protocolId);
-          setManualRouteId(plan.routeId);
 
+          let initialItems: any[] = [];
           const protocolWithItems = await protocolsService.getProtocolWithItems(plan.protocolId);
           if (protocolWithItems?.items.length) {
-            setItems(protocolWithItems.items.map(item => ({
+            initialItems = protocolWithItems.items.map((item: any) => ({
               inventoryItemId: item.inventoryItemId,
               itemType: item.itemRole,
               quantityUsed: item.defaultQuantity,
               unit: item.unit,
               inventoryBatchId: "",
               notes: item.notes ?? null,
-            })));
+            }));
           }
+
+          setApplications([{
+            id: crypto.randomUUID(),
+            protocolId: plan.protocolId,
+            bodyAreaId: null, // Resolvido pela interface
+            bodyAreaName: null, // Será resolvido pela interface
+            notes: null,
+            items: initialItems,
+          }]);
         }
       } catch (e) {
         console.error(e);
@@ -115,106 +131,84 @@ export default function ExecuteProcedurePage() {
     load();
   }, [applicationPlanId, setValue]);
 
-  // Sincroniza via ativa pelo manualRouteId carregado do plano
-  useEffect(() => {
-    if (manualRouteId && routes.length > 0) {
-      const route = routes.find(r => r.id === manualRouteId);
-      setSelectedRouteCode(route ? toRouteCode(route.name) : null);
-    } else {
-      setSelectedRouteCode(null);
+  const activeBodyAreaIds = applications.map((a) => a.bodyAreaId).filter(Boolean) as string[];
+
+  // Deriva a via recomendada do aplicativo em foco (para bloquear visualmente o mapa)
+  let activeRouteCode: RouteCode | null = null;
+  const appToInspect = applications.find(a => a.id === focusedAppId) || (applications.length === 1 ? applications[0] : null);
+  if (appToInspect && inventoryData && routes.length > 0) {
+    const medicationWithRoute = appToInspect.items.find((item: any) => {
+      const inv = inventoryData.items.find((i: any) => i.id === item.inventoryItemId);
+      return inv?.administration_route_id;
+    });
+
+    if (medicationWithRoute) {
+      const inv = inventoryData.items.find((i: any) => i.id === medicationWithRoute.inventoryItemId);
+      if (inv) {
+        const route = routes.find(r => r.id === inv.administration_route_id);
+        if (route) {
+          activeRouteCode = toRouteCode(route.name);
+        }
+      }
     }
-  }, [manualRouteId, routes]);
-
-  const handleAreaSelect = (areaKey: string, areaId: string) => {
-    setSelectedAreaKey(areaKey);
-    setValue("bodyAreaId", areaId);
-  };
-
-  const { data: templates = [] } = useEvolutionTemplates();
-
-  const handleClearArea = () => {
-    setSelectedAreaKey(null);
-    setValue("bodyAreaId", "");
-  };
+  }
 
   // Generate Evolution Text Preview
   useEffect(() => {
-    const generatePreview = async () => {
-      // Usar template vinculado ao protocolo selecionado ou default/geral
-      const selectedProtocol = protocols.find(p => p.id === protocolId);
+    const generatePreview = () => {
+      const firstApp = applications[0];
+      const selectedProtocol = protocols.find(p => p.id === firstApp?.protocolId);
       let targetTemplate = templates.find(t => t.id === selectedProtocol?.defaultEvolutionTemplateId) 
                         || templates.find(t => Boolean(t.isDefault))
                         || templates[0];
       
-      const templateText = targetTemplate?.templateText || `
-Paciente: {{paciente_nome}}
-Data: {{data_procedimento}}
-Protocolo: {{protocolo_nome}}
-Área Corporal: {{area_corporal}}
-Via de Aplicação: {{via_aplicacao}}
+      const templateText = targetTemplate?.templateText || `Paciente {{patient_name}} realizou {{protocol_name}} em {{procedure_date}}.
 
-Medicamentos Utilizados:
-{{medicamentos}}
+Área registrada: {{body_area}}.
 
-Materiais Utilizados:
-{{materiais}}
+Medicamentos utilizados:
+{{medications}}
 
-Lotes Utilizados:
-{{lotes}}
-Validades:
-{{validade_lotes}}
+Materiais utilizados:
+{{materials}}
 
-Status: {{intercorrencia}}
-Observações: {{observacoes}}
-Profissional Responsável: {{profissional}}
-      `.trim();
+Procedimento registrado {{intercurrence_status}}.`;
 
-      const patientName = patients.find(p => p.id === patientId)?.full_name || "Não selecionado";
-      const protocolName = selectedProtocol?.name || "Avulso/Não selecionado";
-      const ba = bodyAreas.find((b: any) => b.id === bodyAreaId);
-      const bodyAreaName = ba?.displayName || ba?.name || "Não informada";
-      const routeName = routes.find(r => r.id === manualRouteId)?.name || "Via não definida";
-
-      const medicationsList = items.filter((i: any) => i.itemType === 'medication').map((i: any) => {
-        const name = inventoryData?.items.find((inv: any) => inv.id === i.inventoryItemId)?.name || "Item Desconhecido";
-        return `- ${name} (${i.quantityUsed} ${i.unit})`;
+      const patientName = patients.find(p => p.id === patientId)?.full_name || "Paciente não selecionado";
+      const protocolName = applications.map(a => protocols.find(p => p.id === a.protocolId)?.name).filter(Boolean).join(", ") || "Procedimento avulso";
+      const areaNames = applications.map(a => {
+        const ba = bodyAreas.find((b: any) => b.id === a.bodyAreaId);
+        return ba?.displayName || ba?.name;
+      }).filter(Boolean).join(", ");
+      
+      const allItems = applications.flatMap(a => a.items);
+      const medicationsList = allItems.filter(i => i.itemType === 'medication').map(i => {
+        const inv = inventoryData?.items.find((inv: any) => inv.id === i.inventoryItemId);
+        return `- ${inv?.name || "Item Desconhecido"} (${i.quantityUsed} ${i.unit})`;
       }).join("\n");
-
-      const materialsList = items.filter((i: any) => i.itemType === 'material').map((i: any) => {
-        const name = inventoryData?.items.find((inv: any) => inv.id === i.inventoryItemId)?.name || "Item Desconhecido";
-        return `- ${name} (${i.quantityUsed} ${i.unit})`;
-      }).join("\n");
-
-      const batchesList = items.map((i: any) => {
-        const batchNumber = i.inventoryBatchId || "Não Selecionado";
-        return `- Lote: ${batchNumber}`;
-      }).join("\n");
-
-      const expirationList = items.map((i: any) => {
-        return `- Val: ND`;
+      const materialsList = allItems.filter(i => i.itemType === 'material').map(i => {
+        const inv = inventoryData?.items.find((inv: any) => inv.id === i.inventoryItemId);
+        return `- ${inv?.name || "Item Desconhecido"} (${i.quantityUsed} ${i.unit})`;
       }).join("\n");
 
       let text = templateText;
-      text = text.replace(/{{paciente_nome}}/g, patientName);
-      text = text.replace(/{{data_procedimento}}/g, new Date().toLocaleDateString("pt-BR"));
-      text = text.replace(/{{protocolo_nome}}/g, protocolName);
-      text = text.replace(/{{via_aplicacao}}/g, routeName);
-      text = text.replace(/{{area_corporal}}/g, bodyAreaName);
-      text = text.replace(/{{medicamentos}}/g, medicationsList || "Nenhum medicamento");
-      text = text.replace(/{{materiais}}/g, materialsList || "Nenhum material");
-      text = text.replace(/{{lotes}}/g, batchesList || "Nenhum lote");
-      text = text.replace(/{{validade_lotes}}/g, expirationList || "N/D");
+      text = text.replace(/{{patient_name}}/g, patientName);
+      text = text.replace(/{{procedure_date}}/g, new Date().toLocaleDateString("pt-BR"));
+      text = text.replace(/{{protocol_name}}/g, protocolName);
+      text = text.replace(/{{body_area}}/g, areaNames || "Múltiplas áreas");
+      text = text.replace(/{{medications}}/g, medicationsList || "Nenhum medicamento");
+      text = text.replace(/{{materials}}/g, materialsList || "Nenhum material");
       
       const intercorrenciaTexto = hadIntercurrence ? `COM intercorrência: ${intercurrenceDescription || 'Sem detalhes'}` : "SEM intercorrências";
-      text = text.replace(/{{intercorrencia}}/g, intercorrenciaTexto);
-      text = text.replace(/{{observacoes}}/g, notes || "Sem observações adicionais");
-      text = text.replace(/{{profissional}}/g, "Profissional Responsável");
+      text = text.replace(/{{intercurrence_status}}/g, intercorrenciaTexto);
 
       setValue("evolutionText", text);
     };
 
-    generatePreview();
-  }, [patientId, protocolId, bodyAreaId, notes, hadIntercurrence, intercurrenceDescription, items, inventoryData, patients, protocols, bodyAreas, routes, manualRouteId, templates, setValue]);
+    if (!loadingPlan) {
+      generatePreview();
+    }
+  }, [patientId, applications, notes, hadIntercurrence, intercurrenceDescription, inventoryData, patients, protocols, bodyAreas, templates, setValue, loadingPlan]);
 
   const showMessage = (type: "success" | "error", msg: string) => {
     if (type === "success") {
@@ -230,38 +224,49 @@ Profissional Responsável: {{profissional}}
 
   const onSubmit = async (data: Partial<Procedure>, action: "draft" | "finalize") => {
     if (!data.patientId) {
-      showMessage("error", "Paciente não identificado no plano.");
+      showMessage("error", "Selecione o paciente.");
       return;
     }
 
     const payload = {
       procedure: {
         ...data,
-        protocolId: data.protocolId || null,
-        bodyAreaId: data.bodyAreaId || null,
+        ...financialData,
         applicationPlanId,
       },
-      items: items.map(item => ({
-        ...item,
-        quantityUsed: Number(item.quantityUsed)
+      applications: applications.map(app => ({
+        ...app,
+        items: app.items.map((item: any) => ({
+          ...item,
+          quantityUsed: Number(item.quantityUsed)
+        }))
       }))
     };
 
     try {
       if (action === "draft") {
-        await saveDraft.mutateAsync(payload);
+        const procedureId = await saveDraft.mutateAsync(payload);
+        setValue("id", procedureId);
         showMessage("success", "Rascunho salvo com sucesso.");
       } else {
-        if (!data.bodyAreaId) {
-          showMessage("error", "Selecione a área corporal antes de finalizar.");
+        if (applications.length === 0) {
+          showMessage("error", "Adicione pelo menos uma aplicação.");
           return;
         }
-        if (items.length === 0 || items.some(item => !item.inventoryItemId || !item.quantityUsed)) {
-          showMessage("error", "Informe os itens utilizados e suas quantidades antes de finalizar.");
-          return;
+        for (const app of applications) {
+          if (!app.bodyAreaId) {
+            showMessage("error", "Selecione a área corporal para todas as aplicações antes de finalizar.");
+            return;
+          }
         }
-        const procedureId = await saveDraft.mutateAsync(payload);
-        payload.procedure.id = procedureId;
+        
+        let idToFinalize = data.id;
+        if (!idToFinalize) {
+          idToFinalize = await saveDraft.mutateAsync(payload);
+          setValue("id", idToFinalize);
+        }
+        
+        payload.procedure.id = idToFinalize;
         await finalizeProcedure.mutateAsync(payload);
         showMessage("success", "Procedimento finalizado com sucesso!");
         setTimeout(() => navigate({ to: `/patients/${data.patientId}` }), 1500);
@@ -271,18 +276,64 @@ Profissional Responsável: {{profissional}}
     }
   };
 
-  const selectedAreaEntry = selectedAreaKey
-    ? BODY_AREA_MAP.find(e => e.areaKey === selectedAreaKey) || null
-    : null;
-  const activeDbArea = bodyAreas.find((ba: any) => ba.id === bodyAreaId);
-  const activeRouteColor = safeRouteColor(selectedRouteCode);
+  // ─── Handlers de Aplicação ──────────────────────────────────────────────────
+
+  function handleMapAreaClick(areaKey: string, bodyAreaId: string) {
+    const dbArea = bodyAreas.find((a: any) => a.id === bodyAreaId);
+    const bodyAreaName = dbArea?.displayName || dbArea?.name || areaKey;
+
+    setApplications((prev) => {
+      const existingIdx = prev.findIndex((a) => a.bodyAreaId === bodyAreaId);
+      if (existingIdx !== -1) {
+        const existingId = prev[existingIdx].id!;
+        setTimeout(() => {
+          setFocusedAppId(existingId);
+          document.getElementById(`app-card-${existingId}`)?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+          setTimeout(() => setFocusedAppId(null), 2000);
+        }, 50);
+        return prev;
+      }
+
+      const noAreaIdx = prev.findIndex((a) => !a.bodyAreaId);
+      if (noAreaIdx !== -1) {
+        const updated = [...prev];
+        const filledId = updated[noAreaIdx].id!;
+        updated[noAreaIdx] = { ...updated[noAreaIdx], bodyAreaId, bodyAreaName };
+        setTimeout(() => {
+          setFocusedAppId(filledId);
+          document.getElementById(`app-card-${filledId}`)?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+          setTimeout(() => setFocusedAppId(null), 1500);
+        }, 50);
+        return updated;
+      }
+
+      const newApp = newEmptyApplication(bodyAreaId, bodyAreaName);
+      setTimeout(() => {
+        setFocusedAppId(newApp.id!);
+        document.getElementById(`app-card-${newApp.id}`)?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+        setTimeout(() => setFocusedAppId(null), 1500);
+      }, 100);
+      return [...prev, newApp];
+    });
+  }
+
+  function handleAddApplication() {
+    setApplications((prev) => [...prev, newEmptyApplication()]);
+  }
+
+  function handleRemoveApplication(index: number) {
+    setApplications((prev) => prev.filter((_, i) => i !== index));
+  }
+
+  function handleApplicationChange(index: number, updatedApp: ProcedureApplication) {
+    setApplications((prev) => {
+      const newApps = [...prev];
+      newApps[index] = updatedApp;
+      return newApps;
+    });
+  }
+
   const isPending = saveDraft.isPending || finalizeProcedure.isPending;
-  const selectedPatient = patients.find(p => p.id === patientId);
-  const selectedProtocol = protocols.find(p => p.id === protocolId);
-  const selectedRoute = routes.find(r => r.id === manualRouteId);
-  const routeLabel = selectedRouteCode
-    ? `${selectedRouteCode}${selectedRoute?.description ? ` - ${selectedRoute.description}` : ""}`
-    : selectedRoute?.name || "Via nao definida";
 
   if (loadingPlan) {
     return (
@@ -301,11 +352,12 @@ Profissional Responsável: {{profissional}}
           </button>
           <div>
             <h1 className="page-title">Executar Aplicação Planejada</h1>
-            <p className="page-subtitle">Finalizando o procedimento vinculado ao prontuário.</p>
+            <p className="page-subtitle">Finalizando o procedimento vinculado ao plano.</p>
           </div>
         </div>
         <div className="procedure-action-group">
           <button
+            type="button"
             onClick={() => handleSubmit((data) => onSubmit(data, "draft"))()}
             disabled={isPending}
             className="btn btn-secondary"
@@ -313,9 +365,10 @@ Profissional Responsável: {{profissional}}
             <Save size={16} /> Salvar Rascunho
           </button>
           <button
+            type="button"
             onClick={() => handleSubmit((data) => onSubmit(data, "finalize"))()}
             disabled={isPending}
-            className="btn btn-primary bg-green-600 hover:bg-green-700 text-white border-transparent"
+            className="btn btn-primary bg-green-600 hover:bg-green-700 text-white border-transparent shadow-sm"
           >
             <Check size={16} /> {isPending ? "Salvando..." : "Finalizar & Baixar Estoque"}
           </button>
@@ -323,101 +376,146 @@ Profissional Responsável: {{profissional}}
       </div>
 
       {successMsg && (
-        <div className="clinical-alert clinical-alert-success">
+        <div className="mb-4 flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium bg-green-50 text-green-800 border-l-4 border-green-500">
           <Check size={16} /> {successMsg}
         </div>
       )}
       {errorMsg && (
-        <div className="clinical-alert clinical-alert-danger">
+        <div className="mb-4 flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium bg-red-50 text-red-800 border-l-4 border-red-500">
           <AlertTriangle size={16} /> {errorMsg}
         </div>
       )}
 
-      <div className="procedure-execution-page">
-        {/* COLUNA 1: Contexto (Ready-only parts are useful, but let's reuse ContextCard) */}
-        <div className="procedure-context-shell">
-          <ProcedureContextCard 
-            register={register}
-            control={control}
-            patients={patients}
-            protocols={protocols}
-            routes={routes}
-            manualRouteId={manualRouteId}
-            setManualRouteId={setManualRouteId}
-            selectedRouteCode={selectedRouteCode}
-            activeRouteColor={activeRouteColor}
-          />
-        </div>
-
-        {/* COLUNA 2: Mapa Corporal Centralizado */}
-        <div className="procedure-execution-stage">
-        <div className="procedure-body-card w-full xl:max-w-[680px] flex-shrink-0 bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden flex flex-col mx-auto">
-          <div className="procedure-body-card-header">
-            <div>
-              <h2>Mapa Corporal Interativo</h2>
-              <p>Selecione a area compativel com a via ativa.</p>
+      {/* Layout 3 colunas: Paciente | Mapa | Aplicações */}
+      <div className="flex flex-col xl:flex-row gap-4 min-h-0">
+        
+        {/* ── COLUNA ESQUERDA: Paciente + Histórico ── */}
+        <div className="w-full xl:w-[260px] flex-shrink-0 flex flex-col gap-4">
+          <div className="card" style={{ borderColor: "var(--color-gray-200)" }}>
+            <div className="procedure-card-heading">
+              <div>
+                <h2 className="text-sm font-semibold text-gray-800">Sessão Clínica</h2>
+                <p className="text-xs text-gray-500">Paciente do plano.</p>
+              </div>
             </div>
-            <div className="flex gap-2">
-              {(["EV", "IM", "SC"] as RouteCode[]).map(code => {
-                const c = ROUTE_COLORS[code];
-                const isActive = selectedRouteCode === code;
-                return (
-                  <span key={code} className={`inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full border transition-all ${isActive ? "font-medium" : "opacity-50"}`}
-                    style={{
-                      backgroundColor: isActive ? `${c.fill}15` : "transparent",
-                      borderColor: isActive ? c.fill : "var(--color-gray-200)",
-                      color: isActive ? c.stroke : "var(--color-gray-500)",
-                    }}>
-                    <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: isActive ? c.fill : "var(--color-gray-400)" }} />
-                    {code}
-                  </span>
-                );
-              })}
+            <div className="px-3 pb-3">
+              <div className="form-group mb-0">
+                <label className="form-label text-sm text-gray-600 font-medium">Paciente *</label>
+                <Controller
+                  name="patientId"
+                  control={control}
+                  rules={{ required: true }}
+                  render={({ field: { onChange, value, ref } }) => (
+                    <Select
+                      ref={ref}
+                      options={patients.map((p: any) => ({ value: p.id, label: p.full_name }))}
+                      value={
+                        patients.find((p: any) => p.id === value)
+                          ? { value, label: patients.find((p: any) => p.id === value)?.full_name ?? "" }
+                          : null
+                      }
+                      onChange={(val) => onChange(val?.value || "")}
+                      placeholder="Buscar paciente..."
+                      noOptionsMessage={() => "Nenhum paciente encontrado"}
+                      isClearable
+                      className="react-select-container"
+                      classNamePrefix="react-select"
+                      styles={{
+                        control: (base) => ({
+                          ...base,
+                          backgroundColor: "#f9fafb",
+                          borderColor: "#d1d5db",
+                          fontSize: "0.875rem",
+                          minHeight: "38px",
+                          boxShadow: "none",
+                          "&:hover": { borderColor: "#9ca3af" },
+                        }),
+                        menu: (base) => ({ ...base, zIndex: 9999 }),
+                      }}
+                    />
+                  )}
+                />
+              </div>
             </div>
           </div>
-          <div className="flex-1 p-2">
-            <BodyAreaSelector
-              routeCode={selectedRouteCode}
-              selectedAreaKey={selectedAreaKey}
-              bodyAreas={bodyAreas as BodyArea[]}
-              onSelect={handleAreaSelect}
-            />
-          </div>
-        </div>
 
-        {/* COLUNA 3: Detalhes da Área, Itens e Evolução */}
-        <ProcedureExecutionSidebar
-          patientName={selectedPatient?.full_name || "Paciente nao selecionado"}
-          protocolName={selectedProtocol?.name || "Procedimento avulso"}
-          routeLabel={routeLabel}
-          selectedRouteCode={selectedRouteCode}
-          selectedAreaEntry={selectedAreaEntry}
-          bodyAreaName={(activeDbArea as any)?.displayName || (activeDbArea as any)?.name}
-          activeRouteColor={activeRouteColor}
-          items={items}
-          inventoryData={inventoryData}
-          hadIntercurrence={hadIntercurrence}
-          evolutionText={evolutionText}
-        />
-        </div>
-
-        <div className="procedure-lower-grid">
-          <ProcedureAreaDetails 
-            selectedAreaEntry={selectedAreaEntry} 
-            activeRouteColor={activeRouteColor} 
-            clearSelection={handleClearArea}
-            bodyAreaName={(activeDbArea as any)?.displayName || (activeDbArea as any)?.name}
-            bodyAreaTechnicalName={(activeDbArea as any)?.technicalName}
-          />
           <PatientProcedureHistory patientId={patientId || null} />
-          <ProcedureItemsPanel 
-            items={items} 
-            setItems={setItems} 
-            inventoryData={inventoryData} 
+        </div>
+
+        {/* ── COLUNA CENTRAL: Mapa Corporal ── */}
+        <div className="w-full xl:w-[340px] flex-shrink-0 flex flex-col gap-2">
+          <div className="card flex-1 flex flex-col" style={{ borderColor: "var(--color-gray-200)" }}>
+            <div className="procedure-card-heading flex-shrink-0">
+              <div>
+                <h2 className="text-sm font-semibold text-gray-800">Mapa Corporal</h2>
+                <p className="text-xs text-gray-500">Clique para adicionar aplicações</p>
+              </div>
+            </div>
+            <div className="px-3 pb-3 flex-1 flex flex-col">
+              <MultiBodyAreaSelector
+                selectedBodyAreaIds={activeBodyAreaIds}
+                bodyAreas={bodyAreas}
+                activeRouteCode={activeRouteCode}
+                onAreaClick={handleMapAreaClick}
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* ── COLUNA DIREITA: Aplicações + Evolução ── */}
+        <div className="flex-1 min-w-0 flex flex-col gap-4 overflow-y-auto">
+          {/* Aplicações */}
+          <div className="flex flex-col gap-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-base font-semibold text-gray-800">
+                  Aplicações{" "}
+                  <span className="text-sm font-normal text-gray-400">
+                    ({applications.length})
+                  </span>
+                </h2>
+                <p className="text-xs text-gray-500">
+                  Use o mapa para selecionar áreas ou adicione avulsas.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={handleAddApplication}
+                className="btn btn-secondary btn-sm"
+              >
+                <Plus size={14} /> Aplicação avulsa
+              </button>
+            </div>
+
+            {applications.map((app, index) => (
+              <div key={app.id || index} id={`app-card-${app.id}`}>
+                <ProcedureApplicationCard
+                  application={app}
+                  index={index}
+                  protocols={protocols}
+                  bodyAreas={bodyAreas}
+                  inventoryData={inventoryData}
+                  onChange={(updated) => handleApplicationChange(index, updated)}
+                  onRemove={() => handleRemoveApplication(index)}
+                  canRemove={applications.length > 1}
+                  isFocused={focusedAppId === app.id}
+                />
+              </div>
+            ))}
+          </div>
+
+          {/* Evolução */}
+          <ProcedureEvolutionPanel
+            register={register}
+            hadIntercurrence={hadIntercurrence}
           />
-          <ProcedureEvolutionPanel 
-            register={register} 
-            hadIntercurrence={hadIntercurrence} 
+          
+          {/* Resumo Financeiro */}
+          <FinancialCheckoutPanel 
+            applications={applications}
+            protocols={protocols}
+            inventoryData={inventoryData}
+            onFinancialDataChange={setFinancialData}
           />
         </div>
       </div>

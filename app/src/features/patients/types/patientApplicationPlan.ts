@@ -5,7 +5,7 @@ export interface PatientApplicationPlan {
   clinicId: string;
   patientId: string;
   protocolId: string;
-  routeId: string;
+  routeId?: string | null;
   appointmentId?: string | null;
   scheduledAt?: string | null;
   status: ApplicationPlanStatus;
@@ -24,7 +24,7 @@ export interface PatientApplicationPlan {
 export interface CreatePatientApplicationPlanInput {
   patientId: string;
   protocolId: string;
-  routeId: string;
+  routeId?: string | null;
   scheduledAt?: string | null; // Se existir, gera um agendamento
   notes?: string | null;
   status?: ApplicationPlanStatus; // Padrão: 'planned' ou 'scheduled' dependendo de scheduledAt
@@ -33,7 +33,7 @@ export interface CreatePatientApplicationPlanInput {
 export interface UpdatePatientApplicationPlanInput {
   id: string;
   protocolId?: string;
-  routeId?: string;
+  routeId?: string | null;
   scheduledAt?: string | null; // Se alterado, deve atualizar ou cancelar o agendamento
   notes?: string | null;
   status?: ApplicationPlanStatus;

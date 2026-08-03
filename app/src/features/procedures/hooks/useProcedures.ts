@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { proceduresService, type SaveProcedureInput } from "../services/procedures.service";
+import { protocolsRepository } from "@/features/protocols/repositories/protocols.repository";
 
 export function useProcedures() {
   return useQuery({
@@ -34,5 +35,15 @@ export function useFinalizeProcedure() {
       queryClient.invalidateQueries({ queryKey: ["procedures"] });
       queryClient.invalidateQueries({ queryKey: ["inventory"] });
     },
+  });
+}
+
+/** Carrega os itens (medicamentos/materiais) cadastrados em um protocolo */
+export function useProtocolItems(protocolId: string | null | undefined) {
+  return useQuery({
+    queryKey: ["protocol-items", protocolId],
+    queryFn: () => protocolsRepository.listItems(protocolId!),
+    enabled: !!protocolId,
+    staleTime: 60_000, // cache por 1 minuto — protocolos mudam pouco
   });
 }

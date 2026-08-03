@@ -7,6 +7,7 @@ export interface Protocol {
   internalNotes?: string | null;
   defaultEvolutionTemplateId?: string | null;
   isActive: number;
+  basePrice: number;
   categoryName?: string;
   routeName?: string;
 }

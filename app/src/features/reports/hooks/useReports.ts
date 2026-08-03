@@ -69,3 +69,10 @@ export function useDetailedReport(
     enabled: Boolean(type) && enabled,
   });
 }
+
+export function useUsers() {
+  return useQuery({
+    queryKey: [...REPORTS_QUERY_KEY, "users"],
+    queryFn: () => reportsService.listUsers(),
+  });
+}

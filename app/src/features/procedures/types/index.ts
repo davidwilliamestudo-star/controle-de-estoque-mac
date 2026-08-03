@@ -14,6 +14,13 @@ export interface Procedure {
   responsibleUserId?: string | null;
   finalizedAt?: string | null;
   
+  subtotal: number;
+  discountAmount: number;
+  discountType: "fixed" | "percentage";
+  totalAmount: number;
+  paymentMethod?: string | null;
+  paymentStatus: "pending" | "paid";
+  
   patientName?: string;
   protocolName?: string | null;
   bodyAreaName?: string | null;
@@ -27,6 +34,7 @@ export interface Procedure {
 export interface ProcedureItemUsed {
   id: string;
   procedureId: string;
+  procedureApplicationId?: string | null;
   inventoryItemId: string;
   inventoryBatchId?: string | null;
   itemType: string;
@@ -41,4 +49,21 @@ export interface ProcedureItemUsed {
   correctionGroupId?: string | null;
   
   itemName?: string;
+}
+
+/**
+ * Representa uma aplicação individual dentro de uma sessão clínica.
+ * Cada aplicação tem: 1 protocolo (opcional) + 1 área corporal (opcional) + N itens usados.
+ */
+export interface ProcedureApplication {
+  id?: string;
+  procedureId?: string;
+  protocolId?: string | null;
+  protocolName?: string | null;
+  bodyAreaId?: string | null;
+  bodyAreaName?: string | null;
+  sortOrder?: number;
+  notes?: string | null;
+  /** Itens utilizados nesta aplicação específica */
+  items: Partial<ProcedureItemUsed>[];
 }

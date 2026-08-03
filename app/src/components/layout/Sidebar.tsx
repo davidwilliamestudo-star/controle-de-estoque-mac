@@ -7,6 +7,7 @@ import {
   BarChart3,
   Boxes,
   Calendar,
+  CalendarDays,
   ChevronLeft,
   ChevronRight,
   FileText,
@@ -18,6 +19,7 @@ import {
   QrCode,
   Settings,
   Shield,
+  Wallet,
   Users,
   Wrench,
 } from "lucide-react";
@@ -41,7 +43,9 @@ const navItems: NavItem[] = [
   { to: "/materials", icon: Boxes, label: "Materiais" },
   { to: "/equipment", icon: Wrench, label: "Equipamentos" },
   { to: "/labels", icon: QrCode, label: "Etiquetas" },
-  { to: "/reports", icon: BarChart3, label: "Relatorios", section: "Gestao" },
+  { to: "/financial", icon: Wallet, label: "Financeiro", section: "Financeiro" },
+  { to: "/resumo-mes", icon: CalendarDays, label: "Resumo do Mes", section: "Gestao" },
+  { to: "/reports", icon: BarChart3, label: "Relatorios" },
   { to: "/audit", icon: Shield, label: "Auditoria" },
   { to: "/settings", icon: Settings, label: "Configuracoes", section: "Sistema" },
   { to: "/backup", icon: HardDrive, label: "Backup" },
@@ -107,17 +111,6 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
         })}
       </div>
 
-      <div className="sidebar-footer">
-        <div className="user-profile" title="Usuário logado">
-          <div className="user-avatar">AM</div>
-          {!collapsed && (
-            <div className="user-info">
-              <div className="user-name">Dra. Ana Morong</div>
-              <div className="user-role">Medica</div>
-            </div>
-          )}
-        </div>
-      </div>
     </aside>
   );
 }

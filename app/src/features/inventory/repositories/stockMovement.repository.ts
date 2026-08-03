@@ -95,4 +95,38 @@ export const stockMovementRepository = {
       data.locationId ?? null,
     ]);
   },
+
+  /**
+   * Registra um estorno de saída de estoque (devolução por cancelamento de procedimento).
+   * Usa movement_type 'reversal' para distinguir de entradas normais.
+   */
+  async createReversal(id: string, data: {
+    inventoryItemId: string;
+    inventoryBatchId?: string | null;
+    quantity: number;
+    unit: string;
+    reason: string;
+    userId?: string | null;
+    procedureId?: string | null;
+    notes?: string | null;
+  }): Promise<void> {
+    await dbExecute(`
+      INSERT INTO stock_movements (
+        id, clinic_id, inventory_item_id, inventory_batch_id, movement_type,
+        quantity, unit, reason, user_id, procedure_id, notes
+      )
+      VALUES (?, ?, ?, ?, 'correction', ?, ?, ?, ?, ?, ?)
+    `, [
+      id,
+      CLINIC_ID,
+      data.inventoryItemId,
+      data.inventoryBatchId ?? null,
+      data.quantity,
+      data.unit,
+      data.reason,
+      data.userId ?? null,
+      data.procedureId ?? null,
+      data.notes ?? null,
+    ]);
+  },
 };

@@ -17,7 +17,7 @@ export const appointmentStockValidationService = {
         i.current_stock as currentStock
       FROM protocol_items pi
       JOIN inventory_items i ON pi.inventory_item_id = i.id
-      WHERE pi.protocol_id = $1 AND pi.is_required = 1
+      WHERE pi.protocol_id = ? AND pi.is_required = 1
       `,
       [protocolId]
     );
@@ -36,12 +36,12 @@ export const appointmentStockValidationService = {
         WHERE a.status IN ('scheduled', 'confirmed')
           AND a.deleted_at IS NULL
           AND pap.deleted_at IS NULL
-          AND pi.inventory_item_id = $1
+          AND pi.inventory_item_id = ?
       `;
       const reservedParams: any[] = [item.inventoryItemId];
 
       if (excludeAppointmentId) {
-        reservedQuery += ` AND a.id != $2`;
+        reservedQuery += ` AND a.id != ?`;
         reservedParams.push(excludeAppointmentId);
       }
 
@@ -52,12 +52,12 @@ export const appointmentStockValidationService = {
       const requiredQuantity = Number(item.requiredQuantity || 0);
       const availableStock = currentStock - reservedStock;
 
-      // 3. Find suggested batch (oldest valid batch with enough stock, or just oldest valid)
+      // 3. Find suggested batch (oldest valid batch with enough stock, or just oldest valid) — FEFO
       const batches = await dbSelect<any>(
         `
         SELECT id, batch_number, expiration_date, current_quantity
         FROM inventory_batches
-        WHERE inventory_item_id = $1
+        WHERE inventory_item_id = ?
           AND deleted_at IS NULL
           AND current_quantity > 0
           AND (expiration_date IS NULL OR expiration_date >= date('now'))
@@ -109,7 +109,7 @@ export const appointmentStockValidationService = {
     excludeAppointmentId?: string
   ): Promise<StockValidationResult | null> {
     const plans = await dbSelect<any>(
-      `SELECT protocol_id FROM patient_application_plans WHERE id = $1 AND deleted_at IS NULL`,
+      `SELECT protocol_id FROM patient_application_plans WHERE id = ? AND deleted_at IS NULL`,
       [applicationPlanId]
     );
 

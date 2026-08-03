@@ -576,6 +576,36 @@ pub fn run() {
             sql: include_str!("../../src/lib/db/migrations/023_database_preflight_guard.sql"),
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 24,
+            description: "financial_module",
+            sql: include_str!("../../src/lib/db/migrations/024_financial_module.sql"),
+            kind: MigrationKind::Up,
+        },
+        Migration {
+            version: 25,
+            description: "procedure_applications",
+            sql: include_str!("../../src/lib/db/migrations/025_procedure_applications.sql"),
+            kind: MigrationKind::Up,
+        },
+        Migration {
+            version: 26,
+            description: "procedure_items_application_fk",
+            sql: include_str!("../../src/lib/db/migrations/026_procedure_items_application_fk.sql"),
+            kind: MigrationKind::Up,
+        },
+        Migration {
+            version: 27,
+            description: "financial_module_prices",
+            sql: include_str!("../../src/lib/db/migrations/027_financial_module.sql"),
+            kind: MigrationKind::Up,
+        },
+        Migration {
+            version: 28,
+            description: "028_financial_loss_category",
+            sql: include_str!("../../src/lib/db/migrations/028_financial_loss_category.sql"),
+            kind: MigrationKind::Up,
+        },
     ];
 
     tauri::Builder::default()
@@ -585,6 +615,8 @@ pub fn run() {
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_store::Builder::default().build())
         .plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_process::init())
         .plugin(
             tauri_plugin_sql::Builder::default()
                 .add_migrations("sqlite:estoque.db", migrations)

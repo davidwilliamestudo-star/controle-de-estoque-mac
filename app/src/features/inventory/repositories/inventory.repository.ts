@@ -233,6 +233,8 @@ export const inventoryRepository = {
     equipmentLocation?: string | null;
     equipmentMaintenanceStatus?: string | null;
     initialStock?: number;
+    costPrice?: number;
+    sellingPrice?: number;
   }): Promise<void> {
     await dbExecute(`
       INSERT INTO inventory_items (
@@ -241,9 +243,10 @@ export const inventoryRepository = {
         commercial_name, active_principle, concentration, presentation, pharmaceutical_form,
         clinical_control_unit, unit_converter, material_type, usage_in_protocol,
         equipment_patrimony, equipment_serial, equipment_brand, equipment_model,
-        equipment_acquisition_date, equipment_next_maintenance, equipment_location, equipment_maintenance_status
+        equipment_acquisition_date, equipment_next_maintenance, equipment_location, equipment_maintenance_status,
+        cost_price, selling_price
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `, [
       id,
       CLINIC_ID,
@@ -275,6 +278,8 @@ export const inventoryRepository = {
       data.equipmentNextMaintenance ?? null,
       data.equipmentLocation ?? null,
       data.equipmentMaintenanceStatus ?? null,
+      data.costPrice ?? 0,
+      data.sellingPrice ?? 0,
     ]);
   },
 
@@ -311,6 +316,8 @@ export const inventoryRepository = {
     if (data.supplierId !== undefined) { fields.push("supplier_id = ?"); values.push(data.supplierId); }
     if (data.notes !== undefined) { fields.push("notes = ?"); values.push(data.notes); }
     if (data.isActive !== undefined) { fields.push("is_active = ?"); values.push(data.isActive ? 1 : 0); }
+    if (data.costPrice !== undefined) { fields.push("cost_price = ?"); values.push(data.costPrice); }
+    if (data.sellingPrice !== undefined) { fields.push("selling_price = ?"); values.push(data.sellingPrice); }
 
     if (data.commercialName !== undefined) { fields.push("commercial_name = ?"); values.push(data.commercialName); }
     if (data.activePrinciple !== undefined) { fields.push("active_principle = ?"); values.push(data.activePrinciple); }

@@ -2,13 +2,15 @@
 @import "tailwindcss";
 
 :root {
-  /* Paleta Oficial */
-  --color-green-deep: #1A5347;
-  --color-green-light: #256b5d; /* Para hover */
-  --color-beige-camel: #B8A083;
-  --color-beige-light: #D7CBB5;
-  --color-greige: #D2CBC4;
-  --color-white: #F4F4F4;
+  /* Paleta Oficial Moderna (Branco Crisp, Verde Esmeralda e Slate Neutral) */
+  --color-green-deep: #047857;
+  --color-green-light: #059669;
+  --color-emerald-accent: #10B981;
+  --color-emerald-light: #ECFDF5;
+  --color-beige-camel: #047857;
+  --color-beige-light: #E2E8F0;
+  --color-greige: #CBD5E1;
+  --color-white: #F8FAFC;
   --color-pure-white: #FFFFFF;
   
   /* Escala de Cinzas Suaves para Backgrounds e Bordas */
@@ -422,6 +424,14 @@ textarea.form-control {
   overflow: hidden;
   transform: translateY(20px);
   transition: transform var(--transition-normal);
+}
+
+.modal-content > form {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .modal-overlay.active .modal-content {
@@ -903,6 +913,75 @@ textarea.form-control {
   color: var(--color-gray-500);
   max-width: 400px;
   margin-bottom: 24px;
+}
+
+/* REGRAS AVANÇADAS DE IMPRESSÃO (A4) */
+@media print {
+  @page {
+    size: A4;
+    margin: 15mm;
+  }
+
+  body, #root {
+    width: 210mm !important;
+    height: max-content !important;
+    background-color: white !important;
+    overflow: visible !important;
+  }
+
+  /* Oculta UI Geral (Sidebar do AppShell, NavBar, Modais, etc) */
+  .app-sidebar,
+  .app-header,
+  .no-print,
+  .print\:hidden {
+    display: none !important;
+  }
+
+  /* O AppShell-main ocupa a largura total da página e força o background white */
+  .app-main, main {
+    width: 210mm !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: white !important;
+    overflow: visible !important;
+  }
+
+  /* Reseta os cards e bordas */
+  .card, .bg-white {
+    box-shadow: none !important;
+    border: none !important;
+    background-color: transparent !important;
+  }
+
+  /* Controle de quebra de página */
+  table {
+    page-break-inside: auto;
+    width: 100% !important;
+    table-layout: auto !important;
+  }
+
+  tr {
+    page-break-inside: avoid;
+    page-break-after: auto;
+  }
+
+  thead {
+    display: table-header-group;
+  }
+
+  tfoot {
+    display: table-footer-group;
+  }
+
+  h1, h2, h3, h4, h5 {
+    page-break-after: avoid;
+  }
+
+  p {
+    orphans: 3;
+    widows: 3;
+  }
 }
 
 /* Dashboard real */

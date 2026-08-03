@@ -137,7 +137,7 @@ export function PatientApplicationsManager({ patientId, patientName, patientEmai
 
   const grouped = useMemo(() => groupPlans(filteredPlans), [filteredPlans]);
   const protocols = Array.from(new Map(plans.map(plan => [plan.protocolId, plan.protocolName || "Protocolo desconhecido"])));
-  const routes = Array.from(new Map(plans.map(plan => [plan.routeId, plan.routeName || "Via não informada"])));
+  const routes = Array.from(new Map(plans.filter(p => p.routeId).map(plan => [plan.routeId!, plan.routeName || "Via não informada"])));
   const next = nextApplication(plans);
 
 

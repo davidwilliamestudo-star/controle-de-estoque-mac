@@ -1,61 +1,107 @@
+/**
+ * TraceabilityDocument.tsx
+ *
+ * Documento PDF de Rastreabilidade por Lote.
+ * RECEBE dados como props — NÃO faz fetch interno.
+ */
+import { View, Text } from "@react-pdf/renderer";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { useTraceabilityReport } from "../../hooks/useReports";
-import { ReportDocumentLayout } from "../ReportDocumentLayout";
+import { PdfDocumentLayout, pdfStyles, PdfTable, PdfTableHeader, PdfTableRow, PdfTableCell } from "../../pdf";
+import type { TraceabilityRow } from "../../schemas/report.schema";
 
 interface Props {
+  data: TraceabilityRow[];
   batchNumber: string;
+  orientation?: "portrait" | "landscape";
 }
 
-export function TraceabilityReport({ batchNumber }: Props) {
-  const { data: traces = [], isLoading } = useTraceabilityReport(batchNumber, !!batchNumber);
-
-  if (!batchNumber) {
-    return <div className="p-8 text-center text-gray-500">Digite um número de lote para buscar.</div>;
-  }
-
-  if (isLoading) return <div className="p-8 text-center">Buscando rastreabilidade...</div>;
+export function TraceabilityDocument({ data: rows, batchNumber, orientation = "portrait" }: Props) {
+  const uniquePatients = new Set(rows.map(r => r.patient_name)).size;
+  const uniqueItems = new Set(rows.map(r => r.item_name)).size;
+  const totalUsed = rows.reduce((sum, r) => sum + Number(r.quantity_used), 0);
 
   return (
-    <ReportDocumentLayout 
-      title="Rastreabilidade de Lote (ANVISA)" 
-      subtitle={`Resultados para o lote: ${batchNumber}`}
+    <PdfDocumentLayout
+      title="Rastreabilidade por Lote"
+      subtitle={batchNumber ? `Lote: ${batchNumber}` : "Sem lote especificado"}
+      filtersText={batchNumber ? `Número do Lote: ${batchNumber}` : undefined}
+      orientation={orientation}
     >
-      <div className="bg-blue-50 border border-blue-100 rounded-lg p-4 mb-6 text-sm text-blue-800">
-        <strong>Nota:</strong> Este relatório lista todos os pacientes que receberam aplicações 
-        contendo qualquer item proveniente do lote pesquisado, garantindo conformidade com regras de rastreabilidade.
-      </div>
+      {!batchNumber ? (
+        <Text style={[pdfStyles.tableCell, pdfStyles.textMuted]}>
+          Nenhum número de lote especificado. Configure o filtro de lote antes de gerar este relatório.
+        </Text>
+      ) : rows.length === 0 ? (
+        <Text style={[pdfStyles.tableCell, pdfStyles.textMuted]}>
+          Nenhum uso registrado para o lote "{batchNumber}".
+        </Text>
+      ) : (
+        <>
+          {/* KPIs */}
+          <View style={pdfStyles.kpiRow}>
+            <View style={[pdfStyles.kpiCard, pdfStyles.kpiInfo]}>
+              <Text style={[pdfStyles.kpiLabel, pdfStyles.kpiInfoText]}>Pacientes Atendidos</Text>
+              <Text style={[pdfStyles.kpiValue, pdfStyles.kpiInfoText]}>{uniquePatients}</Text>
+            </View>
+            <View style={[pdfStyles.kpiCard, pdfStyles.kpiNeutral]}>
+              <Text style={[pdfStyles.kpiLabel, pdfStyles.kpiNeutralText]}>Itens Rastreados</Text>
+              <Text style={[pdfStyles.kpiValue, pdfStyles.kpiNeutralText]}>{uniqueItems}</Text>
+            </View>
+            <View style={[pdfStyles.kpiCard, pdfStyles.kpiBrand]}>
+              <Text style={[pdfStyles.kpiLabel, pdfStyles.kpiBrandText]}>Total Utilizado</Text>
+              <Text style={[pdfStyles.kpiValue, pdfStyles.kpiBrandText]}>
+                {totalUsed.toLocaleString("pt-BR")}
+              </Text>
+              <Text style={[pdfStyles.kpiSubtext, pdfStyles.kpiBrandText]}>unidades</Text>
+            </View>
+            <View style={[pdfStyles.kpiCard, pdfStyles.kpiNeutral]}>
+              <Text style={[pdfStyles.kpiLabel, pdfStyles.kpiNeutralText]}>Registros de Uso</Text>
+              <Text style={[pdfStyles.kpiValue, pdfStyles.kpiNeutralText]}>{rows.length}</Text>
+            </View>
+          </View>
 
-      <table className="table">
-        <thead>
-          <tr className="bg-gray-50 border-b border-gray-200">
-            <th className="text-left text-xs text-gray-500 font-bold uppercase tracking-wider py-3">Data da Aplicação</th>
-            <th className="text-left text-xs text-gray-500 font-bold uppercase tracking-wider py-3">Paciente</th>
-            <th className="text-left text-xs text-gray-500 font-bold uppercase tracking-wider py-3">Item Utilizado</th>
-            <th className="text-left text-xs text-gray-500 font-bold uppercase tracking-wider py-3">Protocolo</th>
-            <th className="text-right text-xs text-gray-500 font-bold uppercase tracking-wider py-3">Qtd. Utilizada</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-gray-200">
-          {traces.map((trace) => (
-            <tr key={`${trace.procedure_id}-${trace.item_name}`}>
-              <td className="py-3 text-sm text-gray-500">{format(new Date(trace.performed_at), "dd/MM/yyyy HH:mm", { locale: ptBR })}</td>
-              <td className="py-3 text-sm font-bold text-gray-900">{trace.patient_name}</td>
-              <td className="py-3 text-sm font-medium">{trace.item_name}</td>
-              <td className="py-3 text-sm text-gray-500">{trace.protocol_name || 'Aplicação Avulsa'}</td>
-              <td className="py-3 text-sm text-right font-bold text-gray-700">
-                {trace.quantity_used} <span className="text-xs font-normal text-gray-500">{trace.control_unit}</span>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-
-      {traces.length === 0 && (
-        <div className="text-center text-gray-500 py-10 border border-dashed rounded-lg mt-4">
-          Nenhum paciente encontado para o lote informado.
-        </div>
+          {/* Tabela */}
+          <View style={pdfStyles.section}>
+            <PdfTable>
+              <PdfTableHeader>
+                <PdfTableCell isHeader flex={2}>Data</PdfTableCell>
+                <PdfTableCell isHeader flex={3}>Paciente</PdfTableCell>
+                <PdfTableCell isHeader flex={3}>Protocolo</PdfTableCell>
+                <PdfTableCell isHeader flex={3}>Item Utilizado</PdfTableCell>
+                <PdfTableCell isHeader align="right" flex={1}>Qtd.</PdfTableCell>
+                <PdfTableCell isHeader align="center" flex={1}>Un.</PdfTableCell>
+              </PdfTableHeader>
+              {rows.map((row, index) => (
+                <PdfTableRow key={row.procedure_id || index} isStriped={index % 2 === 1}>
+                  <PdfTableCell flex={2}>
+                    {format(new Date(row.performed_at), "dd/MM/yy HH:mm", { locale: ptBR })}
+                  </PdfTableCell>
+                  <PdfTableCell flex={3}>
+                    <Text style={pdfStyles.textBold}>{row.patient_name}</Text>
+                  </PdfTableCell>
+                  <PdfTableCell flex={3}>
+                    {row.protocol_name || "Aplicação Avulsa"}
+                  </PdfTableCell>
+                  <PdfTableCell flex={3}>
+                    <Text style={pdfStyles.textBold}>{row.item_name}</Text>
+                  </PdfTableCell>
+                  <PdfTableCell align="right" flex={1}>
+                    <Text style={[pdfStyles.textBold, { color: "#b91c1c" }]}>
+                      {Number(row.quantity_used).toLocaleString("pt-BR")}
+                    </Text>
+                  </PdfTableCell>
+                  <PdfTableCell align="center" flex={1}>
+                    <Text style={{ fontSize: 7, color: "#9ca3af" }}>{row.control_unit}</Text>
+                  </PdfTableCell>
+                </PdfTableRow>
+              ))}
+            </PdfTable>
+          </View>
+        </>
       )}
-    </ReportDocumentLayout>
+    </PdfDocumentLayout>
   );
 }
+
+export { TraceabilityDocument as TraceabilityReport };

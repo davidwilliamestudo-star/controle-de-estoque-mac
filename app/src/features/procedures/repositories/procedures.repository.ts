@@ -31,7 +31,7 @@ class ProceduresRepository {
       JOIN patients pat ON p.patient_id = pat.id
       LEFT JOIN protocols prot ON p.protocol_id = prot.id
       LEFT JOIN body_areas ba ON p.body_area_id = ba.id
-      WHERE p.id = $1 AND p.deleted_at IS NULL
+      WHERE p.id = ? AND p.deleted_at IS NULL
     `;
     const rows = await dbSelect<any>(sql, [id]);
     return rows.length > 0 ? this.mapProcedure(rows[0]) : null;
@@ -42,8 +42,9 @@ class ProceduresRepository {
     const sql = `
       INSERT INTO procedures (
         id, patient_id, protocol_id, appointment_id, application_plan_id, body_area_id, performed_at, status, 
-        had_intercurrence, intercurrence_description, notes, evolution_text, responsible_user_id, finalized_at
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+        had_intercurrence, intercurrence_description, notes, evolution_text, responsible_user_id, finalized_at,
+        subtotal, discount_amount, discount_type, total_amount, payment_method, payment_status
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `;
     await dbExecute(sql, [
       id,
@@ -59,7 +60,13 @@ class ProceduresRepository {
       data.notes ?? null,
       data.evolutionText ?? null,
       data.responsibleUserId ?? null,
-      data.finalizedAt ?? null
+      data.finalizedAt ?? null,
+      data.subtotal ?? 0,
+      data.discountAmount ?? 0,
+      data.discountType ?? 'fixed',
+      data.totalAmount ?? 0,
+      data.paymentMethod ?? null,
+      data.paymentStatus ?? 'pending'
     ]);
     return id;
   }
@@ -67,21 +74,27 @@ class ProceduresRepository {
   async update(id: string, data: Partial<Procedure>): Promise<void> {
     const sql = `
       UPDATE procedures SET
-        patient_id = COALESCE($1, patient_id),
-        protocol_id = $2,
-        appointment_id = $3,
-        application_plan_id = $4,
-        body_area_id = $5,
-        performed_at = COALESCE($6, performed_at),
-        status = COALESCE($7, status),
-        had_intercurrence = COALESCE($8, had_intercurrence),
-        intercurrence_description = $9,
-        notes = $10,
-        evolution_text = $11,
-        responsible_user_id = $12,
-        finalized_at = $13,
+        patient_id = COALESCE(?, patient_id),
+        protocol_id = ?,
+        appointment_id = ?,
+        application_plan_id = ?,
+        body_area_id = ?,
+        performed_at = COALESCE(?, performed_at),
+        status = COALESCE(?, status),
+        had_intercurrence = COALESCE(?, had_intercurrence),
+        intercurrence_description = ?,
+        notes = ?,
+        evolution_text = ?,
+        responsible_user_id = ?,
+        finalized_at = ?,
+        subtotal = COALESCE(?, subtotal),
+        discount_amount = COALESCE(?, discount_amount),
+        discount_type = COALESCE(?, discount_type),
+        total_amount = COALESCE(?, total_amount),
+        payment_method = ?,
+        payment_status = COALESCE(?, payment_status),
         updated_at = datetime('now')
-      WHERE id = $14
+      WHERE id = ?
     `;
     await dbExecute(sql, [
       data.patientId,
@@ -97,6 +110,12 @@ class ProceduresRepository {
       data.evolutionText ?? null,
       data.responsibleUserId ?? null,
       data.finalizedAt ?? null,
+      data.subtotal,
+      data.discountAmount,
+      data.discountType,
+      data.totalAmount,
+      data.paymentMethod ?? null,
+      data.paymentStatus,
       id
     ]);
   }
@@ -106,7 +125,7 @@ class ProceduresRepository {
       SELECT pi.*, i.name as itemName
       FROM procedure_items_used pi
       JOIN inventory_items i ON pi.inventory_item_id = i.id
-      WHERE pi.procedure_id = $1 AND pi.is_corrected = 0
+      WHERE pi.procedure_id = ? AND pi.is_corrected = 0
     `;
     const rows = await dbSelect<any>(sql, [procedureId]);
     return rows.map(r => ({
@@ -131,31 +150,67 @@ class ProceduresRepository {
     const id = data.id || crypto.randomUUID();
     const sql = `
       INSERT INTO procedure_items_used (
-      id, procedure_id, inventory_item_id, inventory_batch_id, item_type,
+      id, procedure_id, procedure_application_id, inventory_item_id, inventory_batch_id, item_type,
       quantity_used, unit, batch_number_snapshot, expiration_date_snapshot, notes,
       is_corrected, corrected_at, correction_group_id
-    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `;
   await dbExecute(sql, [
     id,
     data.procedureId,
+    data.procedureApplicationId || null,
     data.inventoryItemId,
-    data.inventoryBatchId ?? null,
+    data.inventoryBatchId || null,
     data.itemType,
     data.quantityUsed,
     data.unit,
-    data.batchNumberSnapshot ?? null,
-    data.expirationDateSnapshot ?? null,
-    data.notes ?? null,
+    data.batchNumberSnapshot || null,
+    data.expirationDateSnapshot || null,
+    data.notes || null,
     data.isCorrected ?? 0,
-    data.correctedAt ?? null,
-    data.correctionGroupId ?? null
+    data.correctedAt || null,
+    data.correctionGroupId || null
   ]);
   }
 
   async deleteItems(procedureId: string): Promise<void> {
-    const sql = `DELETE FROM procedure_items_used WHERE procedure_id = $1`;
+    const sql = `DELETE FROM procedure_items_used WHERE procedure_id = ?`;
     await dbExecute(sql, [procedureId]);
+  }
+
+  /** Cria uma aplicação individual dentro de uma sessão clínica */
+  async createApplication(data: { id: string; procedureId: string; protocolId?: string | null; bodyAreaId?: string | null; sortOrder?: number; notes?: string | null }): Promise<void> {
+    await dbExecute(`
+      INSERT INTO procedure_applications (id, procedure_id, protocol_id, body_area_id, sort_order, notes)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `, [
+      data.id,
+      data.procedureId,
+      data.protocolId || null,
+      data.bodyAreaId || null,
+      data.sortOrder ?? 0,
+      data.notes ?? null,
+    ]);
+  }
+
+  /** Lista todas as aplicações de um procedimento com nomes de protocolo e área */
+  async listApplicationsForProcedure(procedureId: string): Promise<any[]> {
+    return dbSelect(`
+      SELECT
+        pa.*,
+        prot.name AS protocol_name,
+        COALESCE(ba.display_name, ba.name) AS body_area_name
+      FROM procedure_applications pa
+      LEFT JOIN protocols prot ON prot.id = pa.protocol_id
+      LEFT JOIN body_areas ba ON ba.id = pa.body_area_id
+      WHERE pa.procedure_id = ?
+      ORDER BY pa.sort_order ASC, pa.created_at ASC
+    `, [procedureId]);
+  }
+
+  /** Remove todas as aplicações de um procedimento (antes de recriar) */
+  async deleteApplications(procedureId: string): Promise<void> {
+    await dbExecute(`DELETE FROM procedure_applications WHERE procedure_id = ?`, [procedureId]);
   }
 
   async listBodyAreas(): Promise<BodyArea[]> {
@@ -203,17 +258,17 @@ class ProceduresRepository {
       SELECT ba.slug
       FROM route_body_areas rba
       JOIN body_areas ba ON ba.id = rba.body_area_id
-      WHERE rba.administration_route_id = $1
+      WHERE rba.administration_route_id = ?
     `, [routeId]);
     return rows.map(r => r.slug);
   }
 
-  /** Busca os lotes disponíveis de um item de inventário */
+  /** Busca os lotes disponíveis de um item de inventário (ordem FEFO: primeiro a vencer primeiro) */
   async listBatchesForItem(itemId: string): Promise<InventoryBatch[]> {
     const rows = await dbSelect<any>(`
       SELECT id, batch_number, expiration_date, current_quantity, unit_cost
       FROM inventory_batches
-      WHERE inventory_item_id = $1
+      WHERE inventory_item_id = ?
         AND current_quantity > 0
         AND deleted_at IS NULL
       ORDER BY expiration_date ASC NULLS LAST
@@ -230,7 +285,7 @@ class ProceduresRepository {
   /** Busca o administration_route_id de um protocolo */
   async getProtocolRouteId(protocolId: string): Promise<string | null> {
     const rows = await dbSelect<any>(`
-      SELECT administration_route_id FROM protocols WHERE id = $1
+      SELECT administration_route_id FROM protocols WHERE id = ?
     `, [protocolId]);
     return rows[0]?.administration_route_id ?? null;
   }
@@ -238,7 +293,7 @@ class ProceduresRepository {
   /** Busca o administration_route_id de um item de inventário */
   async getInventoryItemRouteId(itemId: string): Promise<string | null> {
     const rows = await dbSelect<any>(`
-      SELECT administration_route_id FROM inventory_items WHERE id = $1
+      SELECT administration_route_id FROM inventory_items WHERE id = ?
     `, [itemId]);
     return rows[0]?.administration_route_id ?? null;
   }
@@ -257,7 +312,7 @@ class ProceduresRepository {
       LEFT JOIN body_areas ba ON ba.id = p.body_area_id
       LEFT JOIN protocols prot ON prot.id = p.protocol_id
       LEFT JOIN administration_routes ar ON ar.id = prot.administration_route_id
-      WHERE p.patient_id = $1 AND p.deleted_at IS NULL
+      WHERE p.patient_id = ? AND p.deleted_at IS NULL
       ORDER BY p.performed_at DESC
     `, [patientId]);
     const summaries = rows.map(r => ({
@@ -302,6 +357,12 @@ class ProceduresRepository {
       evolutionText: r.evolution_text,
       responsibleUserId: r.responsible_user_id,
       finalizedAt: r.finalized_at,
+      subtotal: Number(r.subtotal || 0),
+      discountAmount: Number(r.discount_amount || 0),
+      discountType: r.discount_type || 'fixed',
+      totalAmount: Number(r.total_amount || 0),
+      paymentMethod: r.payment_method,
+      paymentStatus: r.payment_status || 'pending',
       patientName: r.patientName,
       protocolName: r.protocolName,
       bodyAreaName: r.bodyAreaName,

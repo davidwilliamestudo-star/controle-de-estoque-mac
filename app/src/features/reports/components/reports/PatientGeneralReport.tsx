@@ -1,212 +1,276 @@
+/**
+ * PatientGeneralDocument.tsx
+ *
+ * Documento PDF Analítico do Paciente.
+ * RECEBE dados como props — NÃO faz fetch interno.
+ */
+import { View, Text } from "@react-pdf/renderer";
 import { format } from "date-fns";
-import { Activity, AlertTriangle, FileText, Package, User } from "lucide-react";
-import { usePatientGeneralReport } from "../../hooks/useReports";
-import type { ReportFilter } from "../../schemas/report.schema";
-import { ReportDocumentLayout } from "../ReportDocumentLayout";
+import { PdfDocumentLayout, pdfStyles, PdfTable, PdfTableHeader, PdfTableRow, PdfTableCell } from "../../pdf";
+import type { PatientGeneralReportData } from "../../schemas/report.schema";
 
 interface Props {
-  filter: ReportFilter;
+  data: PatientGeneralReportData | null;
+  patientId?: string;
+  orientation?: "portrait" | "landscape";
 }
 
-function formatDate(value?: string | null) {
-  if (!value) return "Nao informado";
+function formatDate(value?: string | null): string {
+  if (!value) return "Não informado";
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return value;
   return format(parsed, "dd/MM/yyyy");
 }
 
-export function PatientGeneralReport({ filter }: Props) {
-  const { data, isLoading } = usePatientGeneralReport(filter.patientId);
-
-  if (!filter.patientId) {
+export function PatientGeneralDocument({ data, patientId, orientation = "portrait" }: Props) {
+  if (!patientId) {
     return (
-      <ReportDocumentLayout title="Relatorio Geral do Paciente" subtitle="Nenhum paciente selecionado">
-        <div className="text-center py-20 text-gray-500">
-          Selecione um paciente nos filtros para gerar este relatorio.
-        </div>
-      </ReportDocumentLayout>
-    );
-  }
-
-  if (isLoading) {
-    return (
-      <ReportDocumentLayout title="Carregando relatorio" subtitle="Buscando dados no banco local...">
-        <div className="text-center py-20 text-gray-500">Carregando informacoes do paciente...</div>
-      </ReportDocumentLayout>
+      <PdfDocumentLayout title="Relatório Analítico do Paciente" subtitle="Nenhum paciente selecionado">
+        <Text style={[pdfStyles.tableCell, pdfStyles.textMuted]}>
+          Selecione um paciente nos filtros para gerar este relatório.
+        </Text>
+      </PdfDocumentLayout>
     );
   }
 
   if (!data || !data.patient) {
     return (
-      <ReportDocumentLayout title="Relatorio Geral do Paciente" subtitle="Paciente nao encontrado">
-        <div className="text-center py-20 text-red-500">
-          Nao foi possivel encontrar os dados deste paciente.
-        </div>
-      </ReportDocumentLayout>
+      <PdfDocumentLayout title="Relatório Analítico do Paciente" subtitle="Paciente não encontrado">
+        <Text style={[pdfStyles.tableCell, { color: "#b91c1c" }]}>
+          Não foi possível encontrar os dados deste paciente. Verifique se o cadastro está ativo.
+        </Text>
+      </PdfDocumentLayout>
     );
   }
 
   const { patient, procedures, used_items, used_batches } = data;
-  const finalized = procedures.filter((procedure) => procedure.status === "finalized");
-  const intercurrences = procedures.filter((procedure) => Number(procedure.had_intercurrence) === 1);
+  const finalized = procedures.filter(p => p.status === "finalized").length;
+  const intercurrences = procedures.filter(p => Number(p.had_intercurrence) === 1).length;
 
   return (
-    <ReportDocumentLayout
-      title="Relatorio Analitico do Paciente"
-      subtitle={`Paciente: ${patient.full_name}`}
+    <PdfDocumentLayout
+      title="Relatório Analítico do Paciente"
+      subtitle={patient.full_name}
+      filtersText={`Ficha Cadastral e Prontuário · ${patient.full_name}`}
+      orientation={orientation}
     >
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-8">
-        <div className="rounded-lg p-4 bg-green-50 text-green-800 border border-green-100">
-          <p className="text-xs uppercase font-semibold opacity-70">Aplicacoes finalizadas</p>
-          <p className="text-2xl font-bold mt-1">{finalized.length}</p>
-        </div>
-        <div className="rounded-lg p-4 bg-blue-50 text-blue-800 border border-blue-100">
-          <p className="text-xs uppercase font-semibold opacity-70">Itens usados</p>
-          <p className="text-2xl font-bold mt-1">{used_items.length}</p>
-        </div>
-        <div className="rounded-lg p-4 bg-purple-50 text-purple-800 border border-purple-100">
-          <p className="text-xs uppercase font-semibold opacity-70">Lotes usados</p>
-          <p className="text-2xl font-bold mt-1">{used_batches.length}</p>
-        </div>
-        <div className="rounded-lg p-4 bg-red-50 text-red-800 border border-red-100">
-          <p className="text-xs uppercase font-semibold opacity-70">Intercorrencias</p>
-          <p className="text-2xl font-bold mt-1">{intercurrences.length}</p>
-        </div>
-      </div>
+      {/* KPIs */}
+      <View style={pdfStyles.kpiRow}>
+        <View style={[pdfStyles.kpiCard, pdfStyles.kpiSuccess]}>
+          <Text style={[pdfStyles.kpiLabel, pdfStyles.kpiSuccessText]}>Aplicações Finalizadas</Text>
+          <Text style={[pdfStyles.kpiValue, pdfStyles.kpiSuccessText]}>{finalized}</Text>
+        </View>
+        <View style={[pdfStyles.kpiCard, pdfStyles.kpiInfo]}>
+          <Text style={[pdfStyles.kpiLabel, pdfStyles.kpiInfoText]}>Itens Utilizados</Text>
+          <Text style={[pdfStyles.kpiValue, pdfStyles.kpiInfoText]}>{used_items.length}</Text>
+        </View>
+        <View style={[pdfStyles.kpiCard, pdfStyles.kpiBrand]}>
+          <Text style={[pdfStyles.kpiLabel, pdfStyles.kpiBrandText]}>Lotes Usados</Text>
+          <Text style={[pdfStyles.kpiValue, pdfStyles.kpiBrandText]}>{used_batches.length}</Text>
+        </View>
+        <View style={[pdfStyles.kpiCard, intercurrences > 0 ? pdfStyles.kpiDanger : pdfStyles.kpiNeutral]}>
+          <Text style={[pdfStyles.kpiLabel, intercurrences > 0 ? pdfStyles.kpiDangerText : pdfStyles.kpiNeutralText]}>
+            Intercorrências
+          </Text>
+          <Text style={[pdfStyles.kpiValue, intercurrences > 0 ? pdfStyles.kpiDangerText : pdfStyles.kpiNeutralText]}>
+            {intercurrences}
+          </Text>
+        </View>
+      </View>
 
-      <section className="mb-8">
-        <h3 className="text-lg font-bold text-gray-800 border-b border-gray-200 pb-2 mb-4 flex items-center gap-2">
-          <User size={20} className="text-green-700" /> Informacoes cadastrais
-        </h3>
-        <div className="grid grid-cols-2 gap-4 text-sm bg-gray-50 p-4 rounded-lg border border-gray-100">
-          <div><span className="font-semibold text-gray-500">Nome:</span> {patient.full_name}</div>
-          <div><span className="font-semibold text-gray-500">Telefone:</span> {patient.phone || "Nao informado"}</div>
-          <div><span className="font-semibold text-gray-500">E-mail:</span> {patient.email || "Nao informado"}</div>
-          <div><span className="font-semibold text-gray-500">Nascimento:</span> {formatDate(patient.birth_date)}</div>
-          <div><span className="font-semibold text-gray-500">Paciente desde:</span> {formatDate(patient.created_at)}</div>
-          <div><span className="font-semibold text-gray-500">Alertas:</span> {patient.alert_notes || "Sem alertas"}</div>
+      {/* Dados cadastrais */}
+      <View style={pdfStyles.section}>
+        <Text style={pdfStyles.sectionTitle}>Dados Cadastrais</Text>
+        <View style={pdfStyles.patientCard}>
+          <View style={pdfStyles.row}>
+            <View style={pdfStyles.col}>
+              <Text style={pdfStyles.tableCell}>
+                <Text style={pdfStyles.textBold}>Nome: </Text>{patient.full_name}
+              </Text>
+              <Text style={pdfStyles.tableCell}>
+                <Text style={pdfStyles.textBold}>Telefone: </Text>{patient.phone || "Não informado"}
+              </Text>
+              <Text style={pdfStyles.tableCell}>
+                <Text style={pdfStyles.textBold}>E-mail: </Text>{patient.email || "Não informado"}
+              </Text>
+            </View>
+            <View style={pdfStyles.col}>
+              <Text style={pdfStyles.tableCell}>
+                <Text style={pdfStyles.textBold}>Nascimento: </Text>{formatDate(patient.birth_date)}
+              </Text>
+              <Text style={pdfStyles.tableCell}>
+                <Text style={pdfStyles.textBold}>Paciente desde: </Text>{formatDate(patient.created_at)}
+              </Text>
+              <Text style={pdfStyles.tableCell}>
+                <Text style={pdfStyles.textBold}>Alertas: </Text>
+                <Text style={{ color: patient.alert_notes ? "#b91c1c" : "#9ca3af" }}>
+                  {patient.alert_notes || "Sem alertas cadastrados"}
+                </Text>
+              </Text>
+            </View>
+          </View>
           {patient.notes && (
-            <div className="col-span-2"><span className="font-semibold text-gray-500">Observacoes:</span> {patient.notes}</div>
+            <View style={{ marginTop: 4 }}>
+              <Text style={pdfStyles.tableCell}>
+                <Text style={pdfStyles.textBold}>Observações: </Text>{patient.notes}
+              </Text>
+            </View>
           )}
-        </div>
-      </section>
+        </View>
+      </View>
 
-      <section className="mb-8 break-inside-avoid">
-        <h3 className="text-lg font-bold text-gray-800 border-b border-gray-200 pb-2 mb-4 flex items-center gap-2">
-          <Activity size={20} className="text-blue-700" /> Historico de aplicacoes
-        </h3>
-
+      {/* Histórico de aplicações */}
+      <View style={pdfStyles.section}>
+        <Text style={pdfStyles.sectionTitle}>Histórico de Aplicações ({procedures.length})</Text>
         {procedures.length === 0 ? (
-          <p className="text-sm text-gray-500 italic">Nenhuma aplicacao registrada para este paciente.</p>
+          <Text style={[pdfStyles.tableCell, pdfStyles.textMuted]}>
+            Nenhuma aplicação registrada para este paciente.
+          </Text>
         ) : (
-          <table className="w-full text-sm border-collapse">
-            <thead>
-              <tr className="bg-gray-100 text-gray-700 text-left">
-                <th className="p-2 border border-gray-200">Data</th>
-                <th className="p-2 border border-gray-200">Protocolo</th>
-                <th className="p-2 border border-gray-200">Area</th>
-                <th className="p-2 border border-gray-200 text-center">Itens</th>
-                <th className="p-2 border border-gray-200 text-center">Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {procedures.map((procedure, index) => (
-                <tr key={procedure.id} className={index % 2 === 0 ? "bg-white" : "bg-gray-50"}>
-                  <td className="p-2 border border-gray-200">{formatDate(procedure.performed_at)}</td>
-                  <td className="p-2 border border-gray-200 font-medium">{procedure.protocol_name || "Aplicacao avulsa"}</td>
-                  <td className="p-2 border border-gray-200">{procedure.body_area_name || "-"}</td>
-                  <td className="p-2 border border-gray-200 text-center">{procedure.total_items_used}</td>
-                  <td className="p-2 border border-gray-200 text-center">{procedure.status}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </section>
-
-      {procedures.some((procedure) => procedure.evolution_text || procedure.intercurrence_description) && (
-        <section className="mb-8 break-inside-avoid">
-          <h3 className="text-lg font-bold text-gray-800 border-b border-gray-200 pb-2 mb-4 flex items-center gap-2">
-            <FileText size={20} className="text-indigo-700" /> Evolucoes e intercorrencias
-          </h3>
-          <div className="space-y-3">
-            {procedures
-              .filter((procedure) => procedure.evolution_text || procedure.intercurrence_description)
-              .map((procedure) => (
-                <div key={procedure.id} className="rounded-lg border border-gray-100 bg-gray-50 p-4 text-sm">
-                  <div className="font-semibold text-gray-800 mb-1">
-                    {formatDate(procedure.performed_at)} - {procedure.protocol_name || "Aplicacao avulsa"}
-                  </div>
-                  {procedure.evolution_text && <p className="text-gray-700">{procedure.evolution_text}</p>}
-                  {procedure.intercurrence_description && (
-                    <p className="text-red-700 mt-2 flex gap-2">
-                      <AlertTriangle size={16} /> {procedure.intercurrence_description}
-                    </p>
+          <PdfTable>
+            <PdfTableHeader>
+              <PdfTableCell isHeader flex={2}>Data</PdfTableCell>
+              <PdfTableCell isHeader flex={4}>Protocolo</PdfTableCell>
+              <PdfTableCell isHeader flex={3}>Área Corporal</PdfTableCell>
+              <PdfTableCell isHeader align="center" flex={1}>Itens</PdfTableCell>
+              <PdfTableCell isHeader align="center" flex={2}>Status</PdfTableCell>
+            </PdfTableHeader>
+            {procedures.map((procedure, index) => (
+              <PdfTableRow key={procedure.id} isStriped={index % 2 === 1}>
+                <PdfTableCell flex={2}>{formatDate(procedure.performed_at)}</PdfTableCell>
+                <PdfTableCell flex={4}>
+                  {procedure.protocol_name || "Aplicação avulsa"}
+                </PdfTableCell>
+                <PdfTableCell flex={3}>{procedure.body_area_name || "—"}</PdfTableCell>
+                <PdfTableCell align="center" flex={1}>
+                  <Text style={pdfStyles.textBold}>{procedure.total_items_used}</Text>
+                </PdfTableCell>
+                <PdfTableCell align="center" flex={2}>
+                  {procedure.status === "finalized" ? (
+                    <Text style={pdfStyles.badgeSuccess}>Finalizada</Text>
+                  ) : Number(procedure.had_intercurrence) === 1 ? (
+                    <Text style={pdfStyles.badgeWarning}>Intercorrência</Text>
+                  ) : (
+                    <Text style={pdfStyles.badgeInfo}>{procedure.status}</Text>
                   )}
-                </div>
-              ))}
-          </div>
-        </section>
-      )}
-
-      <section className="mb-8 break-inside-avoid">
-        <h3 className="text-lg font-bold text-gray-800 border-b border-gray-200 pb-2 mb-4 flex items-center gap-2">
-          <Package size={20} className="text-orange-700" /> Produtos e materiais consumidos
-        </h3>
-
-        {used_items.length === 0 ? (
-          <p className="text-sm text-gray-500 italic">Nenhum produto consumido registrado em aplicacoes finalizadas.</p>
-        ) : (
-          <table className="w-full text-sm border-collapse">
-            <thead>
-              <tr className="bg-gray-100 text-gray-700 text-left">
-                <th className="p-2 border border-gray-200">Item</th>
-                <th className="p-2 border border-gray-200">Tipo</th>
-                <th className="p-2 border border-gray-200 text-right">Quantidade</th>
-                <th className="p-2 border border-gray-200 text-center">Lotes</th>
-              </tr>
-            </thead>
-            <tbody>
-              {used_items.map((item, index) => (
-                <tr key={`${item.item_name}-${item.item_type}`} className={index % 2 === 0 ? "bg-white" : "bg-gray-50"}>
-                  <td className="p-2 border border-gray-200">{item.item_name}</td>
-                  <td className="p-2 border border-gray-200">{item.item_type}</td>
-                  <td className="p-2 border border-gray-200 text-right font-bold">{item.total_quantity} {item.unit}</td>
-                  <td className="p-2 border border-gray-200 text-center">{item.batches_used}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                </PdfTableCell>
+              </PdfTableRow>
+            ))}
+          </PdfTable>
         )}
-      </section>
+      </View>
 
-      {used_batches.length > 0 && (
-        <section className="mb-8 break-inside-avoid">
-          <h3 className="text-lg font-bold text-gray-800 border-b border-gray-200 pb-2 mb-4">
-            Lotes utilizados
-          </h3>
-          <table className="w-full text-sm border-collapse">
-            <thead>
-              <tr className="bg-gray-100 text-gray-700 text-left">
-                <th className="p-2 border border-gray-200">Item</th>
-                <th className="p-2 border border-gray-200">Lote</th>
-                <th className="p-2 border border-gray-200">Validade</th>
-                <th className="p-2 border border-gray-200 text-right">Quantidade</th>
-              </tr>
-            </thead>
-            <tbody>
-              {used_batches.map((batch, index) => (
-                <tr key={`${batch.item_name}-${batch.batch_number}-${index}`} className={index % 2 === 0 ? "bg-white" : "bg-gray-50"}>
-                  <td className="p-2 border border-gray-200">{batch.item_name}</td>
-                  <td className="p-2 border border-gray-200">{batch.batch_number || "-"}</td>
-                  <td className="p-2 border border-gray-200">{formatDate(batch.expiration_date)}</td>
-                  <td className="p-2 border border-gray-200 text-right font-bold">{batch.total_quantity} {batch.unit}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </section>
+      {/* Evoluções e intercorrências */}
+      {procedures.some(p => p.evolution_text || p.intercurrence_description) && (
+        <View style={pdfStyles.section}>
+          <Text style={pdfStyles.sectionTitle}>Evoluções e Intercorrências</Text>
+          {procedures
+            .filter(p => p.evolution_text || p.intercurrence_description)
+            .map(procedure => (
+              <View
+                key={procedure.id}
+                style={{
+                  backgroundColor: "#f9fafb",
+                  padding: 8,
+                  borderRadius: 4,
+                  borderWidth: 0.5,
+                  borderColor: "#e5e7eb",
+                  marginBottom: 6,
+                }}
+              >
+                <Text style={[pdfStyles.tableCell, pdfStyles.textBold, { marginBottom: 3, color: "#374151" }]}>
+                  {formatDate(procedure.performed_at)} — {procedure.protocol_name || "Aplicação avulsa"}
+                </Text>
+                {procedure.evolution_text && (
+                  <Text style={[pdfStyles.tableCell, { color: "#4b5563", lineHeight: 1.4 }]}>
+                    {procedure.evolution_text}
+                  </Text>
+                )}
+                {procedure.intercurrence_description && (
+                  <Text style={[pdfStyles.tableCell, { color: "#b91c1c", marginTop: 3, lineHeight: 1.4 }]}>
+                    ⚠ Intercorrência: {procedure.intercurrence_description}
+                  </Text>
+                )}
+              </View>
+            ))}
+        </View>
       )}
-    </ReportDocumentLayout>
+
+      {/* Produtos e materiais consumidos */}
+      <View style={pdfStyles.section}>
+        <Text style={pdfStyles.sectionTitle}>Insumos Consumidos ({used_items.length} itens)</Text>
+        {used_items.length === 0 ? (
+          <Text style={[pdfStyles.tableCell, pdfStyles.textMuted]}>
+            Nenhum produto registrado em aplicações finalizadas.
+          </Text>
+        ) : (
+          <PdfTable>
+            <PdfTableHeader>
+              <PdfTableCell isHeader flex={5}>Item</PdfTableCell>
+              <PdfTableCell isHeader flex={3}>Tipo</PdfTableCell>
+              <PdfTableCell isHeader align="right" flex={2}>Quantidade Total</PdfTableCell>
+              <PdfTableCell isHeader align="center" flex={1}>Lotes</PdfTableCell>
+            </PdfTableHeader>
+            {used_items.map((item, index) => (
+              <PdfTableRow key={`${item.item_name}-${item.item_type}`} isStriped={index % 2 === 1}>
+                <PdfTableCell flex={5}>
+                  <Text style={pdfStyles.textBold}>{item.item_name}</Text>
+                </PdfTableCell>
+                <PdfTableCell flex={3}>
+                  {item.item_type === "medication" ? "Medicamento" : item.item_type === "material" ? "Material" : item.item_type}
+                </PdfTableCell>
+                <PdfTableCell align="right" flex={2}>
+                  <Text style={[pdfStyles.textBold, { color: "#b91c1c" }]}>
+                    {Number(item.total_quantity).toLocaleString("pt-BR")}
+                  </Text>
+                  <Text style={{ fontSize: 6.5, color: "#9ca3af" }}> {item.unit}</Text>
+                </PdfTableCell>
+                <PdfTableCell align="center" flex={1}>
+                  {item.batches_used}
+                </PdfTableCell>
+              </PdfTableRow>
+            ))}
+          </PdfTable>
+        )}
+      </View>
+
+      {/* Lotes utilizados */}
+      {used_batches.length > 0 && (
+        <View style={pdfStyles.section}>
+          <Text style={pdfStyles.sectionTitle}>Rastreabilidade de Lotes ({used_batches.length})</Text>
+          <PdfTable>
+            <PdfTableHeader>
+              <PdfTableCell isHeader flex={4}>Item</PdfTableCell>
+              <PdfTableCell isHeader flex={3}>Número do Lote</PdfTableCell>
+              <PdfTableCell isHeader flex={2}>Validade</PdfTableCell>
+              <PdfTableCell isHeader align="right" flex={2}>Qtd. Utilizada</PdfTableCell>
+            </PdfTableHeader>
+            {used_batches.map((batch, index) => (
+              <PdfTableRow key={`${batch.item_name}-${batch.batch_number}-${index}`} isStriped={index % 2 === 1}>
+                <PdfTableCell flex={4}>
+                  <Text style={pdfStyles.textBold}>{batch.item_name}</Text>
+                </PdfTableCell>
+                <PdfTableCell flex={3}>
+                  <Text style={{ fontFamily: "Helvetica", fontSize: 8, color: "#374151" }}>
+                    {batch.batch_number || "—"}
+                  </Text>
+                </PdfTableCell>
+                <PdfTableCell flex={2}>
+                  {formatDate(batch.expiration_date)}
+                </PdfTableCell>
+                <PdfTableCell align="right" flex={2}>
+                  <Text style={[pdfStyles.textBold, { color: "#b91c1c" }]}>
+                    {Number(batch.total_quantity).toLocaleString("pt-BR")}
+                  </Text>
+                  <Text style={{ fontSize: 6.5, color: "#9ca3af" }}> {batch.unit}</Text>
+                </PdfTableCell>
+              </PdfTableRow>
+            ))}
+          </PdfTable>
+        </View>
+      )}
+    </PdfDocumentLayout>
   );
 }
+
+export { PatientGeneralDocument as PatientGeneralReport };

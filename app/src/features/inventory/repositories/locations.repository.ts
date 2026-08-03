@@ -17,26 +17,26 @@ export const locationsRepository = {
   },
 
   async getLocation(id: string): Promise<InventoryLocation | null> {
-    const res = await dbSelect(`SELECT * FROM inventory_locations WHERE id = $1`, [id]);
+    const res = await dbSelect(`SELECT * FROM inventory_locations WHERE id = ?`, [id]);
     return (res[0] as unknown as InventoryLocation) || null;
   },
 
   async createLocation(id: string, name: string, description?: string, isDefault: number = 0): Promise<void> {
     await dbExecute(
-      `INSERT INTO inventory_locations (id, name, description, is_default) VALUES ($1, $2, $3, $4)`,
+      `INSERT INTO inventory_locations (id, name, description, is_default) VALUES (?, ?, ?, ?)`,
       [id, name, description || null, isDefault]
     );
   },
 
   async updateLocation(id: string, name: string, description?: string): Promise<void> {
     await dbExecute(
-      `UPDATE inventory_locations SET name = $1, description = $2, updated_at = datetime('now') WHERE id = $3`,
+      `UPDATE inventory_locations SET name = ?, description = ?, updated_at = datetime('now') WHERE id = ?`,
       [name, description || null, id]
     );
   },
 
   async deleteLocation(id: string): Promise<void> {
-    await dbExecute(`DELETE FROM inventory_locations WHERE id = $1 AND is_default = 0`, [id]);
+    await dbExecute(`DELETE FROM inventory_locations WHERE id = ? AND is_default = 0`, [id]);
   },
 
   async getStockByLocation(inventoryItemId: string): Promise<InventoryLocationStock[]> {
@@ -52,7 +52,7 @@ export const locationsRepository = {
       FROM inventory_location_stocks ls
       JOIN inventory_locations l ON l.id = ls.location_id
       LEFT JOIN inventory_batches b ON b.id = ls.inventory_batch_id
-      WHERE ls.inventory_item_id = $1 AND ls.quantity > 0
+      WHERE ls.inventory_item_id = ? AND ls.quantity > 0
       ORDER BY l.is_default DESC, l.name ASC
     `;
     const res = await dbSelect(query, [inventoryItemId]);
@@ -61,8 +61,8 @@ export const locationsRepository = {
 
   async getStockInLocation(locationId: string, inventoryItemId: string, inventoryBatchId: string | null): Promise<number> {
     const query = inventoryBatchId 
-      ? `SELECT quantity FROM inventory_location_stocks WHERE location_id = $1 AND inventory_item_id = $2 AND inventory_batch_id = $3`
-      : `SELECT quantity FROM inventory_location_stocks WHERE location_id = $1 AND inventory_item_id = $2 AND inventory_batch_id IS NULL`;
+      ? `SELECT quantity FROM inventory_location_stocks WHERE location_id = ? AND inventory_item_id = ? AND inventory_batch_id = ?`
+      : `SELECT quantity FROM inventory_location_stocks WHERE location_id = ? AND inventory_item_id = ? AND inventory_batch_id IS NULL`;
     
     const params = inventoryBatchId ? [locationId, inventoryItemId, inventoryBatchId] : [locationId, inventoryItemId];
     const res = await dbSelect(query, params);
@@ -74,14 +74,14 @@ export const locationsRepository = {
       ? `
         SELECT location_id
         FROM inventory_location_stocks
-        WHERE inventory_item_id = $1 AND inventory_batch_id = $2 AND quantity >= $3
+        WHERE inventory_item_id = ? AND inventory_batch_id = ? AND quantity >= ?
         ORDER BY location_id = 'default-location' DESC, updated_at ASC
         LIMIT 1
       `
       : `
         SELECT location_id
         FROM inventory_location_stocks
-        WHERE inventory_item_id = $1 AND inventory_batch_id IS NULL AND quantity >= $2
+        WHERE inventory_item_id = ? AND inventory_batch_id IS NULL AND quantity >= ?
         ORDER BY location_id = 'default-location' DESC, updated_at ASC
         LIMIT 1
       `;
@@ -94,7 +94,7 @@ export const locationsRepository = {
     const id = crypto.randomUUID();
     await dbExecute(
       `INSERT INTO inventory_location_stocks (id, location_id, inventory_item_id, inventory_batch_id, quantity)
-       VALUES ($1, $2, $3, $4, $5)
+       VALUES (?, ?, ?, ?, ?)
        ON CONFLICT DO UPDATE SET quantity = quantity + excluded.quantity, updated_at = datetime('now')`,
       [id, locationId, inventoryItemId, inventoryBatchId, quantity]
     );
@@ -102,14 +102,14 @@ export const locationsRepository = {
 
   async removeStockFromLocation(locationId: string, inventoryItemId: string, inventoryBatchId: string | null, quantity: number): Promise<void> {
     const query = inventoryBatchId
-      ? `UPDATE inventory_location_stocks SET quantity = quantity - $1, updated_at = datetime('now') 
-         WHERE location_id = $2 AND inventory_item_id = $3 AND inventory_batch_id = $4 AND quantity >= $1`
-      : `UPDATE inventory_location_stocks SET quantity = quantity - $1, updated_at = datetime('now') 
-         WHERE location_id = $2 AND inventory_item_id = $3 AND inventory_batch_id IS NULL AND quantity >= $1`;
+      ? `UPDATE inventory_location_stocks SET quantity = quantity - ?, updated_at = datetime('now') 
+         WHERE location_id = ? AND inventory_item_id = ? AND inventory_batch_id = ? AND quantity >= ?`
+      : `UPDATE inventory_location_stocks SET quantity = quantity - ?, updated_at = datetime('now') 
+         WHERE location_id = ? AND inventory_item_id = ? AND inventory_batch_id IS NULL AND quantity >= ?`;
          
     const params = inventoryBatchId 
-      ? [quantity, locationId, inventoryItemId, inventoryBatchId]
-      : [quantity, locationId, inventoryItemId];
+      ? [quantity, locationId, inventoryItemId, inventoryBatchId, quantity]
+      : [quantity, locationId, inventoryItemId, quantity];
 
     await dbExecuteRequired(query, params);
   },
@@ -126,7 +126,7 @@ export const locationsRepository = {
   ): Promise<void> {
     await dbExecute(
       `INSERT INTO inventory_transfers (id, inventory_item_id, inventory_batch_id, from_location_id, to_location_id, quantity, user_id, notes)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
       [id, inventoryItemId, inventoryBatchId || null, fromLocationId, toLocationId, quantity, userId || null, notes || null]
     );
   },
@@ -140,7 +140,7 @@ export const locationsRepository = {
       FROM inventory_transfers t
       JOIN inventory_locations lf ON lf.id = t.from_location_id
       JOIN inventory_locations lt ON lt.id = t.to_location_id
-      WHERE t.inventory_item_id = $1
+      WHERE t.inventory_item_id = ?
       ORDER BY t.transfer_date DESC
     `;
     const res = await dbSelect(query, [inventoryItemId]);

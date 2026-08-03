@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { AlertCircle, CheckCircle2, AlertTriangle, Info } from "lucide-react";
 import { appointmentStockValidationService } from "../services/appointmentStockValidation.service";
@@ -34,13 +35,11 @@ export function StockValidationPanel({
   const result = query.data;
 
   // Atualizar o form parent sobre a validade do estoque (opcional, para bloquear o submit)
-  import("react").then(React => {
-    React.useEffect(() => {
-      if (result && onValidationChange) {
-        onValidationChange(result.isSufficient);
-      }
-    }, [result, onValidationChange]);
-  });
+  useEffect(() => {
+    if (result && onValidationChange) {
+      onValidationChange(result.isSufficient);
+    }
+  }, [result, onValidationChange]);
 
   if (!protocolId && !applicationPlanId) return null;
   if (query.isLoading) return <div className="p-3 text-sm text-gray-500">Verificando estoque...</div>;

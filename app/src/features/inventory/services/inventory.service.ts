@@ -6,8 +6,9 @@ import { locationsService } from "./locations.service";
 import { auditService } from "@/features/audit/services/audit.service";
 import { getStoredAuthSession } from "@/features/auth/session";
 import { stockForecastService } from "./stockForecast.service";
+import { financialService } from "@/features/financial/services/financial.service";
+import { dbExecute, dbSelect, dbTransaction } from "@/lib/db/sqlite";
 import type { InventoryCategory, InventoryItem, InventoryItemType, InventoryItemUpdateInput, InventoryOptions, StockAdjustmentInput, Supplier } from "../types";
-import { dbTransaction } from "@/lib/db/sqlite";
 
 export const inventoryService = {
   async listInventory(): Promise<InventoryItem[]> {
@@ -385,6 +386,19 @@ export const inventoryService = {
     const delta = input.newQuantity - currentStock;
     const session = getStoredAuthSession();
 
+    // Buscar custo unitário do último lote com custo registrado (antes da transação)
+    let unitCostForLoss: number | null = null;
+    if (delta < 0) {
+      const batchRows = await dbSelect<{ unit_cost: number | null }>(`
+        SELECT unit_cost
+        FROM inventory_batches
+        WHERE inventory_item_id = ? AND unit_cost IS NOT NULL AND unit_cost > 0 AND deleted_at IS NULL
+        ORDER BY created_at DESC
+        LIMIT 1
+      `, [item.id]);
+      unitCostForLoss = batchRows[0]?.unit_cost ?? null;
+    }
+
     await dbTransaction(async () => {
       await inventoryRepository.setCurrentStock(item.id, input.newQuantity);
       await stockMovementRepository.createAdjustment(crypto.randomUUID(), {
@@ -400,13 +414,58 @@ export const inventoryService = {
         ].filter(Boolean).join(" | "),
       });
 
+      // Se houve redução de estoque (perda/quebra), lançar despesa no financeiro
+      if (delta < 0 && unitCostForLoss !== null && unitCostForLoss > 0) {
+        const lossQuantity = Math.abs(delta);
+        const lossValue = Math.round(lossQuantity * unitCostForLoss * 100) / 100;
+        if (lossValue > 0) {
+          // Garante categoria de perdas (migration 028 pode não ter rodado em DBs antigos)
+          // Sem isso: FOREIGN KEY constraint failed em financial_payables.category_id
+          await dbExecute(
+            `
+            INSERT OR IGNORE INTO financial_categories (id, clinic_id, name, type)
+            VALUES ('fin-cat-exp-losses', 'ana-morong-clinic', 'Perdas de estoque', 'expense')
+            `,
+          );
+
+          const categoryRows = await dbSelect<{ id: string }>(
+            `SELECT id FROM financial_categories WHERE id = ? AND deleted_at IS NULL LIMIT 1`,
+            ["fin-cat-exp-losses"],
+          );
+          // Fallback se FK/categoria ainda indisponível
+          const categoryId = categoryRows[0]?.id ?? "fin-cat-exp-other";
+
+          await financialService.createPayable({
+            categoryId,
+            description: `Perda de Estoque: ${item.name} — ${reason}`,
+            amount: lossValue,
+            dueDate: new Date().toISOString().split("T")[0],
+            notes: [
+              `Item: ${item.name} (${item.unit})`,
+              `Quantidade perdida: ${lossQuantity} ${item.unit}`,
+              `Custo unitário: R$ ${unitCostForLoss.toFixed(2)}`,
+              `Saldo anterior: ${currentStock} | Saldo ajustado: ${input.newQuantity}`,
+              input.notes?.trim() ? `Observação: ${input.notes.trim()}` : null,
+            ].filter(Boolean).join(" | "),
+            // Só envia userId se existir na sessão — evita FK em users
+            createdByUserId: session?.userId || undefined,
+          });
+        }
+      }
+
       await auditService.log({
         action: "inventory_stock_adjusted",
         entity_type: "inventory_item",
         entity_id: item.id,
         description: `Acerto de estoque em "${item.name}": ${currentStock} -> ${input.newQuantity} ${item.unit}.`,
         before_data: { current_stock: currentStock },
-        after_data: { current_stock: input.newQuantity, delta, reason, notes: input.notes ?? null },
+        after_data: {
+          current_stock: input.newQuantity,
+          delta,
+          reason,
+          notes: input.notes ?? null,
+          financial_loss_registered: delta < 0 && unitCostForLoss !== null,
+        },
       });
     });
   },

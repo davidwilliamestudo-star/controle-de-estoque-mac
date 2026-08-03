@@ -1,80 +1,148 @@
+/**
+ * StockMovementsDocument.tsx
+ *
+ * Documento PDF de Movimentações de Estoque.
+ * RECEBE dados como props — NÃO faz fetch interno.
+ */
+import { View, Text } from "@react-pdf/renderer";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { useStockMovementsReport } from "../../hooks/useReports";
-import type { ReportFilter } from "../../schemas/report.schema";
-import { ReportDocumentLayout } from "../ReportDocumentLayout";
+import { PdfDocumentLayout, pdfStyles, PdfTable, PdfTableHeader, PdfTableRow, PdfTableCell } from "../../pdf";
+import type { StockMovementRow, ReportFilter } from "../../schemas/report.schema";
 
 interface Props {
+  data: StockMovementRow[];
   filter: ReportFilter;
+  orientation?: "portrait" | "landscape";
 }
 
-const typeMap = {
+const typeMap: Record<string, string> = {
   entry: "Entrada",
-  exit: "Saida Manual",
+  exit: "Saída Manual",
   automatic_exit: "Uso em Paciente",
   adjustment: "Ajuste",
   loss: "Perda",
-  expired: "Vencido",
-  correction: "Correcao",
+  expired: "Vencimento",
+  correction: "Correção",
 };
 
-export function StockMovementsReport({ filter }: Props) {
-  const { data: movements = [], isLoading } = useStockMovementsReport(filter, true);
+const typeColorMap: Record<string, string> = {
+  entry: "#065f46",
+  adjustment: "#1e40af",
+  automatic_exit: "#374151",
+  exit: "#b91c1c",
+  loss: "#b91c1c",
+  expired: "#b91c1c",
+  correction: "#92400e",
+};
 
-  if (isLoading) return <div className="p-8 text-center">Carregando relatorio...</div>;
+export function StockMovementsDocument({ data: movements, filter, orientation = "landscape" }: Props) {
+  const subtitle = [
+    filter.startDate ? `De ${format(new Date(filter.startDate), "dd/MM/yy")}` : "Início",
+    filter.endDate ? `até ${format(new Date(filter.endDate), "dd/MM/yy")}` : "Hoje",
+    filter.movementType === "entry" ? "· Apenas Entradas" : null,
+    filter.movementType === "exit" ? "· Apenas Saídas" : null,
+    filter.movementType === "usage" ? "· Apenas Uso em Pacientes" : null,
+  ].filter(Boolean).join(" ");
 
-  let subtitle = `Periodo: ${filter.startDate ? format(new Date(filter.startDate), "dd/MM/yy") : "Inicio"} ate ${filter.endDate ? format(new Date(filter.endDate), "dd/MM/yy") : "Hoje"}`;
-  if (filter.movementType === "entry") subtitle += " | Apenas Entradas";
-  if (filter.movementType === "exit") subtitle += " | Apenas Saidas";
-  if (filter.movementType === "usage") subtitle += " | Apenas Uso em Pacientes";
-  if (filter.itemType === "medication") subtitle += " | Apenas Medicamentos";
-  if (filter.itemType === "material") subtitle += " | Apenas Materiais";
+  const filtersText = [
+    filter.startDate ? `De: ${filter.startDate}` : null,
+    filter.endDate ? `Até: ${filter.endDate}` : null,
+    filter.movementType && filter.movementType !== "all" ? `Tipo: ${typeMap[filter.movementType] || filter.movementType}` : null,
+    filter.itemType ? `Categoria: ${filter.itemType === "medication" ? "Medicamentos" : "Materiais"}` : null,
+    filter.supplierId ? "Fornecedor Selecionado" : null,
+    filter.userId ? "Responsável Selecionado" : null,
+  ].filter(Boolean).join(" | ") || "Todas as movimentações";
+
+  const entries = movements.filter(m => m.movement_type === "entry").length;
+  const exits = movements.filter(m => ["exit", "loss", "expired"].includes(m.movement_type)).length;
+  const usages = movements.filter(m => m.movement_type === "automatic_exit").length;
 
   return (
-    <ReportDocumentLayout title="Historico de Movimentacoes" subtitle={subtitle}>
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-        <div className="card text-center bg-gray-50 border-none">
-          <h4 className="text-gray-500 text-sm uppercase">Registros</h4>
-          <p className="text-3xl font-bold text-gray-900">{movements.length}</p>
-        </div>
-      </div>
+    <PdfDocumentLayout
+      title="Histórico de Movimentações"
+      subtitle={subtitle}
+      filtersText={filtersText}
+      orientation={orientation}
+    >
+      {/* KPIs */}
+      <View style={pdfStyles.kpiRow}>
+        <View style={[pdfStyles.kpiCard, pdfStyles.kpiNeutral]}>
+          <Text style={[pdfStyles.kpiLabel, pdfStyles.kpiNeutralText]}>Total de Registros</Text>
+          <Text style={[pdfStyles.kpiValue, pdfStyles.kpiNeutralText]}>{movements.length}</Text>
+        </View>
+        <View style={[pdfStyles.kpiCard, pdfStyles.kpiSuccess]}>
+          <Text style={[pdfStyles.kpiLabel, pdfStyles.kpiSuccessText]}>Entradas</Text>
+          <Text style={[pdfStyles.kpiValue, pdfStyles.kpiSuccessText]}>{entries}</Text>
+        </View>
+        <View style={[pdfStyles.kpiCard, pdfStyles.kpiDanger]}>
+          <Text style={[pdfStyles.kpiLabel, pdfStyles.kpiDangerText]}>Saídas / Perdas</Text>
+          <Text style={[pdfStyles.kpiValue, pdfStyles.kpiDangerText]}>{exits}</Text>
+        </View>
+        <View style={[pdfStyles.kpiCard, pdfStyles.kpiInfo]}>
+          <Text style={[pdfStyles.kpiLabel, pdfStyles.kpiInfoText]}>Uso em Pacientes</Text>
+          <Text style={[pdfStyles.kpiValue, pdfStyles.kpiInfoText]}>{usages}</Text>
+        </View>
+      </View>
 
-      <table className="table mt-4">
-        <thead>
-          <tr className="bg-gray-50 border-b border-gray-200">
-            <th className="text-left text-xs text-gray-500 font-bold uppercase tracking-wider py-3">Data/Hora</th>
-            <th className="text-left text-xs text-gray-500 font-bold uppercase tracking-wider py-3">Tipo</th>
-            <th className="text-left text-xs text-gray-500 font-bold uppercase tracking-wider py-3">Item</th>
-            <th className="text-left text-xs text-gray-500 font-bold uppercase tracking-wider py-3">Lote</th>
-            <th className="text-right text-xs text-gray-500 font-bold uppercase tracking-wider py-3">Quantidade</th>
-            <th className="text-left text-xs text-gray-500 font-bold uppercase tracking-wider py-3">Motivo</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-gray-200">
-          {movements.map((mov) => {
-            const signedQuantity = Number(mov.control_quantity);
-            const isEntry = mov.movement_type === "entry" || (mov.movement_type === "adjustment" && signedQuantity > 0);
-            return (
-              <tr key={mov.id}>
-                <td className="py-2 text-sm text-gray-500">{format(new Date(mov.created_at), "dd/MM/yyyy HH:mm", { locale: ptBR })}</td>
-                <td className="py-2 text-sm text-gray-900">{typeMap[mov.movement_type]}</td>
-                <td className="py-2 text-sm font-medium">{mov.item_name}</td>
-                <td className="py-2 text-sm text-gray-500">{mov.batch_number || "-"}</td>
-                <td className={`py-2 text-sm text-right font-bold ${isEntry ? "text-green-600" : "text-red-600"}`}>
-                  {isEntry ? "+" : "-"}{Math.abs(signedQuantity)} <span className="text-xs font-normal text-gray-500">{mov.control_unit}</span>
-                </td>
-                <td className="py-2 text-sm text-gray-500 italic">{mov.reason || "-"}</td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
+      {/* Tabela */}
+      <View style={pdfStyles.section}>
+        {movements.length === 0 ? (
+          <Text style={[pdfStyles.tableCell, pdfStyles.textMuted]}>
+            Nenhuma movimentação encontrada para os filtros aplicados.
+          </Text>
+        ) : (
+          <PdfTable>
+            <PdfTableHeader>
+              <PdfTableCell isHeader flex={2}>Data/Hora</PdfTableCell>
+              <PdfTableCell isHeader flex={2}>Tipo</PdfTableCell>
+              <PdfTableCell isHeader flex={4}>Item</PdfTableCell>
+              <PdfTableCell isHeader flex={2}>Lote</PdfTableCell>
+              <PdfTableCell isHeader align="right" flex={1}>Qtd.</PdfTableCell>
+              <PdfTableCell isHeader align="center" flex={1}>Un.</PdfTableCell>
+              <PdfTableCell isHeader flex={3}>Motivo</PdfTableCell>
+            </PdfTableHeader>
+            {movements.map((row, index) => {
+              const isEntry = row.movement_type === "entry" || (row.movement_type === "adjustment" && Number(row.control_quantity) > 0);
+              const typeLabel = typeMap[row.movement_type] || row.movement_type;
+              const typeColor = typeColorMap[row.movement_type] || "#374151";
+              const qty = Number(row.control_quantity);
 
-      {movements.length === 0 && (
-        <div className="text-center text-gray-500 py-10 border border-dashed rounded-lg mt-4">
-          Nenhuma movimentacao encontrada neste periodo.
-        </div>
-      )}
-    </ReportDocumentLayout>
+              return (
+                <PdfTableRow key={row.id || index} isStriped={index % 2 === 1}>
+                  <PdfTableCell flex={2}>
+                    {format(new Date(row.created_at), "dd/MM/yy HH:mm", { locale: ptBR })}
+                  </PdfTableCell>
+                  <PdfTableCell flex={2}>
+                    <Text style={[pdfStyles.textBold, { color: typeColor }]}>{typeLabel}</Text>
+                  </PdfTableCell>
+                  <PdfTableCell flex={4}>
+                    <Text style={pdfStyles.textBold}>{row.item_name}</Text>
+                  </PdfTableCell>
+                  <PdfTableCell flex={2}>
+                    <Text style={{ fontSize: 7.5, color: "#6b7280" }}>{row.batch_number || "—"}</Text>
+                  </PdfTableCell>
+                  <PdfTableCell align="right" flex={1}>
+                    <Text style={[pdfStyles.textBold, { color: isEntry ? "#059669" : "#b91c1c" }]}>
+                      {isEntry ? "+" : "-"}{Math.abs(qty).toLocaleString("pt-BR")}
+                    </Text>
+                  </PdfTableCell>
+                  <PdfTableCell align="center" flex={1}>
+                    <Text style={{ fontSize: 7, color: "#9ca3af" }}>{row.control_unit}</Text>
+                  </PdfTableCell>
+                  <PdfTableCell flex={3}>
+                    <Text style={{ fontStyle: "italic", color: "#6b7280", fontSize: 7.5 }}>
+                      {row.reason || "—"}
+                    </Text>
+                  </PdfTableCell>
+                </PdfTableRow>
+              );
+            })}
+          </PdfTable>
+        )}
+      </View>
+    </PdfDocumentLayout>
   );
 }
+
+export { StockMovementsDocument as StockMovementsReport };

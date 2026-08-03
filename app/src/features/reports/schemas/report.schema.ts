@@ -55,6 +55,11 @@ export interface DashboardKPIs {
   lowStockItems: number;
   expiringBatches: number; // proximos 30 dias
   totalProcedures30Days: number;
+  estimatedStockValue: number;
+  financialConsumption30Days: number;
+  criticalAlertsCount: number;
+  proceduresCompletedCount: number;
+  previousProceduresCount: number;
 }
 
 export interface PatientGeneralReportData {
@@ -132,6 +137,8 @@ export type ReportType =
   | "stock_movements"
   | "stock_entries"
   | "stock_exits"
+  | "stock_forecasting"
+  | "top_consumed"
   | "batch_by_item"
   | "patients_by_batch"
   | "protocols_list"

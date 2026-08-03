@@ -1,4 +1,5 @@
 import type { InventoryItemType } from "../types";
+import { CurrencyInput } from "@/components/ui/CurrencyInput";
 
 interface BatchFieldsProps {
   itemType: InventoryItemType;
@@ -74,15 +75,13 @@ export function BatchFields({
         </div>
 
         <div className="form-group">
-          <label className="form-label">Custo unitario</label>
-          <input
-            type="number"
-            min="0"
-            step="0.01"
-            className="form-control"
+          <label className="form-label">Custo unitário (R$)</label>
+          <CurrencyInput
             value={unitCost}
-            onChange={(event) => onChange("unitCost", Number(event.target.value))}
+            onChange={(v) => onChange("unitCost", v)}
+            label="Custo unitário"
           />
+          <p className="text-xs text-gray-400 mt-1">Custo por unidade de controle. Usado no CMV financeiro.</p>
         </div>
       </div>
 

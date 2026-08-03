@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
-import { HardDrive, Download, Upload, AlertTriangle, FileText, CheckCircle, RefreshCcw } from "lucide-react";
+import { HardDrive, Download, Upload, AlertTriangle, FileText, CheckCircle, RefreshCcw, CloudDownload } from "lucide-react";
 import { backupService, DatabaseInfo } from "../services/backup.service";
+import { UPDATE_CHECK_EVENT } from "@/features/updater/components/AppUpdateModal";
 
 export default function BackupPage() {
   const [dbInfo, setDbInfo] = useState<DatabaseInfo | null>(null);
@@ -157,6 +158,25 @@ export default function BackupPage() {
 
         {/* Painel Direito: Acoes */}
         <div className="space-y-6">
+          <div className="card shadow-sm border border-emerald-100 bg-emerald-50/40">
+            <h2 className="font-semibold text-gray-800 flex items-center gap-2 mb-2">
+              <CloudDownload size={20} className="text-emerald-700" />
+              Atualizações do sistema
+            </h2>
+            <p className="text-sm text-gray-600 mb-4">
+              Verifica se existe uma versão nova publicada (GitHub Releases).
+              Recomendado: faça um backup antes de instalar atualizações.
+            </p>
+            <button
+              type="button"
+              className="btn btn-primary w-full justify-center"
+              style={{ backgroundColor: "#1A5347" }}
+              onClick={() => window.dispatchEvent(new Event(UPDATE_CHECK_EVENT))}
+            >
+              Verificar atualizações agora
+            </button>
+          </div>
+
           <div className="card shadow-sm border border-blue-100 bg-blue-50/30">
             <h2 className="font-semibold text-gray-800 flex items-center gap-2 mb-2">
               <Download size={20} className="text-blue-600" />

@@ -51,8 +51,8 @@ export const inventoryFinancialRepository = {
       JOIN inventory_items i ON i.id = sm.inventory_item_id
       LEFT JOIN inventory_batches b ON b.id = sm.inventory_batch_id
       WHERE sm.movement_type IN ('exit', 'automatic_exit', 'loss', 'expired')
-        AND date(sm.movement_date) >= date($1) 
-        AND date(sm.movement_date) <= date($2)
+        AND date(sm.movement_date) >= date(?)
+        AND date(sm.movement_date) <= date(?)
     `;
     
     return dbSelect(query, [startDate, endDate]);

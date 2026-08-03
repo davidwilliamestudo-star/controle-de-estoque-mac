@@ -29,6 +29,7 @@ export function useSaveProtocol() {
     mutationFn: (data: SaveProtocolInput) => protocolsService.saveProtocol(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["protocols"] });
+      queryClient.invalidateQueries({ queryKey: ["monthly-summary"] });
     },
   });
 }
