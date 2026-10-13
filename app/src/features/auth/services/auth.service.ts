@@ -1,3 +1,4 @@
+import { isTauri } from "@tauri-apps/api/core";
 import { auditRepository } from "@/features/audit/repositories/audit.repository";
 import { authRepository } from "../repositories/auth.repository";
 import { createSessionPayload, clearStoredAuthSession, getStoredAuthSession, refreshStoredAuthSession, setStoredAuthSession } from "../session";
@@ -22,6 +23,27 @@ export const authService = {
 
   async login(email: string, password: string): Promise<LoginResult> {
     const normalizedEmail = email.trim().toLowerCase();
+
+    // No navegador Web (Cloudflare Pages), autentica diretamente via Edge API
+    if (!isTauri()) {
+      const response = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: normalizedEmail, password }),
+      });
+
+      const payload = await response.json();
+      if (!response.ok || !payload.success) {
+        throw new Error(payload.error || "E-mail ou senha inválidos.");
+      }
+
+      localStorage.setItem("dra_ana_auth_token", payload.token);
+      setStoredAuthSession(payload.user);
+
+      return { session: payload.user };
+    }
+
+    // Fluxo desktop legado
     const user = await authRepository.findActiveUserByEmail(normalizedEmail);
 
     if (!user || user.is_active !== 1) {
@@ -73,6 +95,7 @@ export const authService = {
   async logout(reason: "manual" | "inactivity" = "manual"): Promise<void> {
     const session = getStoredAuthSession();
     clearStoredAuthSession();
+    localStorage.removeItem("dra_ana_auth_token");
 
     if (!session) return;
 

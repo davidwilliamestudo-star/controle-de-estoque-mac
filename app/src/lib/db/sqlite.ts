@@ -460,6 +460,42 @@ export function getDb(): Promise<Database> {
   return _dbPromise;
 }
 
+function getAuthHeaders(): Record<string, string> {
+  const token = localStorage.getItem("dra_ana_auth_token");
+  return {
+    "Content-Type": "application/json",
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  };
+}
+
+async function webDbSelect<T = Row>(sql: string, args: unknown[] = []): Promise<T[]> {
+  const response = await fetch("/api/db/query", {
+    method: "POST",
+    headers: getAuthHeaders(),
+    body: JSON.stringify({ sql, args }),
+  });
+
+  const payload = await response.json();
+  if (!response.ok || !payload.success) {
+    throw new Error(payload.error || "Erro ao consultar banco de dados remoto (Cloudflare D1).");
+  }
+  return (payload.data || []) as T[];
+}
+
+async function webDbExecute(sql: string, args: unknown[] = []): Promise<QueryResult> {
+  const response = await fetch("/api/db/execute", {
+    method: "POST",
+    headers: getAuthHeaders(),
+    body: JSON.stringify({ sql, args }),
+  });
+
+  const payload = await response.json();
+  if (!response.ok || !payload.success) {
+    throw new Error(payload.error || "Erro ao executar operação no banco remoto (Cloudflare D1).");
+  }
+  return payload.data as QueryResult;
+}
+
 export type Row = Record<string, unknown>;
 
 let _activeTransaction: { sql: string; args: unknown[]; requireRowsAffected?: boolean }[] | null = null;
@@ -468,6 +504,10 @@ export async function dbSelect<T = Row>(
   sql: string,
   args: unknown[] = []
 ): Promise<T[]> {
+  if (!isTauri()) {
+    return webDbSelect<T>(sql, args);
+  }
+
   if (_activeTransaction) {
     const db = await getDb();
     return withLockedDatabaseRetry(() => db.select<T[]>(sql, args));
@@ -482,6 +522,14 @@ export async function dbExecute(
   sql: string,
   args: unknown[] = []
 ): Promise<QueryResult> {
+  if (!isTauri()) {
+    if (_activeTransaction) {
+      _activeTransaction.push({ sql, args });
+      return { lastInsertId: 0, rowsAffected: 1 };
+    }
+    return webDbExecute(sql, args);
+  }
+
   if (_activeTransaction) {
     _activeTransaction.push({ sql, args });
     return { lastInsertId: 0, rowsAffected: 1 };
@@ -496,6 +544,18 @@ export async function dbExecuteRequired(
   sql: string,
   args: unknown[] = []
 ): Promise<QueryResult> {
+  if (!isTauri()) {
+    if (_activeTransaction) {
+      _activeTransaction.push({ sql, args, requireRowsAffected: true });
+      return { lastInsertId: 0, rowsAffected: 1 };
+    }
+    const result = await webDbExecute(sql, args);
+    if (Number(result.rowsAffected ?? 0) === 0) {
+      throw new Error("Nenhuma linha foi alterada por uma operacao obrigatoria.");
+    }
+    return result;
+  }
+
   if (_activeTransaction) {
     _activeTransaction.push({ sql, args, requireRowsAffected: true });
     return { lastInsertId: 0, rowsAffected: 1 };
@@ -512,6 +572,30 @@ export async function dbExecuteRequired(
 }
 
 export async function dbTransaction<T>(callback: () => Promise<T>): Promise<T> {
+  if (!isTauri()) {
+    if (_activeTransaction) {
+      throw new Error("Transação já em andamento.");
+    }
+    _activeTransaction = [];
+    try {
+      const result = await callback();
+      if (_activeTransaction && _activeTransaction.length > 0) {
+        const response = await fetch("/api/db/transaction", {
+          method: "POST",
+          headers: getAuthHeaders(),
+          body: JSON.stringify({ queries: _activeTransaction }),
+        });
+        const payload = await response.json();
+        if (!response.ok || !payload.success) {
+          throw new Error(payload.error || "Falha ao persistir transação no Cloudflare D1.");
+        }
+      }
+      return result;
+    } finally {
+      _activeTransaction = null;
+    }
+  }
+
   if (_activeTransaction) {
     throw new Error("Transacao SQLite ja em andamento. Operacoes criticas devem usar uma unica transacao.");
   }

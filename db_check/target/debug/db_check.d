@@ -1,0 +1,1 @@
+C:\Users\wilia\OneDrive\Documentos\VOLTQ\DRA\ ANA\ MORONG\Controle\ de\ Estoque\db_check\target\debug\db_check.exe: C:\Users\wilia\OneDrive\Documentos\VOLTQ\DRA\ ANA\ MORONG\Controle\ de\ Estoque\db_check\src\main.rs

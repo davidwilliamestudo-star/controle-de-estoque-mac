@@ -1,5 +1,4 @@
-import { save } from "@tauri-apps/plugin-dialog";
-import { writeTextFile } from "@tauri-apps/plugin-fs";
+import { downloadFile } from "@/lib/utils/download";
 import Papa from "papaparse";
 import { auditService } from "@/features/audit/services/audit.service";
 import { getStoredAuthSession } from "@/features/auth/session";
@@ -36,15 +35,12 @@ function generateCsv(data: Record<string, unknown>[]): string {
 }
 
 async function saveCsv(defaultPath: string, csvContent: string): Promise<string | null> {
-  const filePath = await save({
-    title: "Salvar arquivo CSV",
-    defaultPath,
+  return downloadFile({
+    filename: defaultPath,
+    content: csvContent,
+    mimeType: "text/csv;charset=utf-8",
     filters: [{ name: "CSV separado por ponto e virgula", extensions: ["csv"] }],
   });
-
-  if (!filePath) return null;
-  await writeTextFile(filePath, csvContent);
-  return filePath;
 }
 
 export const dataExportService = {

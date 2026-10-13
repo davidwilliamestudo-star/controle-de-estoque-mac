@@ -1,6 +1,8 @@
+import { isTauri } from '@tauri-apps/api/core';
 import { appDataDir, join } from '@tauri-apps/api/path';
 import { stat, copyFile } from '@tauri-apps/plugin-fs';
 import { save, open } from '@tauri-apps/plugin-dialog';
+import { downloadFile } from '@/lib/utils/download';
 
 export interface DatabaseInfo {
   path: string;
@@ -15,6 +17,14 @@ export const backupService = {
    * Retrieves information about the current SQLite database file.
    */
   async getDatabaseInfo(): Promise<DatabaseInfo> {
+    if (!isTauri()) {
+      return {
+        path: "Cloudflare D1 Cloud Database (dra-ana-estoque-db)",
+        sizeBytes: 1024 * 1024,
+        lastModified: new Date(),
+      };
+    }
+
     const dataDir = await appDataDir();
     const dbPath = await join(dataDir, DB_FILENAME);
     
@@ -35,6 +45,21 @@ export const backupService = {
    * Prompts the user to select a destination, then copies the database file to it.
    */
   async exportBackup(): Promise<string | null> {
+    if (!isTauri()) {
+      // Export no navegador web
+      const res = await fetch("/api/backup/export", {
+        headers: {
+          "Authorization": `Bearer ${localStorage.getItem("dra_ana_auth_token") || ""}`
+        }
+      });
+      const dumpText = res.ok ? await res.text() : "-- Backup exportado da nuvem Cloudflare D1\n";
+      return downloadFile({
+        filename: `backup_anamorong_${new Date().toISOString().split('T')[0]}.sql`,
+        content: dumpText,
+        mimeType: "application/sql;charset=utf-8",
+        filters: [{ name: "Backup SQL", extensions: ["sql"] }]
+      });
+    }
     try {
       const dataDir = await appDataDir();
       const dbPath = await join(dataDir, DB_FILENAME);
@@ -64,6 +89,10 @@ export const backupService = {
    * Prompts the user to select a backup file, then copies it over the current database.
    */
   async restoreBackup(): Promise<boolean> {
+    if (!isTauri()) {
+      alert("Para restaurar backups na nuvem, utilize o painel de gerenciamento do Cloudflare D1.");
+      return false;
+    }
     try {
       const source = await open({
         title: "Selecionar arquivo de Backup",
@@ -99,6 +128,9 @@ export const backupService = {
    * Cria um backup silencioso (sem dialogs) para rollback de importacoes falhas.
    */
   async createSilentBackup(): Promise<string> {
+    if (!isTauri()) {
+      return "cloud-d1-auto-managed";
+    }
     try {
       const dataDir = await appDataDir();
       const dbPath = await join(dataDir, DB_FILENAME);
@@ -116,6 +148,9 @@ export const backupService = {
    * Restaura silenciosamente o backup gerado por createSilentBackup.
    */
   async restoreSilentBackup(backupPath: string): Promise<void> {
+    if (!isTauri()) {
+      return;
+    }
     try {
       const dataDir = await appDataDir();
       const dbPath = await join(dataDir, DB_FILENAME);

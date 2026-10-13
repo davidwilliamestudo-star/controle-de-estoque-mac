@@ -8,13 +8,18 @@
     "build": "npm run verify-migrations && tsc && vite build",
     "preview": "vite preview",
     "tauri": "tauri",
-    "tauri:dev": "tauri dev",
+    "tauri:dev": "node scripts/run-dev.mjs",
     "tauri:build": "tauri build",
-    "tauri:build:windows": "tauri build --bundles nsis",
+    "tauri:build:windows": "node scripts/run-dev.mjs --build",
     "tauri:build:mac": "tauri build --bundles app,dmg",
     "verify-migrations": "node scripts/verify-migrations.mjs",
     "macos:preflight": "node scripts/macos-preflight.mjs",
-    "macos:build": "node scripts/macos-build.mjs"
+    "macos:build": "node scripts/macos-build.mjs",
+    "pages:dev": "wrangler pages dev dist --d1 DB=dra-ana-estoque-db",
+    "d1:prepare": "python scripts/prepare_d1_schema.py && python scripts/export_d1_data.py",
+    "d1:init:local": "wrangler d1 execute dra-ana-estoque-db --local --file=./scripts/d1-schema.sql && wrangler d1 execute dra-ana-estoque-db --local --file=./scripts/d1-seed-data.sql",
+    "d1:init:remote": "wrangler d1 execute dra-ana-estoque-db --remote --file=./scripts/d1-schema.sql && wrangler d1 execute dra-ana-estoque-db --remote --file=./scripts/d1-seed-data.sql",
+    "deploy:pages": "npm run build && wrangler pages deploy dist --project-name=dra-ana-estoque"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.4.0",
@@ -38,6 +43,7 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "date-fns": "^4.4.0",
+    "hono": "^4.13.13",
     "lucide-react": "^1.17.0",
     "papaparse": "^5.5.3",
     "pdf-lib": "^1.17.1",
@@ -51,6 +57,7 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@cloudflare/workers-types": "^5.20261013.1",
     "@tailwindcss/vite": "^4.3.0",
     "@tauri-apps/cli": "^2",
     "@types/node": "^25.9.2",
@@ -59,6 +66,7 @@
     "@vitejs/plugin-react": "^4.6.0",
     "tailwindcss": "^4.3.0",
     "typescript": "~5.8.3",
-    "vite": "^7.0.4"
+    "vite": "^7.0.4",
+    "wrangler": "^4.150.0"
   }
 }

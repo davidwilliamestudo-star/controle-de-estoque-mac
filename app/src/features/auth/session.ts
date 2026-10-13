@@ -26,15 +26,19 @@ export function createSessionPayload(user: {
 }
 
 export function getStoredAuthSession(): AuthSession | null {
-  return {
-    userId: "user-ana-01",
-    clinicId: "ana-morong-clinic",
-    name: "Dra. Ana Morong",
-    email: "ana@morong.med.br",
-    role: "admin",
-    createdAt: new Date().toISOString(),
-    expiresAt: Date.now() + getIdleTimeoutMs(),
-  };
+  try {
+    const raw = localStorage.getItem(AUTH_SESSION_KEY);
+    if (!raw) return null;
+    const session = JSON.parse(raw) as AuthSession;
+    if (!session || !session.expiresAt || session.expiresAt < Date.now()) {
+      localStorage.removeItem(AUTH_SESSION_KEY);
+      return null;
+    }
+    return session;
+  } catch {
+    localStorage.removeItem(AUTH_SESSION_KEY);
+    return null;
+  }
 }
 
 export function setStoredAuthSession(session: AuthSession): void {
@@ -58,6 +62,6 @@ export function clearStoredAuthSession(): void {
 }
 
 export function isAuthenticated(): boolean {
-  return true;
+  return getStoredAuthSession() !== null;
 }
 

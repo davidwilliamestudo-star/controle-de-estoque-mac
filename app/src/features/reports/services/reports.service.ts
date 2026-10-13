@@ -1,6 +1,5 @@
 import { auditRepository } from "@/features/audit/repositories/audit.repository";
-import { save } from "@tauri-apps/plugin-dialog";
-import { writeTextFile } from "@tauri-apps/plugin-fs";
+import { downloadFile } from "@/lib/utils/download";
 import Papa from "papaparse";
 import { reportsRepository } from "../repositories/reports.repository";
 import type { ReportFilter, ReportType } from "../schemas/report.schema";
@@ -178,15 +177,14 @@ export const reportsService = {
       newline: "\r\n",
     });
 
-    const filePath = await save({
-      title: "Salvar Relatório",
-      defaultPath: `relatorio_${type}_${new Date().toISOString().slice(0, 10)}.csv`,
+    const filePath = await downloadFile({
+      filename: `relatorio_${type}_${new Date().toISOString().slice(0, 10)}.csv`,
+      content: csvString,
+      mimeType: "text/csv;charset=utf-8",
       filters: [{ name: "CSV separado por ponto e vírgula", extensions: ["csv"] }],
     });
 
     if (!filePath) return null;
-
-    await writeTextFile(filePath, csvString);
 
     await auditRepository.log({
       action: "report_viewed", // or report_exported, keeping standard type

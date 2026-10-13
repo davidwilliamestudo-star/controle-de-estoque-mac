@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { isTauri } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 import { readTextFile } from "@tauri-apps/plugin-fs";
 import { FileUp, FileText, CheckCircle2, AlertTriangle, ArrowRight, Save, X } from "lucide-react";
@@ -17,48 +18,73 @@ export function XmlImportPanel() {
   
   const { data: options } = useInventoryOptions();
 
+  const processXmlContent = (xmlContent: string, fileName?: string) => {
+    if (fileName) setFilePath(fileName);
+    const parsed = xmlImportService.parseXml(xmlContent);
+
+    // Auto-match logic
+    if (parsed.supplier && options?.suppliers) {
+      const matchedSup = options.suppliers.find(s => s.document === parsed.supplier?.cnpj || s.name.toLowerCase() === parsed.supplier?.name.toLowerCase());
+      if (matchedSup) {
+        parsed.supplier.matchedSupplierId = matchedSup.id;
+      } else {
+        parsed.supplier.isNewSupplier = true;
+      }
+    }
+
+    parsed.items.forEach(item => {
+      if (options?.items) {
+        const matchedItem = options.items.find(i => 
+          i.name.toLowerCase() === item.xProd.toLowerCase() || 
+          i.name.toLowerCase().includes(item.xProd.toLowerCase())
+        );
+        if (matchedItem) {
+          item.matchedInventoryItemId = matchedItem.id;
+        } else {
+          item.isNewItem = true;
+        }
+      }
+    });
+
+    setParsedData(parsed);
+    setStep("mapping");
+  };
+
   // Handle step 1: Select and Parse XML
   const handleSelectXml = async () => {
     try {
       setErrorMsg(null);
-      const file = await open({
-        multiple: false,
-        filters: [{ name: "XML NF-e", extensions: ["xml"] }],
-      });
 
-      if (typeof file === "string") {
-        setFilePath(file);
-        setIsProcessing(true);
-        const xmlContent = await readTextFile(file);
-        
-        const parsed = xmlImportService.parseXml(xmlContent);
-        
-        // Auto-match logic
-        if (parsed.supplier && options?.suppliers) {
-          const matchedSup = options.suppliers.find(s => s.document === parsed.supplier?.cnpj || s.name.toLowerCase() === parsed.supplier?.name.toLowerCase());
-          if (matchedSup) {
-            parsed.supplier.matchedSupplierId = matchedSup.id;
-          } else {
-            parsed.supplier.isNewSupplier = true;
-          }
-        }
-
-        parsed.items.forEach(item => {
-          if (options?.items) {
-            const matchedItem = options.items.find(i => 
-              i.name.toLowerCase() === item.xProd.toLowerCase() || 
-              i.name.toLowerCase().includes(item.xProd.toLowerCase())
-            );
-            if (matchedItem) {
-              item.matchedInventoryItemId = matchedItem.id;
-            } else {
-              item.isNewItem = true;
-            }
-          }
+      if (isTauri()) {
+        const file = await open({
+          multiple: false,
+          filters: [{ name: "XML NF-e", extensions: ["xml"] }],
         });
 
-        setParsedData(parsed);
-        setStep("mapping");
+        if (typeof file === "string") {
+          setIsProcessing(true);
+          const xmlContent = await readTextFile(file);
+          processXmlContent(xmlContent, file);
+        }
+      } else {
+        // Fallback Web puro
+        const input = document.createElement("input");
+        input.type = "file";
+        input.accept = ".xml,text/xml";
+        input.onchange = async () => {
+          const selectedFile = input.files?.[0];
+          if (!selectedFile) return;
+          try {
+            setIsProcessing(true);
+            const xmlContent = await selectedFile.text();
+            processXmlContent(xmlContent, selectedFile.name);
+          } catch (err: any) {
+            setErrorMsg(err.message || "Erro ao ler o arquivo selecionado.");
+          } finally {
+            setIsProcessing(false);
+          }
+        };
+        input.click();
       }
     } catch (e: any) {
       console.error(e);

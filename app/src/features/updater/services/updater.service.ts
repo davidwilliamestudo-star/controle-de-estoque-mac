@@ -1,3 +1,4 @@
+import { isTauri } from "@tauri-apps/api/core";
 import { check, type Update } from "@tauri-apps/plugin-updater";
 import { relaunch } from "@tauri-apps/plugin-process";
 
@@ -11,6 +12,9 @@ export interface UpdateStatus {
 
 export const updaterService = {
   async checkForUpdates(): Promise<UpdateStatus> {
+    if (!isTauri()) {
+      return { available: false, updateObj: null };
+    }
     try {
       const update = await check();
       if (update && update.available) {

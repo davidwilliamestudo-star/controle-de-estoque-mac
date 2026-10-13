@@ -1,0 +1,11 @@
+# Configuração do Cloudflare Pages e D1 Database
+name = "dra-ana-estoque"
+compatibility_date = "2024-09-23"
+compatibility_flags = ["nodejs_compat"]
+pages_build_output_dir = "dist"
+
+# Binding do Banco de Dados Cloudflare D1
+[[d1_databases]]
+binding = "DB"
+database_name = "dra-ana-estoque-db"
+database_id = "LOCAL_OR_CLOUDFLARE_D1_DATABASE_ID"

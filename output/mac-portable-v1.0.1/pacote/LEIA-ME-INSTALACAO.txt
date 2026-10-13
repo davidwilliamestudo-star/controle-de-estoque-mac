@@ -1,0 +1,102 @@
+================================================================================
+  CONTROLE DE ESTOQUE — Dra. Ana Morong
+  Pacote portátil macOS v1.0.1 (Apple Silicon — M1/M2/M3/M4)
+================================================================================
+
+Este pacote é a ALTERNATIVA se o instalador .dmg der problema.
+Os DADOS (pacientes, estoque, financeiro) ficam em outra pasta e NÃO são apagados
+se você só substituir o aplicativo.
+
+--------------------------------------------------------------------------------
+CONTEÚDO DESTE PACOTE
+--------------------------------------------------------------------------------
+1) Controle de Estoque.app
+   → App completo (use se o .dmg falhar)
+
+2) Controle.de.Estoque_1.0.1_aarch64.dmg
+   → Instalador normal (tente primeiro)
+
+3) Controle.de.Estoque_aarch64.app.tar.gz
+   → Arquivo compactado do app (backup técnico / auto-update)
+
+--------------------------------------------------------------------------------
+IMPORTANTE — BACKUP ANTES DE QUALQUER COISA
+--------------------------------------------------------------------------------
+1. Feche o sistema (Cmd + Q).
+2. No Finder: menu Ir → Ir para a pasta…
+3. Cole este caminho e Enter:
+
+   ~/Library/Application Support/com.anamorong.estoque/
+
+4. Copie o arquivo "estoque.db" para o Desktop ou pen drive.
+   Nome sugerido: backup_antes_v1.0.1.db
+
+--------------------------------------------------------------------------------
+OPÇÃO A — Instalador .dmg (preferida)
+--------------------------------------------------------------------------------
+1. Clique duas vezes em:
+   Controle.de.Estoque_1.0.1_aarch64.dmg
+
+2. Arraste "Controle de Estoque" para a pasta Aplicativos.
+3. Se pedir para substituir: clique em SUBSTITUIR.
+4. Abra o app em Aplicativos.
+5. Se o macOS bloquear: botão direito no app → Abrir → Abrir.
+
+--------------------------------------------------------------------------------
+OPÇÃO B — ZIP / pasta .app (se o .dmg NÃO funcionar)
+--------------------------------------------------------------------------------
+1. Copie a pasta/app:
+   "Controle de Estoque.app"
+
+2. Cole em:
+   Aplicativos (Applications)
+
+3. Se já existir: SUBSTITUIR.
+
+4. Abra com botão direito → Abrir (primeira vez).
+
+NÃO apague a pasta:
+  ~/Library/Application Support/com.anamorong.estoque/
+Isso apagaria todos os dados.
+
+--------------------------------------------------------------------------------
+OPÇÃO C — Extrair o .tar.gz no Terminal (Mac)
+--------------------------------------------------------------------------------
+cd ~/Downloads
+tar -xzf Controle.de.Estoque_aarch64.app.tar.gz
+# Depois arraste "Controle de Estoque.app" para Aplicativos
+
+--------------------------------------------------------------------------------
+DEPOIS DE INSTALAR — CONFERIR
+--------------------------------------------------------------------------------
+[ ] Login funciona
+[ ] Pacientes ainda aparecem
+[ ] Estoque ainda aparece
+[ ] Menu Backup → "Verificar atualizações" responde
+
+Se algo falhar, restaure o estoque.db do backup na pasta Application Support
+e abra o app de novo.
+
+--------------------------------------------------------------------------------
+AUTO-UPDATE (a partir desta versão)
+--------------------------------------------------------------------------------
+Esta v1.0.1 já vem com atualização automática.
+Nas próximas versões o app avisa e basta clicar em "Atualizar agora"
+(é necessário internet).
+
+--------------------------------------------------------------------------------
+CHIP DO MAC
+--------------------------------------------------------------------------------
+Este pacote é para Apple Silicon (M1/M2/M3/M4).
+Se o Mac for Intel, use o build x86_64 no GitHub Releases
+quando estiver disponível.
+
+Menu Apple → Sobre este Mac → ver o chip.
+
+--------------------------------------------------------------------------------
+SUPORTE
+--------------------------------------------------------------------------------
+Repositório / downloads:
+https://github.com/davidwilliamestudo-star/controle-de-estoque-mac/releases/tag/v1.0.1
+
+================================================================================
