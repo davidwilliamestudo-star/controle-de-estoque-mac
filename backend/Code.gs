@@ -195,6 +195,11 @@ var Router = {
       case "get_modified_calendar_events":
         return CalendarService.getModifiedEvents(payload);
 
+      // --- ASSINATURAS DIGITAIS ICP-BRASIL & GOOGLE DRIVE ---
+      case "save_signed_document_to_drive":
+      case "saveSignedDocumentToDrive":
+        return DriveSignaturesService.saveSignedDocumentToDrive(payload.payload || payload, payload.request_id);
+
       default:
         throw Utils.appError("INVALID_ACTION", "Ação não suportada: " + action);
     }

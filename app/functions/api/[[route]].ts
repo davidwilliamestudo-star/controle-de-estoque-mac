@@ -1,13 +1,19 @@
 import { Hono } from "hono";
 import { handle } from "hono/cloudflare-pages";
 import { cors } from "hono/cors";
+import { pbkdf2 } from "@noble/hashes/pbkdf2";
+import { sha256 } from "@noble/hashes/sha256";
 
 type Bindings = {
   DB: D1Database;
   JWT_SECRET?: string;
+  PUBLIC_APP_URL?: string;
+  GAS_WEBAPP_URL?: string;
+  GAS_INTERNAL_SECRET?: string;
+  WEBHOOK_HMAC_SECRET?: string;
 };
 
-// Web Crypto PBKDF2 Password Verification (Idêntica ao frontend)
+// PBKDF2 Password Verification compatível com o limite de iterações do Workers
 function fromBase64(value: string): Uint8Array {
   const binary = atob(value);
   const bytes = new Uint8Array(binary.length);
@@ -17,7 +23,7 @@ function fromBase64(value: string): Uint8Array {
   return bytes;
 }
 
-function toBase64(bytes: ArrayBuffer): string {
+function toBase64(bytes: ArrayBuffer | Uint8Array): string {
   const values = new Uint8Array(bytes);
   let binary = "";
   values.forEach((value) => {
@@ -26,38 +32,20 @@ function toBase64(bytes: ArrayBuffer): string {
   return btoa(binary);
 }
 
-async function verifyPassword(password: string, storedHash: string): Promise<boolean> {
+function verifyPassword(password: string, storedHash: string): boolean {
   const [algorithm, iterationsRaw, saltRaw, expectedHash] = storedHash.split("$");
   if (algorithm !== "pbkdf2_sha256" || !iterationsRaw || !saltRaw || !expectedHash) {
     return false;
   }
 
   const iterations = Number(iterationsRaw);
-  if (!Number.isInteger(iterations) || iterations < 100000) {
+  if (!Number.isInteger(iterations) || iterations < 1000) {
     return false;
   }
 
-  const encodedPassword = new TextEncoder().encode(password);
-  const key = await crypto.subtle.importKey(
-    "raw",
-    encodedPassword,
-    "PBKDF2",
-    false,
-    ["deriveBits"]
-  );
-
-  const bits = await crypto.subtle.deriveBits(
-    {
-      name: "PBKDF2",
-      salt: fromBase64(saltRaw),
-      iterations,
-      hash: "SHA-256",
-    },
-    key,
-    256
-  );
-
-  return toBase64(bits) === expectedHash;
+  const salt = fromBase64(saltRaw);
+  const derived = pbkdf2(sha256, password, salt, { c: iterations, dkLen: 32 });
+  return toBase64(derived) === expectedHash;
 }
 
 // Token de sessão assinado em WebCrypto
@@ -122,6 +110,14 @@ app.use("*", cors({
   exposeHeaders: ["Content-Length"],
   maxAge: 86400,
 }));
+
+// Garante compatibilidade de binding com DB ou dra_ana_estoque_db
+app.use("*", async (c, next) => {
+  if (!c.env.DB && (c.env as any).dra_ana_estoque_db) {
+    c.env.DB = (c.env as any).dra_ana_estoque_db;
+  }
+  await next();
+});
 
 // Rota de Health Check
 app.get("/health", (c) => {
@@ -304,4 +300,737 @@ app.get("/backup/export", authMiddleware, async (c) => {
   }
 });
 
+// ============================================================================
+// MÓDULO DE ASSINATURA ELETRÔNICA ICP-BRASIL & WEBHOOKS
+// ============================================================================
+
+import { PdfStampingEngine } from "../../src/services/signatures/pdfStampingEngine";
+
+// 0. POST /api/signatures/documents — Cria novo documento com signatários e campos posicionados
+app.post("/signatures/documents", authMiddleware, async (c) => {
+  try {
+    const user = c.get("user");
+    const body = await c.req.json<{
+      title: string;
+      category?: string;
+      signing_mode?: 'in_person' | 'remote' | 'hybrid';
+      patient_id: string;
+      patient_name: string;
+      patient_cpf: string;
+      patient_email?: string;
+      patient_phone?: string;
+      original_pdf_base64: string;
+      signers: Array<{
+        id: string;
+        role: 'DRA_ANA' | 'PACIENTE' | 'TESTEMUNHA' | 'RESPONSAVEL_LEGAL';
+        full_name: string;
+        cpf: string;
+        email?: string;
+        phone_whatsapp?: string;
+        council_id?: string;
+        auth_type?: 'canvas_advanced' | 'icp_brasil_a1' | 'icp_brasil_cloud' | 'otp_whatsapp';
+        legal_standard?: 'ADVANCED' | 'QUALIFIED_ICP';
+      }>;
+      fields: Array<{
+        signer_id: string;
+        field_type: 'signature' | 'initials' | 'date_stamp' | 'icp_seal';
+        page: number;
+        x_percent: number;
+        y_percent: number;
+        width_percent: number;
+        height_percent: number;
+      }>;
+    }>();
+
+    if (!body.title || !body.patient_id || !body.patient_name || !body.patient_cpf || !body.original_pdf_base64) {
+      return c.json({ error: "Dados obrigatórios do documento incompletos." }, 400);
+    }
+
+    if (!Array.isArray(body.signers) || body.signers.length === 0) {
+      return c.json({ error: "Pelo menos um signatário é obrigatório." }, 400);
+    }
+
+    // Calcula SHA-256 do PDF original
+    const pdfBytes = PdfStampingEngine.base64ToBytes(body.original_pdf_base64);
+    const pdfSha256 = await PdfStampingEngine.sha256HexFromBytes(pdfBytes);
+
+    const docId = crypto.randomUUID();
+    const verPart1 = Math.random().toString(36).substring(2, 6).toUpperCase();
+    const verPart2 = Math.random().toString(36).substring(2, 6).toUpperCase();
+    const verificationCode = `ANA-${verPart1}-${verPart2}`;
+    const nowUtc = new Date().toISOString();
+    const nowBrt = new Date().toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" });
+
+    // Mapeamento dos IDs de signatários do cliente para UUIDs reais
+    const signerIdMap = new Map<string, string>();
+    const signersCreated: Array<{
+      id: string;
+      clientId: string;
+      role: string;
+      fullName: string;
+      remoteAccessToken: string;
+      signUrl: string;
+    }> = [];
+
+    const statements: D1PreparedStatement[] = [];
+
+    // 1. Inserir documento
+    statements.push(
+      c.env.DB.prepare(
+        `INSERT INTO documents (
+          id, verification_code, patient_id, patient_name, patient_cpf,
+          patient_email, patient_phone, title, category, signing_mode,
+          engine_provider, status, original_pdf_url, original_pdf_sha256,
+          gas_sync_status, created_by_user_id, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'native', 'pending', ?, ?, 'pending', ?, ?, ?)`
+      ).bind(
+        docId,
+        verificationCode,
+        body.patient_id,
+        body.patient_name,
+        body.patient_cpf,
+        body.patient_email || null,
+        body.patient_phone || null,
+        body.title,
+        body.category || 'CONTRATO',
+        body.signing_mode || 'hybrid',
+        body.original_pdf_base64,
+        pdfSha256,
+        user?.userId || null,
+        nowUtc,
+        nowUtc
+      )
+    );
+
+    const origin = (c.env.PUBLIC_APP_URL || new URL(c.req.url).origin).replace(/\/$/, "");
+
+    // 2. Inserir Signatários
+    for (let i = 0; i < body.signers.length; i++) {
+      const s = body.signers[i];
+      const realSignerId = crypto.randomUUID();
+      const remoteToken = (crypto.randomUUID().replace(/-/g, "") + crypto.randomUUID().replace(/-/g, "")).substring(0, 48);
+      signerIdMap.set(s.id, realSignerId);
+
+      statements.push(
+        c.env.DB.prepare(
+          `INSERT INTO document_signers (
+            id, document_id, remote_access_token, role, signing_order,
+            full_name, cpf, email, phone_whatsapp, council_id,
+            auth_type, legal_standard, status, created_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?)`
+        ).bind(
+          realSignerId,
+          docId,
+          remoteToken,
+          s.role,
+          i + 1,
+          s.full_name,
+          s.cpf,
+          s.email || null,
+          s.phone_whatsapp || null,
+          s.council_id || null,
+          s.auth_type || 'canvas_advanced',
+          s.legal_standard || 'ADVANCED',
+          nowUtc
+        )
+      );
+
+      signersCreated.push({
+        id: realSignerId,
+        clientId: s.id,
+        role: s.role,
+        fullName: s.full_name,
+        remoteAccessToken: remoteToken,
+        signUrl: `${origin}/assinar/${remoteToken}`,
+      });
+    }
+
+    // 3. Inserir Campos de Assinatura
+    if (Array.isArray(body.fields)) {
+      for (const f of body.fields) {
+        const mappedSignerId = signerIdMap.get(f.signer_id) || f.signer_id;
+        const fieldId = crypto.randomUUID();
+
+        statements.push(
+          c.env.DB.prepare(
+            `INSERT INTO signature_fields (
+              id, document_id, signer_id, field_type, page,
+              x_percent, y_percent, width_percent, height_percent,
+              required, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)`
+          ).bind(
+            fieldId,
+            docId,
+            mappedSignerId,
+            f.field_type,
+            f.page,
+            f.x_percent,
+            f.y_percent,
+            f.width_percent,
+            f.height_percent,
+            nowUtc
+          )
+        );
+      }
+    }
+
+    // 4. Trilha de Auditoria Inicial (Gênese)
+    const genesisTrailId = crypto.randomUUID();
+    const genesisChain = `${genesisTrailId}|${docId}|document.created|${pdfSha256}|GENESIS_0000000000000000|${nowUtc}`;
+    const genesisHash = await PdfStampingEngine.sha256HexFromBytes(
+      new TextEncoder().encode(genesisChain)
+    );
+
+    statements.push(
+      c.env.DB.prepare(
+        `INSERT INTO signature_audit_trails (
+          id, document_id, signer_id, event_name, event_description,
+          actor_name, actor_cpf, ip_address, user_agent,
+          pdf_sha256_snapshot, previous_trail_hash, current_trail_hash,
+          occurred_at_utc, occurred_at_brt
+        ) VALUES (?, ?, NULL, 'document.created', ?, ?, ?, ?, ?, ?, 'GENESIS_0000000000000000', ?, ?, ?)`
+      ).bind(
+        genesisTrailId,
+        docId,
+        `Documento criado no sistema por ${user?.name || 'Clínica Dra. Ana Morong'}`,
+        user?.name || 'Administrador',
+        user?.email || 'clinica@morong.med.br',
+        c.req.header("cf-connecting-ip") || "127.0.0.1",
+        c.req.header("user-agent") || "Browser",
+        pdfSha256,
+        genesisHash,
+        nowUtc,
+        nowBrt
+      )
+    );
+
+    // Executa tudo atomicamente no D1
+    await c.env.DB.batch(statements);
+
+    return c.json({
+      success: true,
+      document_id: docId,
+      verification_code: verificationCode,
+      signers: signersCreated,
+    });
+  } catch (error: any) {
+    console.error("Erro ao criar documento de assinatura:", error);
+    return c.json({ error: error.message || "Erro ao criar documento." }, 500);
+  }
+});
+
+// 1. GET /api/assinar/:token — Carrega sessão de assinatura para o paciente
+app.get("/assinar/:token", async (c) => {
+  try {
+    const token = c.req.param("token");
+
+    const signer = await c.env.DB.prepare(
+      `SELECT * FROM document_signers WHERE remote_access_token = ? LIMIT 1`
+    ).bind(token).first<any>();
+
+    if (!signer) {
+      return c.json({ error: "Token não encontrado." }, 404);
+    }
+
+    const doc = await c.env.DB.prepare(
+      `SELECT * FROM documents WHERE id = ? LIMIT 1`
+    ).bind(signer.document_id).first<any>();
+
+    const fieldsRes = await c.env.DB.prepare(
+      `SELECT * FROM signature_fields WHERE document_id = ? AND signer_id = ?`
+    ).bind(signer.document_id, signer.id).all();
+
+    return c.json({
+      document_id: doc?.id,
+      document_title: doc?.title,
+      verification_code: doc?.verification_code,
+      original_pdf_url: doc?.original_pdf_url,
+      original_pdf_sha256: doc?.original_pdf_sha256,
+      signer: {
+        id: signer.id,
+        full_name: signer.full_name,
+        cpf: signer.cpf,
+        role: signer.role,
+        status: signer.status,
+      },
+      fields: fieldsRes.results || [],
+    });
+  } catch (error: any) {
+    return c.json({ error: error.message || "Erro ao carregar documento." }, 500);
+  }
+});
+
+// 2. POST /api/assinar/:token — Registra assinatura e sela PDF se concluído
+app.post("/assinar/:token", async (c) => {
+  try {
+    const token = c.req.param("token");
+    const body = await c.req.json<any>();
+
+    const signer = await c.env.DB.prepare(
+      `SELECT * FROM document_signers WHERE remote_access_token = ? LIMIT 1`
+    ).bind(token).first<any>();
+
+    if (!signer) {
+      return c.json({ error: "Token inválido." }, 404);
+    }
+
+    const doc = await c.env.DB.prepare(
+      `SELECT * FROM documents WHERE id = ? LIMIT 1`
+    ).bind(signer.document_id).first<any>();
+
+    if (!doc) {
+      return c.json({ error: "Documento não encontrado." }, 404);
+    }
+
+    const ipAddress = c.req.header("cf-connecting-ip") || c.req.header("x-forwarded-for") || "127.0.0.1";
+    const userAgent = c.req.header("user-agent") || "Browser";
+    const nowUtc = new Date().toISOString();
+    const nowBrt = new Date().toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" });
+
+    // Atualiza signatário
+    await c.env.DB.prepare(
+      `UPDATE document_signers
+       SET status = 'signed',
+           signature_png_base64 = ?,
+           selfie_photo_base64 = ?,
+           signer_ip = ?,
+           signer_user_agent = ?,
+           signer_lat = ?,
+           signer_lng = ?,
+           signed_at = ?
+       WHERE id = ?`
+    ).bind(
+      body.signature_png_base64,
+      body.selfie_photo_base64 || null,
+      ipAddress,
+      userAgent,
+      body.lat ?? null,
+      body.lng ?? null,
+      nowUtc,
+      signer.id
+    ).run();
+
+    // Grava na trilha de auditoria
+    const trailId = crypto.randomUUID();
+    const rawChain = `${trailId}|${doc.id}|document.signed|${doc.original_pdf_sha256}|${nowUtc}`;
+    const currentTrailHash = await PdfStampingEngine.sha256HexFromBytes(
+      new TextEncoder().encode(rawChain)
+    );
+
+    await c.env.DB.prepare(
+      `INSERT INTO signature_audit_trails (
+        id, document_id, signer_id, event_name, event_description,
+        actor_name, actor_cpf, ip_address, user_agent, geolocation_json,
+        pdf_sha256_snapshot, previous_trail_hash, current_trail_hash,
+        occurred_at_utc, occurred_at_brt
+      ) VALUES (?, ?, ?, 'document.signed', ?, ?, ?, ?, ?, ?, ?, 'CHAIN', ?, ?, ?)`
+    ).bind(
+      trailId,
+      doc.id,
+      signer.id,
+      `Assinado eletronicamente por ${signer.full_name}`,
+      signer.full_name,
+      signer.cpf,
+      ipAddress,
+      userAgent,
+      body.lat ? JSON.stringify({ lat: body.lat, lng: body.lng }) : null,
+      doc.original_pdf_sha256,
+      currentTrailHash,
+      nowUtc,
+      nowBrt
+    ).run();
+
+    // Checa se todos já assinaram
+    const allSignersRes = await c.env.DB.prepare(
+      `SELECT * FROM document_signers WHERE document_id = ? ORDER BY signing_order ASC`
+    ).bind(doc.id).all<any>();
+
+    const allSigners = allSignersRes.results || [];
+    const allSigned = allSigners.every((s: any) => s.status === "signed");
+
+    if (!allSigned) {
+      await c.env.DB.prepare(
+        `UPDATE documents SET status = 'partially_signed', updated_at = ? WHERE id = ?`
+      ).bind(nowUtc, doc.id).run();
+
+      return c.json({
+        status: "partially_signed",
+        message: "Assinatura registrada! Aguardando demais signatários.",
+      });
+    }
+
+    // Se todos assinaram -> Carimba com pdf-lib e gera manifesto
+    const allFieldsRes = await c.env.DB.prepare(
+      `SELECT * FROM signature_fields WHERE document_id = ?`
+    ).bind(doc.id).all<any>();
+
+    const allTrailsRes = await c.env.DB.prepare(
+      `SELECT * FROM signature_audit_trails WHERE document_id = ? ORDER BY occurred_at_utc ASC`
+    ).bind(doc.id).all<any>();
+
+    const originalPdfBytes = PdfStampingEngine.base64ToBytes(String(doc.original_pdf_url));
+
+    const stampedResult = await PdfStampingEngine.stampAndAppendManifest({
+      originalPdfBytes,
+      documentId: String(doc.id),
+      documentTitle: String(doc.title),
+      verificationCode: String(doc.verification_code),
+      publicVerifyUrlBase: `${(c.env as any).PUBLIC_APP_URL || "https://clinicaanamorong.com.br"}/verificar`,
+      fields: (allFieldsRes.results || []).map((f: any) => ({
+        id: String(f.id),
+        signer_id: String(f.signer_id),
+        field_type: f.field_type,
+        page: Number(f.page),
+        x_percent: Number(f.x_percent),
+        y_percent: Number(f.y_percent),
+        width_percent: Number(f.width_percent),
+        height_percent: Number(f.height_percent),
+      })),
+      signers: allSigners.map((s: any) => ({
+        id: String(s.id),
+        role: s.role,
+        full_name: String(s.full_name),
+        cpf: String(s.cpf),
+        email: s.email,
+        council_id: s.council_id,
+        auth_type: String(s.auth_type),
+        legal_standard: s.legal_standard,
+        signature_png_base64: String(s.signature_png_base64),
+        selfie_photo_base64: s.selfie_photo_base64,
+        signer_ip: String(s.signer_ip || ipAddress),
+        signer_user_agent: String(s.signer_user_agent || userAgent),
+        signer_lat: s.signer_lat ? Number(s.signer_lat) : null,
+        signer_lng: s.signer_lng ? Number(s.signer_lng) : null,
+        signed_at_brt: nowBrt,
+        icp_subject_cn: s.icp_subject_cn,
+        icp_issuer_ca: s.icp_issuer_ca,
+        icp_serial_number: s.icp_serial_number,
+      })),
+      auditTrails: (allTrailsRes.results || []).map((t: any) => ({
+        event_name: String(t.event_name),
+        event_description: String(t.event_description),
+        actor_name: String(t.actor_name),
+        ip_address: String(t.ip_address),
+        occurred_at_brt: String(t.occurred_at_brt),
+        current_trail_hash: String(t.current_trail_hash),
+      })),
+    });
+
+    // Envio para o Google Apps Script (Drive + Gmail + Sheets)
+    let driveFileUrl: string | null = null;
+    let driveFolderUrl: string | null = null;
+    let driveFileId: string | null = null;
+    const gasUrl = (c.env as any).GAS_WEBAPP_URL;
+
+    if (gasUrl) {
+      try {
+        const gasRes = await fetch(gasUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "saveSignedDocumentToDrive",
+            secret: (c.env as any).GAS_INTERNAL_SECRET,
+            request_id: trailId,
+            payload: {
+              document_id: doc.id,
+              verification_code: doc.verification_code,
+              document_title: doc.title,
+              category: doc.category,
+              patient_name: doc.patient_name,
+              patient_cpf: doc.patient_cpf,
+              patient_email: doc.patient_email,
+              original_sha256: stampedResult.originalSha256,
+              signed_sha256: stampedResult.signedSha256,
+              signed_pdf_base64: stampedResult.signedPdfBase64,
+              completed_at_brt: nowBrt,
+            },
+          }),
+        });
+        const gasJson = (await gasRes.json()) as any;
+        if (gasJson?.success && gasJson?.data) {
+          driveFileId = gasJson.data.file_id;
+          driveFileUrl = gasJson.data.file_url;
+          driveFolderUrl = gasJson.data.folder_url;
+        }
+      } catch (gasErr) {
+        console.error("Erro no Apps Script:", gasErr);
+      }
+    }
+
+    await c.env.DB.prepare(
+      `UPDATE documents
+       SET status = 'completed',
+           signed_pdf_sha256 = ?,
+           drive_file_id = ?,
+           drive_file_url = ?,
+           drive_folder_url = ?,
+           gas_sync_status = ?,
+           completed_at = ?,
+           updated_at = ?
+       WHERE id = ?`
+    ).bind(
+      stampedResult.signedSha256,
+      driveFileId,
+      driveFileUrl,
+      driveFolderUrl,
+      driveFileUrl ? "synced" : "pending",
+      nowUtc,
+      nowUtc,
+      doc.id
+    ).run();
+
+    return c.json({
+      status: "completed",
+      verification_code: doc.verification_code,
+      signed_sha256: stampedResult.signedSha256,
+      signed_pdf_base64: stampedResult.signedPdfBase64,
+      drive_file_url: driveFileUrl,
+    });
+  } catch (error: any) {
+    console.error("Erro ao assinar:", error);
+    return c.json({ error: error.message || "Erro interno ao processar assinatura." }, 500);
+  }
+});
+
+// Helper para validação HMAC-SHA256 de webhooks
+async function verifyHmacSignature(
+  rawBody: string,
+  signatureHex: string | null | undefined,
+  secret?: string
+): Promise<boolean> {
+  if (!signatureHex || !secret) return false;
+  const encoder = new TextEncoder();
+  const key = await crypto.subtle.importKey(
+    "raw",
+    encoder.encode(secret),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["verify"]
+  );
+
+  const cleanHex = signatureHex.replace(/^sha256=/, "");
+  const sigBytes = new Uint8Array(
+    cleanHex.match(/.{1,2}/g)?.map((byte) => parseInt(byte, 16)) || []
+  );
+
+  return crypto.subtle.verify("HMAC", key, sigBytes as any, encoder.encode(rawBody));
+}
+
+function normalizeEventName(
+  payload: any
+): "document.created" | "document.signed" | "document.rejected" | "document.completed" {
+  if (payload.event) return payload.event;
+  if (payload.event_type === "doc_created") return "document.created";
+  if (payload.event_type === "doc_refused") return "document.rejected";
+  if (payload.event_type === "doc_signed") {
+    if (payload.status === "signed" && (payload.signed_file_url || payload.signed_pdf_base64)) {
+      return "document.completed";
+    }
+    return "document.signed";
+  }
+  return "document.signed";
+}
+
+// 3. POST /api/webhooks/signatures — Recepção de Webhook ZapSign ou nativo
+app.post("/webhooks/signatures", async (c) => {
+  try {
+    const rawBody = await c.req.text();
+    const hmacHeader = c.req.header("x-signature-hmac");
+    const secretHeader = c.req.header("x-webhook-secret");
+    const webhookSecret = c.env.WEBHOOK_HMAC_SECRET;
+
+    if (webhookSecret) {
+      const isHmacValid = await verifyHmacSignature(rawBody, hmacHeader, webhookSecret);
+      const isTokenValid = Boolean(secretHeader) && secretHeader === webhookSecret;
+      if (!isHmacValid && !isTokenValid) {
+        return c.json({ error: "Assinatura de Webhook inválida (Unauthorized)." }, 401);
+      }
+    }
+
+    const payload = JSON.parse(rawBody);
+    const normalizedEvent = normalizeEventName(payload);
+
+    const docRecord = await c.env.DB.prepare(
+      `SELECT * FROM documents WHERE id = ? OR external_provider_id = ? LIMIT 1`
+    ).bind(payload.document_id || "", payload.token || "").first<any>();
+
+    if (!docRecord) {
+      return c.json({ error: "Documento não encontrado no banco D1." }, 404);
+    }
+
+    const documentId = String(docRecord.id);
+    const nowUtc = new Date().toISOString();
+    const nowBrt = new Date().toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" });
+
+    const lastTrail = await c.env.DB.prepare(
+      `SELECT current_trail_hash FROM signature_audit_trails
+       WHERE document_id = ? ORDER BY occurred_at_utc DESC LIMIT 1`
+    ).bind(documentId).first<any>();
+
+    const previousHash = lastTrail?.current_trail_hash || "GENESIS_0000000000000000";
+    const snapshotHash = payload.signed_pdf_sha256 || String(docRecord.original_pdf_sha256);
+    const trailId = crypto.randomUUID();
+    const currentTrailHash = await PdfStampingEngine.sha256HexFromBytes(
+      new TextEncoder().encode(`${trailId}|${documentId}|${normalizedEvent}|${snapshotHash}|${previousHash}|${nowUtc}`)
+    );
+
+    await c.env.DB.prepare(
+      `INSERT INTO signature_audit_trails (
+        id, document_id, signer_id, event_name, event_description,
+        actor_name, actor_cpf, ip_address, user_agent, geolocation_json,
+        pdf_sha256_snapshot, previous_trail_hash, current_trail_hash,
+        occurred_at_utc, occurred_at_brt
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    ).bind(
+      trailId,
+      documentId,
+      payload.signer?.id || null,
+      normalizedEvent,
+      `Webhook recebido: ${normalizedEvent}`,
+      payload.signer?.name || "Sistema de Assinaturas",
+      payload.signer?.cpf || null,
+      payload.signer?.ip || c.req.header("cf-connecting-ip") || "0.0.0.0",
+      payload.signer?.user_agent || c.req.header("user-agent") || "Webhook-Agent",
+      payload.signer?.lat ? JSON.stringify({ lat: payload.signer.lat, lng: payload.signer.lng }) : null,
+      snapshotHash,
+      previousHash,
+      currentTrailHash,
+      nowUtc,
+      nowBrt
+    ).run();
+
+    switch (normalizedEvent) {
+      case "document.created": {
+        await c.env.DB.prepare(
+          `UPDATE documents SET status = 'pending', updated_at = ? WHERE id = ?`
+        ).bind(nowUtc, documentId).run();
+        break;
+      }
+      case "document.signed": {
+        if (payload.signer) {
+          await c.env.DB.prepare(
+            `UPDATE document_signers
+             SET status = 'signed',
+                 signer_ip = ?,
+                 signer_user_agent = ?,
+                 signed_at = ?
+             WHERE document_id = ? AND (id = ? OR external_signer_token = ? OR cpf = ?)`
+          ).bind(
+            payload.signer.ip || null,
+            payload.signer.user_agent || null,
+            payload.signer.signed_at || nowUtc,
+            documentId,
+            payload.signer.id || "",
+            payload.signer.token || "",
+            payload.signer.cpf || ""
+          ).run();
+        }
+        await c.env.DB.prepare(
+          `UPDATE documents SET status = 'partially_signed', updated_at = ? WHERE id = ?`
+        ).bind(nowUtc, documentId).run();
+        break;
+      }
+      case "document.rejected": {
+        await c.env.DB.prepare(
+          `UPDATE documents SET status = 'rejected', updated_at = ? WHERE id = ?`
+        ).bind(nowUtc, documentId).run();
+        if (payload.signer) {
+          await c.env.DB.prepare(
+            `UPDATE document_signers
+             SET status = 'rejected', rejection_reason = ?
+             WHERE document_id = ? AND (id = ? OR external_signer_token = ?)`
+          ).bind(
+            payload.signer.rejection_reason || "Recusado pelo signatário",
+            documentId,
+            payload.signer.id || "",
+            payload.signer.token || ""
+          ).run();
+        }
+        break;
+      }
+      case "document.completed": {
+        await c.env.DB.prepare(
+          `UPDATE documents
+           SET status = 'completed',
+               signed_pdf_url = COALESCE(?, signed_pdf_url),
+               signed_pdf_sha256 = COALESCE(?, signed_pdf_sha256),
+               completed_at = ?,
+               updated_at = ?
+           WHERE id = ?`
+        ).bind(
+          payload.signed_file_url || null,
+          payload.signed_pdf_sha256 || null,
+          nowUtc,
+          nowUtc,
+          documentId
+        ).run();
+
+        const gasUrl = c.env.GAS_WEBAPP_URL;
+        if (gasUrl) {
+          try {
+            const gasResponse = await fetch(gasUrl, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                action: "saveSignedDocumentToDrive",
+                secret: c.env.GAS_INTERNAL_SECRET,
+                request_id: trailId,
+                payload: {
+                  document_id: documentId,
+                  verification_code: docRecord.verification_code,
+                  document_title: docRecord.title,
+                  category: docRecord.category,
+                  patient_name: docRecord.patient_name,
+                  patient_cpf: docRecord.patient_cpf,
+                  patient_email: docRecord.patient_email,
+                  original_sha256: docRecord.original_pdf_sha256,
+                  signed_sha256: payload.signed_pdf_sha256 || docRecord.original_pdf_sha256,
+                  signed_pdf_base64: payload.signed_pdf_base64 || null,
+                  signed_file_url: payload.signed_file_url || docRecord.signed_pdf_url || null,
+                  completed_at_brt: nowBrt,
+                },
+              }),
+            });
+            const gasJson = (await gasResponse.json()) as any;
+            if (gasJson?.success && gasJson?.data) {
+              await c.env.DB.prepare(
+                `UPDATE documents
+                 SET drive_file_id = ?,
+                     drive_file_url = ?,
+                     drive_folder_url = ?,
+                     gas_sync_status = 'synced',
+                     updated_at = ?
+                 WHERE id = ?`
+              ).bind(
+                gasJson.data.file_id,
+                gasJson.data.file_url,
+                gasJson.data.folder_url,
+                new Date().toISOString(),
+                documentId
+              ).run();
+            } else {
+              await c.env.DB.prepare(
+                `UPDATE documents SET gas_sync_status = 'failed', updated_at = ? WHERE id = ?`
+              ).bind(new Date().toISOString(), documentId).run();
+            }
+          } catch (e) {
+            console.error("Erro no webhook GAS:", e);
+          }
+        }
+        break;
+      }
+    }
+
+    return c.json({
+      received: true,
+      document_id: documentId,
+      event: normalizedEvent,
+    });
+  } catch (err: any) {
+    console.error("[Webhook Signatures Error]:", err);
+    return c.json({ error: err?.message || "Internal Server Error" }, 500);
+  }
+});
+
 export const onRequest = handle(app);
+

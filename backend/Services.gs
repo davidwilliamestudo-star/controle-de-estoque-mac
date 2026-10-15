@@ -819,3 +819,163 @@ var CheckinService = {
 function submitCheckinForm(checkinRequestId, token, answers) {
   return CheckinService.submitCheckinForm(checkinRequestId, token, answers);
 }
+
+var DriveSignaturesService = {
+  DRIVE_TREE_CONFIG: {
+    ROOT_FOLDER: 'Dra Ana Morong',
+    RECORDS_FOLDER: 'Prontuários',
+    SIGNED_DOCS_SUBFOLDER: 'Documentos Assinados'
+  },
+
+  getOrCreateFolder: function (parentFolder, folderName) {
+    var iterator = parentFolder.getFoldersByName(folderName);
+    if (iterator.hasNext()) {
+      return iterator.next();
+    }
+    return parentFolder.createFolder(folderName);
+  },
+
+  ensurePatientSignedDocsFolder: function (patientCpf, patientName) {
+    var cleanCpf = String(patientCpf || '00000000000').replace(/\D/g, '');
+    var cleanName = String(patientName || 'Paciente')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-zA-Z0-9\s]/g, '')
+      .trim()
+      .replace(/\s+/g, '_');
+
+    var patientFolderName = cleanCpf + '_' + cleanName;
+
+    var rootFolder = this.getOrCreateFolder(DriveApp.getRootFolder(), this.DRIVE_TREE_CONFIG.ROOT_FOLDER);
+    var prontuariosFolder = this.getOrCreateFolder(rootFolder, this.DRIVE_TREE_CONFIG.RECORDS_FOLDER);
+    var patientFolder = this.getOrCreateFolder(prontuariosFolder, patientFolderName);
+    var signedDocsFolder = this.getOrCreateFolder(patientFolder, this.DRIVE_TREE_CONFIG.SIGNED_DOCS_SUBFOLDER);
+
+    return {
+      patientFolder: patientFolder,
+      signedDocsFolder: signedDocsFolder
+    };
+  },
+
+  saveSignedDocumentToDrive: function (payload, requestId) {
+    requestId = requestId || payload.request_id || Utilities.getUuid();
+
+    // 1. Checa idempotência
+    var existing = SignaturesLogRepository.findByRequestId(requestId);
+    if (existing) {
+      return existing;
+    }
+
+    // 2. Garante estrutura de pastas
+    var folders = this.ensurePatientSignedDocsFolder(payload.patient_cpf, payload.patient_name);
+
+    // 3. Define nome padronizado
+    var dateStr = Utilities.formatDate(new Date(), 'America/Sao_Paulo', 'yyyy-MM-dd');
+    var safeCode = String(payload.verification_code || payload.document_id || 'DOC').replace(/[^a-zA-Z0-9-]/g, '');
+    var fileName = 'ASSINADO_' + dateStr + '_' + safeCode + '.pdf';
+
+    // 4. Converte Base64 ou URL para Blob
+    var pdfBlob;
+    if (payload.signed_pdf_base64) {
+      var cleanBase64 = String(payload.signed_pdf_base64).replace(/^data:application\/pdf;base64,/, '');
+      var decodedBytes = Utilities.base64Decode(cleanBase64);
+      pdfBlob = Utilities.newBlob(decodedBytes, 'application/pdf', fileName);
+    } else if (payload.signed_file_url) {
+      var response = UrlFetchApp.fetch(payload.signed_file_url, { muteHttpExceptions: true });
+      if (response.getResponseCode() !== 200) {
+        throw Utils.appError('DOWNLOAD_FAILED', 'Falha ao baixar PDF assinado: HTTP ' + response.getResponseCode());
+      }
+      pdfBlob = response.getBlob().setName(fileName).setContentType('application/pdf');
+    } else {
+      throw Utils.appError('INVALID_PAYLOAD', 'Payload sem signed_pdf_base64 ou signed_file_url.');
+    }
+
+    // 5. Salva no Google Drive
+    var driveFile = folders.signedDocsFolder.createFile(pdfBlob);
+    driveFile.setDescription(
+      'Documento: ' + (payload.document_title || '') +
+      ' | Paciente: ' + (payload.patient_name || '') + ' (' + (payload.patient_cpf || '') + ')' +
+      ' | SHA-256: ' + (payload.signed_sha256 || '')
+    );
+
+    var fileId = driveFile.getId();
+    var fileUrl = driveFile.getUrl();
+    var folderUrl = folders.signedDocsFolder.getUrl();
+
+    // 6. Envio de e-mail ao paciente com cópia assinada
+    var emailStatus = 'SEM_EMAIL';
+    if (payload.patient_email && String(payload.patient_email).indexOf('@') !== -1) {
+      try {
+        this.sendPatientSignedPdfEmail({
+          toEmail: payload.patient_email,
+          patientName: payload.patient_name,
+          documentTitle: payload.document_title,
+          verificationCode: payload.verification_code,
+          signedSha256: payload.signed_sha256,
+          completedAtBrt: payload.completed_at_brt,
+          pdfBlob: pdfBlob
+        });
+        emailStatus = 'ENVIADO';
+      } catch (mailError) {
+        emailStatus = 'ERRO: ' + (mailError && mailError.message ? mailError.message : String(mailError));
+      }
+    }
+
+    // 7. Registra na planilha
+    SignaturesLogRepository.log({
+      requestId: requestId,
+      documentId: payload.document_id,
+      verificationCode: payload.verification_code,
+      completedAtBrt: payload.completed_at_brt || Utilities.formatDate(new Date(), 'America/Sao_Paulo', 'dd/MM/yyyy HH:mm:ss'),
+      patientName: payload.patient_name,
+      patientCpf: payload.patient_cpf,
+      patientEmail: payload.patient_email || '',
+      documentTitle: payload.document_title,
+      category: payload.category || 'TCLE',
+      originalSha256: payload.original_sha256 || '',
+      signedSha256: payload.signed_sha256 || '',
+      fileId: fileId,
+      fileUrl: fileUrl,
+      folderUrl: folderUrl,
+      emailStatus: emailStatus
+    });
+
+    return {
+      file_id: fileId,
+      file_url: fileUrl,
+      folder_url: folderUrl,
+      email_status: emailStatus
+    };
+  },
+
+  sendPatientSignedPdfEmail: function (params) {
+    var subject = 'Cópia de Documento Assinado: ' + (params.documentTitle || '') + ' — Dra. Ana Morong';
+    var htmlBody = [
+      '<div style="font-family: \'Segoe UI\', Arial, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; color: #1e293b;">',
+      '  <div style="background-color: #0f172a; padding: 22px 24px; color: #ffffff;">',
+      '    <h2 style="margin: 0; font-size: 18px;">Clínica Dra. Ana Morong</h2>',
+      '    <p style="margin: 4px 0 0; font-size: 12px; color: #34d399;">Certificação de Assinatura Eletrônica ICP-Brasil / Lei 14.063/2020</p>',
+      '  </div>',
+      '  <div style="padding: 24px;">',
+      '    <p>Olá, <strong>' + (params.patientName || '') + '</strong>,</p>',
+      '    <p>O documento <strong>' + (params.documentTitle || '') + '</strong> teve sua coleta de assinaturas concluída com sucesso em <strong>' + (params.completedAtBrt || '') + '</strong>.</p>',
+      '    <p>Uma via original em formato PDF selada com o Manifesto de Auditoria e QR Code de verificação segue em anexo neste e-mail para seu arquivo pessoal.</p>',
+      '    <div style="background-color: #f8fafc; border-left: 4px solid #10b981; padding: 12px 16px; margin: 20px 0; font-size: 12px;">',
+      '      <p style="margin: 0 0 6px;"><strong>Código Verificador:</strong> ' + (params.verificationCode || '') + '</p>',
+      '      <p style="margin: 0; word-break: break-all;"><strong>Hash SHA-256 Final:</strong> ' + (params.signedSha256 || '') + '</p>',
+      '    </div>',
+      '    <p style="font-size: 11px; color: #64748b;">Documento assinado eletronicamente nos termos da Lei nº 14.063/2020 e MP nº 2.200-2/2001.</p>',
+      '  </div>',
+      '</div>'
+    ].join('\n');
+
+    MailApp.sendEmail({
+      to: params.toEmail,
+      subject: subject,
+      body: 'Segue em anexo seu documento assinado.',
+      name: 'Clínica Dra. Ana Morong',
+      htmlBody: htmlBody,
+      attachments: [params.pdfBlob]
+    });
+  }
+};

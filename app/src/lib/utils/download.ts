@@ -44,7 +44,11 @@ export async function downloadFile({
     link.download = filename;
     document.body.appendChild(link);
     link.click();
-    document.body.removeChild(link);
+    if (link.parentNode) {
+      link.parentNode.removeChild(link);
+    } else {
+      link.remove();
+    }
     window.URL.revokeObjectURL(url);
     return filename;
   } catch (error) {

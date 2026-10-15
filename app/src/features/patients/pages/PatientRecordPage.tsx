@@ -16,6 +16,7 @@ import { PatientUsedBatchesTab } from "../components/PatientUsedBatchesTab";
 import { ProcedureCorrectionModal } from "@/features/procedures/components/ProcedureCorrectionModal";
 import { PatientRecordReportPanel } from "../components/PatientRecordReportPanel";
 import { PatientMonthlyCostPanel } from "@/features/monthly-summary/components/PatientMonthlyCostPanel";
+import { ContractPreparationAndSignatureModal } from "@/components/contracts/ContractPreparationAndSignatureModal";
 
 // FIX: Removida tab "Relatórios" redundante — botão já existe no PatientHeader
 type Tab = "overview" | "applications" | "history" | "evolutions" | "medications" | "lots" | "areas";
@@ -42,6 +43,7 @@ export default function PatientRecordPage() {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<Tab>("overview");
   const [isReportOpen, setIsReportOpen] = useState(false);
+  const [isContractModalOpen, setIsContractModalOpen] = useState(false);
 
   const { data: recordResult, isLoading, error } = usePatientRecord(patientId);
   const {
@@ -159,6 +161,7 @@ export default function PatientRecordPage() {
         proceduresCount={finalizedProcedures.length}
         onNewProcedure={() => navigate({ to: "/procedures/new", search: { patientId: record.id } })}
         onPrintReport={() => setIsReportOpen(true)}
+        onPrepareContract={() => setIsContractModalOpen(true)}
       />
 
       {record.alert_notes?.trim() && (
@@ -225,6 +228,21 @@ export default function PatientRecordPage() {
           }} 
         />
       )}
+
+      {isContractModalOpen && (
+        <ContractPreparationAndSignatureModal
+          isOpen={isContractModalOpen}
+          patient={{
+            id: record.id,
+            nome: record.full_name,
+            cpf: record.document || "",
+            data_nascimento: record.birth_date || "",
+            telefone: record.phone || "",
+            email: record.email || "",
+          }}
+          onClose={() => setIsContractModalOpen(false)}
+        />
+      )}
     </>
   );
 }
@@ -235,12 +253,14 @@ function PatientHeader({
   proceduresCount,
   onNewProcedure,
   onPrintReport,
+  onPrepareContract,
 }: {
   record: PatientRecord;
   lastProcedure?: ProcedureSummary;
   proceduresCount: number;
   onNewProcedure: () => void;
   onPrintReport: () => void;
+  onPrepareContract: () => void;
 }) {
   const recency = getApplicationRecency(lastProcedure?.performed_at);
   const daysSinceLastApplication =
@@ -302,6 +322,14 @@ function PatientHeader({
       </div>
 
       <div className="patient-hero-actions">
+        <button
+          className="btn btn-primary"
+          onClick={onPrepareContract}
+          style={{ backgroundColor: "#059669", borderColor: "#047857" }}
+        >
+          <FileText size={16} />
+          Contrato Saúde 360®
+        </button>
         <button className="btn btn-secondary" onClick={onNewProcedure}>
           <Activity size={16} />
           Nova Aplicacao

@@ -88,6 +88,25 @@ var SHEET_HEADERS = {
     "error_code",
     "error_message",
     "safe_context_json"
+  ],
+
+  signatures_log: [
+    "timestamp",
+    "request_id",
+    "document_id",
+    "verification_code",
+    "completed_at_brt",
+    "patient_name",
+    "patient_cpf",
+    "patient_email",
+    "document_title",
+    "category",
+    "original_sha256",
+    "signed_sha256",
+    "drive_file_id",
+    "drive_file_url",
+    "drive_folder_url",
+    "email_status"
   ]
 };
 
@@ -426,5 +445,44 @@ var CheckinRepository = {
     });
 
     return count;
+  }
+};
+
+var SignaturesLogRepository = {
+  log: function (entry) {
+    SheetsRepository.appendObject("signatures_log", {
+      timestamp: Utils.nowIso(),
+      request_id: entry.requestId || entry.request_id || Utilities.getUuid(),
+      document_id: entry.documentId || entry.document_id || "",
+      verification_code: entry.verificationCode || entry.verification_code || "",
+      completed_at_brt: entry.completedAtBrt || entry.completed_at_brt || "",
+      patient_name: entry.patientName || entry.patient_name || "",
+      patient_cpf: entry.patientCpf || entry.patient_cpf || "",
+      patient_email: entry.patientEmail || entry.patient_email || "",
+      document_title: entry.documentTitle || entry.document_title || "",
+      category: entry.category || "TCLE",
+      original_sha256: entry.originalSha256 || entry.original_sha256 || "",
+      signed_sha256: entry.signedSha256 || entry.signed_sha256 || "",
+      drive_file_id: entry.fileId || entry.drive_file_id || "",
+      drive_file_url: entry.fileUrl || entry.drive_file_url || "",
+      drive_folder_url: entry.folderUrl || entry.drive_folder_url || "",
+      email_status: entry.emailStatus || entry.email_status || "PENDENTE"
+    });
+  },
+
+  findByRequestId: function (requestId) {
+    if (!requestId) return null;
+    var rows = SheetsRepository.getObjects("signatures_log");
+    for (var i = rows.length - 1; i >= 0; i--) {
+      if (rows[i].request_id === requestId) {
+        return {
+          file_id: rows[i].drive_file_id,
+          file_url: rows[i].drive_file_url,
+          folder_url: rows[i].drive_folder_url,
+          email_status: rows[i].email_status
+        };
+      }
+    }
+    return null;
   }
 };

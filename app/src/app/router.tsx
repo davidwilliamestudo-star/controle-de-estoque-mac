@@ -42,6 +42,7 @@ const PayablesPage = lazy(() => import("@/features/financial/pages/PayablesPage"
 const CashFlowPage = lazy(() => import("@/features/financial/pages/CashFlowPage"));
 const FinancialCategoriesPage = lazy(() => import("@/features/financial/pages/FinancialCategoriesPage"));
 const FinancialReportsPage = lazy(() => import("@/features/financial/pages/FinancialReportsPage"));
+const PatientPublicSignPage = lazy(() => import("@/features/signatures/pages/PatientPublicSignPage"));
 
 const PageLoader = () => (
   <div className="flex items-center justify-center h-full">
@@ -64,6 +65,13 @@ const loginRoute = createRoute({
     }
   },
   component: () => <Suspense fallback={<PageLoader />}><LoginPage /></Suspense>,
+});
+
+// Rota Pública de Assinatura do Paciente (sem shell, sem login)
+const signRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/assinar/$token",
+  component: () => <Suspense fallback={<PageLoader />}><PatientPublicSignPage /></Suspense>,
 });
 
 // Shell routes
@@ -320,6 +328,7 @@ const backupRoute = createRoute({
 
 const routeTree = rootRoute.addChildren([
   loginRoute,
+  signRoute,
   shellRoute.addChildren([
     indexRoute,
     dashboardRoute,
