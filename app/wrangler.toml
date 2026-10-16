@@ -9,3 +9,8 @@ pages_build_output_dir = "dist"
 binding = "DB"
 database_name = "dra-ana-estoque-db"
 database_id = "446c4a2f-578b-4b58-b58e-2d9da59ec90d"
+
+# Variáveis de Ambiente e Segredos Criptográficos
+[vars]
+PUBLIC_APP_URL = "https://draanamorong.com.br"
+# VAULT_MASTER_KEY deve ser configurado via Cloudflare Dashboard / Secrets para AES-256-GCM

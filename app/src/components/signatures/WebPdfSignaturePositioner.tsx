@@ -17,6 +17,8 @@ import {
   Send,
   TabletSmartphone,
   GripHorizontal,
+  User,
+  Check,
 } from 'lucide-react';
 
 // Configuração do Worker PDF.js para Next.js / Vite Web
@@ -360,146 +362,262 @@ export const WebPdfSignaturePositioner: React.FC<WebPdfSignaturePositionerProps>
   };
 
   return (
-    <div className="flex flex-col lg:flex-row h-[calc(100vh-3.5rem)] w-full bg-slate-950 text-slate-100 rounded-2xl overflow-hidden border border-slate-800 shadow-2xl">
-      {/* PAINEL LATERAL DE CONTROLE */}
-      <aside className="w-full lg:w-84 bg-slate-900 border-b lg:border-b-0 lg:border-r border-slate-800 p-4 flex flex-col justify-between overflow-y-auto shrink-0">
-        <div className="space-y-5">
-          <div>
-            <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-400">
-              Dra. Ana Morong • Web Signer
+    <div
+      className="flex flex-row h-full w-full bg-slate-100/70 text-slate-900 overflow-hidden"
+      style={{ display: 'flex', flexDirection: 'row', width: '100%', height: '100%' }}
+    >
+      {/* ================================================================== */}
+      {/* PAINEL LATERAL DE CONTROLE (SIDEBAR CLARA, ESPAÇOSA E LUXUOSA) */}
+      {/* ================================================================== */}
+      <aside
+        className="w-[380px] shrink-0 bg-white border-r border-slate-200 flex flex-col h-full overflow-hidden z-10 shadow-xs"
+        style={{ width: '380px', flexShrink: 0, height: '100%', display: 'flex', flexDirection: 'column' }}
+      >
+        {/* CABEÇALHO FIXO DO PAINEL */}
+        <div className="p-4 sm:p-5 border-b border-slate-100 bg-white shrink-0">
+          <div className="flex items-center justify-between gap-2">
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider bg-emerald-50 text-emerald-800 border border-emerald-200/80">
+              <span className="w-2 h-2 rounded-full bg-emerald-600 animate-pulse" />
+              Web Signer ICP-Brasil
             </span>
-            <h2 className="text-base font-bold text-white truncate mt-0.5">
-              {documentTitle}
-            </h2>
+            <span className="text-[11px] font-bold text-slate-600 font-mono">
+              Etapa 2 de 3
+            </span>
           </div>
+          <h2 className="text-sm font-extrabold text-slate-900 mt-2 truncate leading-snug" title={documentTitle}>
+            {documentTitle}
+          </h2>
+          <p className="text-xs text-slate-500 mt-0.5">
+            Posicione as assinaturas e rubricas sobre o contrato.
+          </p>
+        </div>
 
-          {/* 1. Signatários */}
+        {/* CORPO ROLÁVEL COM CONTROLES */}
+        <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-5 min-h-0">
+          {/* 1. SELEÇÃO DO SIGNATÁRIO ATIVO */}
           <div className="space-y-2">
-            <label className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-              1. Quem vai assinar o campo?
-            </label>
-            <div className="space-y-1.5">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
+                <User className="w-3.5 h-3.5 text-emerald-700" />
+                1. Quem vai assinar?
+              </label>
+              <span className="text-[10px] text-slate-600 font-medium">Selecione para vincular</span>
+            </div>
+
+            <div className="space-y-2">
               {signers.map((s) => {
                 const selected = s.id === activeSignerId;
+                const initials = s.fullName
+                  .split(' ')
+                  .filter(Boolean)
+                  .map((w) => w[0])
+                  .slice(0, 2)
+                  .join('')
+                  .toUpperCase();
                 return (
                   <button
                     key={s.id}
                     type="button"
                     onClick={() => setActiveSignerId(s.id)}
-                    className={`w-full p-2.5 rounded-xl border text-left transition flex items-center gap-3 ${
+                    className={`w-full p-3 rounded-2xl border text-left transition-all duration-150 flex items-center justify-between gap-3 cursor-pointer ${
                       selected
-                        ? 'bg-slate-800 border-emerald-500 ring-1 ring-emerald-500/40'
-                        : 'bg-slate-950/60 border-slate-800 hover:border-slate-700'
+                        ? 'bg-emerald-50/80 border-emerald-600 shadow-xs ring-4 ring-emerald-600/10'
+                        : 'bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50/80'
                     }`}
                   >
-                    <span
-                      className="w-3.5 h-3.5 rounded-full shrink-0"
-                      style={{ backgroundColor: s.colorHex }}
-                    />
-                    <div className="min-w-0 flex-1">
-                      <p className="text-xs font-bold text-white truncate">{s.fullName}</p>
-                      <p className="text-[11px] text-slate-400 truncate">
-                        {s.role} • CPF: {s.cpf}
-                      </p>
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div
+                        className="w-9 h-9 rounded-xl flex items-center justify-center font-bold text-xs text-white shrink-0 shadow-xs"
+                        style={{ backgroundColor: s.colorHex }}
+                      >
+                        {initials}
+                      </div>
+                      <div className="min-w-0">
+                        <p
+                          className={`text-xs font-bold truncate ${
+                            selected ? 'text-emerald-950 font-extrabold' : 'text-slate-900'
+                          }`}
+                        >
+                          {s.fullName}
+                        </p>
+                        <p className="text-[10px] text-slate-500 truncate mt-0.5">
+                          {s.role === 'DRA_ANA'
+                            ? 'Médica Contratada'
+                            : s.role === 'PACIENTE'
+                            ? 'Paciente Contratante'
+                            : 'Testemunha'}{' '}
+                          • CPF: {s.cpf}
+                        </p>
+                      </div>
                     </div>
+                    {selected && (
+                      <div className="w-5 h-5 rounded-full bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-2xs">
+                        <Check className="w-3.5 h-3.5 stroke-[3]" />
+                      </div>
+                    )}
                   </button>
                 );
               })}
             </div>
           </div>
 
-          {/* 2. Botões de Inserção de Marcadores */}
+          {/* 2. INSERIR CAIXA NA PÁGINA ATUAL */}
           <div className="space-y-2">
-            <label className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-              2. Inserir Caixa na Página {currentPage}
-            </label>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
+                <PenTool className="w-3.5 h-3.5 text-emerald-700" />
+                2. Inserir na Página {currentPage}
+              </label>
+              <span className="text-[10px] text-slate-600 font-medium">Clique para adicionar</span>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2.5">
+              {/* Assinatura */}
               <button
                 type="button"
                 onClick={() => addFieldToCurrentPage('signature')}
-                className="flex items-center gap-2 p-2.5 rounded-lg bg-slate-950 hover:bg-slate-800 border border-slate-800 text-xs font-medium transition"
+                className="p-2.5 sm:p-3 rounded-2xl bg-white hover:bg-sky-50/80 border border-slate-200 hover:border-sky-300 transition-all flex items-center gap-2.5 text-left group shadow-2xs cursor-pointer active:scale-95"
               >
-                <PenTool className="w-4 h-4 text-sky-400" />
-                Assinatura
+                <div className="w-8 h-8 rounded-xl bg-sky-100 text-sky-700 flex items-center justify-center shrink-0 group-hover:bg-sky-600 group-hover:text-white transition-colors shadow-2xs">
+                  <PenTool className="w-4 h-4" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-xs font-bold text-slate-900 group-hover:text-sky-950 leading-tight">Assinatura</p>
+                  <p className="text-[10px] text-slate-500 mt-0.5">Manuscrita</p>
+                </div>
               </button>
+
+              {/* Rubrica */}
               <button
                 type="button"
                 onClick={() => addFieldToCurrentPage('initials')}
-                className="flex items-center gap-2 p-2.5 rounded-lg bg-slate-950 hover:bg-slate-800 border border-slate-800 text-xs font-medium transition"
+                className="p-2.5 sm:p-3 rounded-2xl bg-white hover:bg-amber-50/80 border border-slate-200 hover:border-amber-300 transition-all flex items-center gap-2.5 text-left group shadow-2xs cursor-pointer active:scale-95"
               >
-                <Stamp className="w-4 h-4 text-amber-400" />
-                Rubrica
+                <div className="w-8 h-8 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center shrink-0 group-hover:bg-amber-600 group-hover:text-white transition-colors shadow-2xs">
+                  <Stamp className="w-4 h-4" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-xs font-bold text-slate-900 group-hover:text-amber-950 leading-tight">Rubrica</p>
+                  <p className="text-[10px] text-slate-500 mt-0.5">Visto em folha</p>
+                </div>
               </button>
+
+              {/* Selo ICP-Brasil */}
               <button
                 type="button"
                 onClick={() => addFieldToCurrentPage('icp_seal')}
-                className="flex items-center gap-2 p-2.5 rounded-lg bg-slate-950 hover:bg-slate-800 border border-slate-800 text-xs font-medium transition"
+                className="p-2.5 sm:p-3 rounded-2xl bg-white hover:bg-emerald-50/80 border border-slate-200 hover:border-emerald-300 transition-all flex items-center gap-2.5 text-left group shadow-2xs cursor-pointer active:scale-95"
               >
-                <ShieldCheck className="w-4 h-4 text-emerald-400" />
-                Selo ICP-Brasil
+                <div className="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0 group-hover:bg-emerald-600 group-hover:text-white transition-colors shadow-2xs">
+                  <ShieldCheck className="w-4 h-4" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-xs font-bold text-slate-900 group-hover:text-emerald-950 leading-tight">Selo ICP</p>
+                  <p className="text-[10px] text-slate-500 mt-0.5">Certificado</p>
+                </div>
               </button>
+
+              {/* Data */}
               <button
                 type="button"
                 onClick={() => addFieldToCurrentPage('date_stamp')}
-                className="flex items-center gap-2 p-2.5 rounded-lg bg-slate-950 hover:bg-slate-800 border border-slate-800 text-xs font-medium transition"
+                className="p-2.5 sm:p-3 rounded-2xl bg-white hover:bg-purple-50/80 border border-slate-200 hover:border-purple-300 transition-all flex items-center gap-2.5 text-left group shadow-2xs cursor-pointer active:scale-95"
               >
-                <Calendar className="w-4 h-4 text-purple-400" />
-                Data
+                <div className="w-8 h-8 rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center shrink-0 group-hover:bg-purple-600 group-hover:text-white transition-colors shadow-2xs">
+                  <Calendar className="w-4 h-4" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-xs font-bold text-slate-900 group-hover:text-purple-950 leading-tight">Data</p>
+                  <p className="text-[10px] text-slate-500 mt-0.5">Carimbo</p>
+                </div>
               </button>
             </div>
 
-            <button
-              type="button"
-              onClick={handleSmartTemplatePlacement}
-              className="w-full py-2 px-3 rounded-lg bg-indigo-950/80 hover:bg-indigo-900/80 border border-indigo-700/60 text-indigo-200 text-xs font-semibold flex items-center justify-center gap-1.5 transition"
-            >
-              <Sparkles className="w-3.5 h-3.5" />
-              Posicionar Padrão Clínico Automático
-            </button>
+            {/* BOTÃO DE PADRÃO CLÍNICO AUTOMÁTICO */}
+            <div className="pt-1">
+              <button
+                type="button"
+                onClick={handleSmartTemplatePlacement}
+                className="w-full py-3 px-4 rounded-2xl bg-gradient-to-r from-emerald-700 to-teal-800 hover:from-emerald-800 hover:to-teal-900 text-white text-xs font-bold flex items-center justify-center gap-2 shadow-xs hover:shadow transition-all cursor-pointer active:scale-98"
+              >
+                <Sparkles className="w-4 h-4 text-emerald-200" />
+                Posicionar Padrão Clínico Automático
+              </button>
+              <p className="text-[10px] text-slate-500 text-center mt-1.5 leading-tight">
+                Aplica automaticamente rubricas nas páginas 1 a {Math.max(1, numPages - 1)} e assinaturas na folha final.
+              </p>
+            </div>
           </div>
 
-          {/* 3. Lista de Marcadores Ativos */}
+          {/* 3. LISTA DE CAIXAS FIXADAS */}
           <div className="space-y-1.5">
-            <label className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-              Caixas Fixadas ({fields.length})
-            </label>
-            <div className="max-h-36 overflow-y-auto space-y-1 pr-1">
-              {fields.map((f) => {
-                const signer = signers.find((s) => s.id === f.signer_id);
-                return (
-                  <div
-                    key={f.id}
-                    onClick={() => setCurrentPage(f.page)}
-                    className="flex items-center justify-between px-2.5 py-1.5 rounded-lg bg-slate-950 border border-slate-800 text-xs cursor-pointer hover:border-slate-700"
-                  >
-                    <div className="flex items-center gap-2 truncate">
-                      <span
-                        className="w-2 h-2 rounded-full shrink-0"
-                        style={{ backgroundColor: signer?.colorHex || '#38bdf8' }}
-                      />
-                      <span className="truncate">
-                        Pág. {f.page} • {getFieldTitle(f.field_type)}
-                      </span>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        removeField(f.id);
-                      }}
-                      className="text-slate-500 hover:text-rose-400"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                );
-              })}
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-bold uppercase tracking-wider text-slate-700">
+                Caixas Fixadas ({fields.length})
+              </label>
+              {fields.length > 0 && (
+                <span className="text-[10px] text-slate-500 font-medium">
+                  {fields.filter((f) => f.page === currentPage).length} nesta pág.
+                </span>
+              )}
             </div>
+
+            {fields.length === 0 ? (
+              <div className="py-5 px-3 rounded-xl border border-dashed border-slate-200 text-center bg-slate-50/50">
+                <PenTool className="w-4 h-4 text-slate-300 mx-auto mb-1" />
+                <p className="text-xs font-semibold text-slate-500">Nenhum campo inserido</p>
+                <p className="text-[10px] text-slate-400 mt-0.5">Clique nos botões acima para inserir.</p>
+              </div>
+            ) : (
+              <div className="max-h-36 overflow-y-auto space-y-1 pr-1">
+                {fields.map((f) => {
+                  const signer = signers.find((s) => s.id === f.signer_id);
+                  const isThisPage = f.page === currentPage;
+                  return (
+                    <div
+                      key={f.id}
+                      onClick={() => setCurrentPage(f.page)}
+                      className={`flex items-center justify-between px-2.5 py-1.5 rounded-lg border text-xs cursor-pointer transition-all ${
+                        isThisPage
+                          ? 'bg-emerald-50/70 border-emerald-300 hover:border-emerald-400'
+                          : 'bg-white border-slate-200 hover:bg-slate-50'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2 truncate">
+                        <span
+                          className="w-2 h-2 rounded-full shrink-0 shadow-2xs"
+                          style={{ backgroundColor: signer?.colorHex || '#0284c7' }}
+                        />
+                        <span className="font-semibold text-slate-800 truncate text-[11px]">
+                          Pág. {f.page} • {getFieldTitle(f.field_type)}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1 shrink-0">
+                        <span className="text-[10px] text-slate-500 font-medium">
+                          {signer?.fullName.split(' ')[0]}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            removeField(f.id);
+                          }}
+                          className="p-1 rounded-md text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition cursor-pointer"
+                          title="Remover caixa"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         </div>
 
-        {/* Ações de Disparo Presencial ou Remoto */}
-        <div className="space-y-2 pt-4 border-t border-slate-800 mt-4">
+        {/* RODAPÉ DA SIDEBAR: AÇÕES DE DISPARO (SEMPRE VISÍVEIS) */}
+        <div className="p-4 border-t border-slate-200 bg-slate-50/90 space-y-2 shrink-0">
           <button
             type="button"
             disabled={fields.length === 0 || isSubmitting}
@@ -511,7 +629,7 @@ export const WebPdfSignaturePositioner: React.FC<WebPdfSignaturePositionerProps>
                 setIsSubmitting(false);
               }
             }}
-            className="w-full py-2.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-lg transition"
+            className="w-full py-2.5 px-3 rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800 disabled:opacity-40 disabled:cursor-not-allowed text-white font-extrabold text-xs flex items-center justify-center gap-2 shadow-sm hover:shadow transition-all cursor-pointer active:scale-98"
           >
             <TabletSmartphone className="w-4 h-4" />
             Coletar no Tablet / Consultório Agora
@@ -528,9 +646,9 @@ export const WebPdfSignaturePositioner: React.FC<WebPdfSignaturePositionerProps>
                 setIsSubmitting(false);
               }
             }}
-            className="w-full py-2.5 px-4 rounded-xl bg-sky-600 hover:bg-sky-500 disabled:opacity-40 text-white font-semibold text-xs flex items-center justify-center gap-2 transition"
+            className="w-full py-2 px-3 rounded-xl bg-white hover:bg-slate-100 border border-slate-300 hover:border-slate-400 disabled:opacity-40 disabled:cursor-not-allowed text-slate-700 hover:text-slate-900 font-bold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer shadow-2xs active:scale-98"
           >
-            <Send className="w-3.5 h-3.5" />
+            <Send className="w-3.5 h-3.5 text-sky-600" />
             Gerar Link Remoto (/assinar/:token)
           </button>
 
@@ -538,65 +656,86 @@ export const WebPdfSignaturePositioner: React.FC<WebPdfSignaturePositionerProps>
             <button
               type="button"
               onClick={() => onSaveDraft(fields)}
-              className="w-full py-1.5 text-xs text-slate-400 hover:text-white transition"
+              className="w-full py-0.5 text-[11px] font-semibold text-slate-500 hover:text-emerald-700 transition cursor-pointer text-center block"
             >
-              Salvar Posições como Template
+              Salvar Posições como Modelo Padrão
             </button>
           )}
         </div>
       </aside>
 
-      {/* ÁREA DO VISUALIZADOR PDF + OVERLAY DE COORDENADAS PERCENTUAIS */}
-      <main className="flex-1 flex flex-col bg-slate-950 overflow-hidden">
-        {/* Barra Superior de Paginação e Zoom */}
-        <header className="h-12 bg-slate-900 border-b border-slate-800 px-4 flex items-center justify-between shrink-0">
+      {/* ================================================================== */}
+      {/* ÁREA PRINCIPAL DO VISUALIZADOR PDF + OVERLAY INTERATIVO */}
+      {/* ================================================================== */}
+      <main className="flex-1 flex flex-col bg-slate-100/90 overflow-hidden min-w-0">
+        {/* BARRA SUPERIOR DE PAGINAÇÃO E ZOOM */}
+        <header className="h-14 bg-white border-b border-slate-200 px-6 flex items-center justify-between shrink-0 shadow-2xs z-10">
+          {/* Paginação */}
           <div className="flex items-center gap-2">
             <button
               type="button"
               disabled={currentPage <= 1}
               onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-              className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 disabled:opacity-40"
+              className="p-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-30 disabled:cursor-not-allowed text-slate-700 transition cursor-pointer shadow-2xs"
+              title="Página anterior"
             >
               <ChevronLeft className="w-4 h-4" />
             </button>
-            <span className="text-xs font-medium text-slate-300">
-              Página <strong className="text-white">{currentPage}</strong> de {numPages}
+            <span className="text-xs font-semibold text-slate-600 px-1 select-none">
+              Página <strong className="text-slate-900 font-extrabold">{currentPage}</strong> de <strong className="text-slate-900 font-extrabold">{numPages}</strong>
             </span>
             <button
               type="button"
               disabled={currentPage >= numPages}
               onClick={() => setCurrentPage((p) => Math.min(numPages, p + 1))}
-              className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 disabled:opacity-40"
+              className="p-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-30 disabled:cursor-not-allowed text-slate-700 transition cursor-pointer shadow-2xs"
+              title="Próxima página"
             >
               <ChevronRight className="w-4 h-4" />
             </button>
           </div>
 
-          <div className="flex items-center gap-2">
+          {/* Dica Central */}
+          <div className="hidden md:flex items-center gap-2 text-xs text-slate-500 bg-slate-50 border border-slate-200/80 px-3.5 py-1.5 rounded-full select-none">
+            <GripHorizontal className="w-3.5 h-3.5 text-slate-400" />
+            <span>Arraste ou redimensione as caixas diretamente sobre o documento</span>
+          </div>
+
+          {/* Controles de Zoom */}
+          <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 p-1 rounded-xl">
             <button
               type="button"
               onClick={() => setScale((s) => Math.max(0.6, Number((s - 0.15).toFixed(2))))}
-              className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700"
+              className="p-1 rounded-lg hover:bg-white text-slate-700 transition cursor-pointer"
+              title="Diminuir Zoom"
             >
               <ZoomOut className="w-4 h-4" />
             </button>
-            <span className="text-xs font-mono w-12 text-center">
+            <span className="text-xs font-mono font-bold text-slate-700 w-12 text-center select-none">
               {Math.round(scale * 100)}%
             </span>
             <button
               type="button"
               onClick={() => setScale((s) => Math.min(2.2, Number((s + 0.15).toFixed(2))))}
-              className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700"
+              className="p-1 rounded-lg hover:bg-white text-slate-700 transition cursor-pointer"
+              title="Aumentar Zoom"
             >
               <ZoomIn className="w-4 h-4" />
             </button>
           </div>
         </header>
 
-        {/* Área Rolável com a Folha Renderizada */}
-        <div className="flex-1 overflow-auto p-4 md:p-8 flex justify-center items-start">
-          <div className="relative shadow-2xl border border-slate-700 bg-white select-none">
-            <canvas ref={canvasRef} className="block" />
+        {/* WORKSPACE COM A FOLHA RENDERIZADA */}
+        <div
+          className="flex-1 overflow-auto p-6 md:p-10 flex justify-center items-start"
+          style={{
+            backgroundImage: 'radial-gradient(rgba(100, 116, 139, 0.22) 1px, transparent 1px)',
+            backgroundSize: '20px 20px',
+            backgroundColor: '#f1f5f9',
+          }}
+        >
+          <div className="relative shadow-2xl rounded-xs border border-slate-300 bg-white select-none">
+            <canvas ref={canvasRef} className="block shadow-xs" />
 
             {/* Overlay Interativo Normalizado (0 a 100%) */}
             <div
@@ -605,11 +744,6 @@ export const WebPdfSignaturePositioner: React.FC<WebPdfSignaturePositionerProps>
               onPointerUp={handlePointerUp}
               onPointerCancel={handlePointerUp}
               className="absolute inset-0"
-              style={{
-                backgroundImage:
-                  'radial-gradient(rgba(15, 23, 42, 0.14) 1px, transparent 0)',
-                backgroundSize: '18px 18px',
-              }}
             >
               {fields
                 .filter((f) => f.page === currentPage)
@@ -627,15 +761,15 @@ export const WebPdfSignaturePositioner: React.FC<WebPdfSignaturePositionerProps>
                         width: `${field.width_percent}%`,
                         height: `${field.height_percent}%`,
                         borderColor: color,
-                        backgroundColor: `${color}24`,
+                        backgroundColor: `${color}18`,
                       }}
-                      className="absolute border-2 border-dashed rounded-lg cursor-grab active:cursor-grabbing touch-none flex flex-col justify-between p-1.5 shadow-md group"
+                      className="absolute border-2 border-dashed rounded-lg cursor-grab active:cursor-grabbing touch-none flex flex-col justify-between p-1.5 shadow-md group backdrop-blur-[0.5px] select-none transition-shadow hover:shadow-lg"
                     >
                       {/* Cabeçalho da Caixa */}
                       <div className="flex items-center justify-between gap-1 pointer-events-none">
                         <span
                           style={{ backgroundColor: color }}
-                          className="text-[10px] font-bold text-white px-1.5 py-0.5 rounded truncate"
+                          className="text-[10px] font-bold text-white px-2 py-0.5 rounded shadow-xs truncate max-w-[85%]"
                         >
                           {signer?.fullName || 'Signatário'}
                         </span>
@@ -644,7 +778,7 @@ export const WebPdfSignaturePositioner: React.FC<WebPdfSignaturePositionerProps>
                           type="button"
                           onPointerDown={(e) => e.stopPropagation()}
                           onClick={() => removeField(field.id)}
-                          className="pointer-events-auto bg-rose-600 hover:bg-rose-500 text-white rounded p-0.5"
+                          className="pointer-events-auto bg-rose-600 hover:bg-rose-500 text-white rounded p-1 shadow-xs transition cursor-pointer"
                           title="Remover caixa"
                         >
                           <Trash2 className="w-3 h-3" />
@@ -652,15 +786,18 @@ export const WebPdfSignaturePositioner: React.FC<WebPdfSignaturePositionerProps>
                       </div>
 
                       {/* Rótulo Central */}
-                      <div className="flex items-center justify-center gap-1 text-slate-900 font-bold text-[11px] pointer-events-none">
-                        <GripHorizontal className="w-3.5 h-3.5 opacity-60" />
+                      <div className="flex items-center justify-center gap-1.5 text-slate-900 font-extrabold text-[11px] pointer-events-none">
+                        <GripHorizontal className="w-3.5 h-3.5 opacity-50" />
                         <span className="truncate">{getFieldTitle(field.field_type)}</span>
                       </div>
 
                       {/* Rodapé de Coordenadas + Handle de Redimensionamento */}
-                      <div className="flex items-center justify-between text-[9px] font-mono text-slate-700 pointer-events-none">
+                      <div className="flex items-center justify-between text-[9px] font-mono text-slate-600 font-semibold pointer-events-none px-0.5">
                         <span>
-                          X:{field.x_percent.toFixed(0)}% Y:{field.y_percent.toFixed(0)}%
+                          {field.x_percent.toFixed(0)}%, {field.y_percent.toFixed(0)}%
+                        </span>
+                        <span className="text-[8px] uppercase tracking-wider text-slate-600">
+                          {field.width_percent.toFixed(0)}x{field.height_percent.toFixed(0)}
                         </span>
                       </div>
 
@@ -668,10 +805,10 @@ export const WebPdfSignaturePositioner: React.FC<WebPdfSignaturePositionerProps>
                       <div
                         onPointerDown={(e) => handleStartResize(e, field)}
                         style={{ backgroundColor: color }}
-                        className="absolute bottom-0 right-0 w-4 h-4 rounded-tl-md cursor-nwse-resize touch-none flex items-center justify-center shadow"
+                        className="absolute bottom-0 right-0 w-4 h-4 rounded-tl-md cursor-nwse-resize touch-none flex items-center justify-center shadow-xs"
                         title="Arraste para redimensionar"
                       >
-                        <span className="w-1.5 h-1.5 border-r border-b border-white" />
+                        <span className="w-1.5 h-1.5 border-r-2 border-b-2 border-white" />
                       </div>
                     </div>
                   );

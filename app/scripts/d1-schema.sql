@@ -867,6 +867,34 @@ INSERT OR IGNORE INTO financial_categories (id, clinic_id, name, type) VALUES
 
 
 -- 1. Tabela Principal de Documentos
+-- 1. Tabela do Cofre Criptográfico do Certificado Digital da Dra. Ana Carla Morong
+CREATE TABLE IF NOT EXISTS doctor_certificate_vault (
+    id TEXT PRIMARY KEY NOT NULL DEFAULT 'dra_ana_default_cert',
+    professional_name TEXT NOT NULL DEFAULT 'Dra. Ana Carla Morong',
+    professional_tax_id TEXT NOT NULL DEFAULT '54.811.772/0001-32',
+    crm_register TEXT NOT NULL DEFAULT 'CRM/SC',
+    contact_email TEXT NOT NULL DEFAULT 'financeiro@draanamorong.com.br',
+    contact_phone TEXT NOT NULL DEFAULT '(48) 98857-2882',
+    clinic_address TEXT NOT NULL DEFAULT 'Tv. do Motorista, nº 82, Canto, Florianópolis - SC, CEP: 88075-550',
+    auto_sign_enabled INTEGER NOT NULL DEFAULT 1,               -- 1 = Assina automaticamente | 0 = Desativado
+    auto_sign_trigger TEXT NOT NULL DEFAULT 'ON_PATIENT_SIGNED',-- 'ON_PATIENT_SIGNED' | 'ON_DOCUMENT_CREATED'
+    encrypted_pfx_base64 TEXT NOT NULL,                         -- Binário .pfx cifrado em AES-256-GCM
+    encrypted_password_base64 TEXT NOT NULL,                    -- Senha do .pfx cifrada em AES-256-GCM
+    encryption_iv_hex TEXT NOT NULL,                            -- IV de 12 bytes (Hex) usado no AES-GCM
+    default_rubric_png_base64 TEXT,                             -- Rubrica caligráfica transparente padrão da Dra. Ana
+    cert_subject_cn TEXT NOT NULL,                              -- Common Name (CN) extraído do X.509
+    cert_issuer_cn TEXT NOT NULL,                               -- Autoridade Certificadora Emissora (AC ICP-Brasil)
+    cert_serial_hex TEXT NOT NULL,                              -- Serial Number hexadecimal do certificado
+    cert_thumbprint_sha256 TEXT NOT NULL,                       -- Fingerprint SHA-256 do certificado X.509
+    cert_icp_cpf TEXT,                                          -- OID 2.16.76.1.3.1 (CPF do titular/responsável)
+    cert_icp_cnpj TEXT,                                         -- OID 2.16.76.1.3.3 (CNPJ se e-CNPJ)
+    cert_not_before TEXT NOT NULL,                              -- Início de validade ISO-8601
+    cert_not_after TEXT NOT NULL,                               -- Expiração ISO-8601
+    last_used_at TEXT,
+    updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+);
+
+-- 2. Tabela Principal de Documentos
 CREATE TABLE IF NOT EXISTS documents (
     id TEXT PRIMARY KEY NOT NULL,                       -- UUID v4 do documento
     external_provider_id TEXT UNIQUE,                   -- Token do documento no ZapSign (se usar API externa)
@@ -877,14 +905,18 @@ CREATE TABLE IF NOT EXISTS documents (
     patient_email TEXT,
     patient_phone TEXT,
     title TEXT NOT NULL,                                -- Ex: "TCLE - Toxina Botulínica e Preenchimento"
-    category TEXT NOT NULL DEFAULT 'TCLE',              -- 'TCLE' | 'CONTRATO' | 'PLANO_TRATAMENTO' | 'RECEITUARIO'
+    category TEXT NOT NULL DEFAULT 'CONTRATO',          -- 'TCLE' | 'CONTRATO' | 'PLANO_TRATAMENTO' | 'RECEITUARIO'
     signing_mode TEXT NOT NULL DEFAULT 'hybrid',        -- 'in_person' | 'remote' | 'hybrid'
     engine_provider TEXT NOT NULL DEFAULT 'native',     -- 'native' | 'zapsign'
-    status TEXT NOT NULL DEFAULT 'draft',               -- 'draft' | 'pending' | 'partially_signed' | 'completed' | 'rejected' | 'expired'
+    status TEXT NOT NULL DEFAULT 'pending',             -- 'draft' | 'pending' | 'partially_signed' | 'completed' | 'rejected' | 'expired'
+    auto_sign_doctor INTEGER NOT NULL DEFAULT 1,        -- 1 = Usa o cofre automático da Dra. Ana
     original_pdf_url TEXT,                              -- URL no R2/Storage ou Data URI do PDF original
+    original_pdf_base64 TEXT,                           -- PDF gerado pelo sistema antes das assinaturas
     original_pdf_sha256 TEXT NOT NULL,                  -- Hash SHA-256 original (integridade antes de assinar)
     signed_pdf_url TEXT,                                -- URL temporária/R2 do PDF final com manifesto
+    signed_pdf_base64 TEXT,                             -- PDF final selado com PAdES + Manifesto QR Code
     signed_pdf_sha256 TEXT,                             -- Hash SHA-256 final após selagem PAdES/Manifesto
+    pades_pkcs7_hex TEXT,                               -- Assinatura criptográfica CMS/PKCS#7 destacada
     drive_file_id TEXT,                                 -- ID do arquivo salvo no Google Drive
     drive_file_url TEXT,                                -- URL permanente de visualização no Google Drive
     drive_folder_url TEXT,                              -- URL da pasta do paciente no Google Drive
@@ -901,7 +933,7 @@ CREATE INDEX IF NOT EXISTS idx_documents_status ON documents(status);
 CREATE INDEX IF NOT EXISTS idx_documents_external_id ON documents(external_provider_id);
 CREATE INDEX IF NOT EXISTS idx_documents_verification_code ON documents(verification_code);
 
--- 2. Tabela de Signatários do Documento
+-- 3. Tabela de Signatários do Documento
 CREATE TABLE IF NOT EXISTS document_signers (
     id TEXT PRIMARY KEY NOT NULL,                       -- UUID v4 do signatário
     document_id TEXT NOT NULL,
@@ -910,19 +942,26 @@ CREATE TABLE IF NOT EXISTS document_signers (
     role TEXT NOT NULL,                                 -- 'DRA_ANA' | 'PACIENTE' | 'TESTEMUNHA' | 'RESPONSAVEL_LEGAL'
     signing_order INTEGER NOT NULL DEFAULT 1,
     full_name TEXT NOT NULL,
-    cpf TEXT NOT NULL,
+    cpf TEXT,
+    cpf_cnpj TEXT,
     email TEXT,
     phone_whatsapp TEXT,
     council_id TEXT,                                    -- Ex: CRM/CRO/CRBM da Dra. Ana
+    council_register TEXT,                              -- Ex: CRM/SC
     auth_type TEXT NOT NULL DEFAULT 'canvas_advanced',  -- 'canvas_advanced' | 'icp_brasil_a1' | 'icp_brasil_cloud' | 'otp_whatsapp'
+    auth_method TEXT DEFAULT 'canvas_advanced',
     legal_standard TEXT NOT NULL DEFAULT 'ADVANCED',    -- 'ADVANCED' (Lei 14.063) | 'QUALIFIED_ICP' (MP 2.200-2)
+    legal_level TEXT DEFAULT 'ADVANCED',
     status TEXT NOT NULL DEFAULT 'pending',             -- 'pending' | 'viewed' | 'signed' | 'rejected'
     rejection_reason TEXT,
     signature_png_base64 TEXT,                          -- Rubrica/assinatura transparente coletada no Canvas
     selfie_photo_base64 TEXT,                           -- Foto de biometria facial no ato da assinatura
     icp_subject_cn TEXT,                                -- Nome no Certificado Digital ICP-Brasil
     icp_issuer_ca TEXT,                                 -- Autoridade Certificadora ICP-Brasil
+    icp_issuer_cn TEXT,
     icp_serial_number TEXT,                             -- Número de série do Certificado ICP-Brasil
+    icp_serial_hex TEXT,
+    icp_thumbprint_sha256 TEXT,
     signer_ip TEXT,
     signer_user_agent TEXT,
     signer_lat REAL,
@@ -935,7 +974,7 @@ CREATE TABLE IF NOT EXISTS document_signers (
 CREATE INDEX IF NOT EXISTS idx_signers_document_id ON document_signers(document_id);
 CREATE INDEX IF NOT EXISTS idx_signers_remote_token ON document_signers(remote_access_token);
 
--- 3. Tabela de Campos Posicionados no PDF (Coordenadas Percentuais 0 a 100%)
+-- 4. Tabela de Campos Posicionados no PDF (Coordenadas Percentuais 0 a 100%)
 CREATE TABLE IF NOT EXISTS signature_fields (
     id TEXT PRIMARY KEY NOT NULL,                       -- UUID v4 do campo
     document_id TEXT NOT NULL,
@@ -944,7 +983,7 @@ CREATE TABLE IF NOT EXISTS signature_fields (
     page INTEGER NOT NULL,                              -- Página do PDF (1-based: 1, 2, 3...)
     x_percent REAL NOT NULL,                            -- Posição horizontal (0.00 a 100.00%)
     y_percent REAL NOT NULL,                            -- Posição vertical a partir do topo (0.00 a 100.00%)
-    width_percent REAL NOT NULL DEFAULT 26.00,          -- Largura relativa à página (0.00 a 100.00%)
+    width_percent REAL NOT NULL DEFAULT 32.00,          -- Largura relativa à página (0.00 a 100.00%)
     height_percent REAL NOT NULL DEFAULT 8.50,          -- Altura relativa à página (0.00 a 100.00%)
     required INTEGER NOT NULL DEFAULT 1,                -- 1 = Obrigatório, 0 = Opcional
     stamped_at TEXT,
@@ -955,15 +994,17 @@ CREATE TABLE IF NOT EXISTS signature_fields (
 
 CREATE INDEX IF NOT EXISTS idx_signature_fields_document ON signature_fields(document_id);
 
--- 4. Tabela de Trilha de Auditoria Inviolável (Audit Trail / Dossiê Jurídico)
+-- 5. Tabela de Trilha de Auditoria Inviolável (Audit Trail / Dossiê Jurídico)
 CREATE TABLE IF NOT EXISTS signature_audit_trails (
     id TEXT PRIMARY KEY NOT NULL,                       -- UUID v4 do evento de auditoria
     document_id TEXT NOT NULL,
     signer_id TEXT,                                     -- NULL para eventos sistêmicos
-    event_name TEXT NOT NULL,                           -- 'document.created' | 'document.viewed' | 'document.signed' | 'document.rejected' | 'document.completed' | 'drive.archived'
+    event_name TEXT,                                    -- 'document.created' | 'document.viewed' | 'document.signed' | 'document.rejected' | 'document.completed' | 'drive.archived'
+    event_type TEXT,
     event_description TEXT NOT NULL,
     actor_name TEXT NOT NULL,
     actor_cpf TEXT,
+    actor_tax_id TEXT,
     ip_address TEXT NOT NULL,
     user_agent TEXT NOT NULL,
     geolocation_json TEXT,                              -- Ex: {"lat":-23.5505,"lng":-46.6333,"accuracy":12}

@@ -76,8 +76,8 @@ export class SignatureDocumentsService {
           cpf: s.cpf,
           email: s.email,
           phone_whatsapp: s.phoneWhatsapp,
-          auth_type: 'canvas_advanced',
-          legal_standard: 'ADVANCED',
+          auth_type: s.role === 'DRA_ANA' ? 'icp_brasil_a1_auto' : 'canvas_advanced',
+          legal_standard: s.role === 'DRA_ANA' ? 'QUALIFIED_ICP' : 'ADVANCED',
         })),
         fields: payload.fields.map((f) => ({
           signer_id: f.signer_id,

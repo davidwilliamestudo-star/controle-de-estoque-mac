@@ -17,9 +17,25 @@ import {
   Send,
   TabletSmartphone,
   Copy,
-  ExternalLink,
   AlertCircle,
   Stethoscope,
+  Calendar,
+  CreditCard,
+  Building,
+  Phone,
+  Mail,
+  MapPin,
+  Check,
+  Maximize2,
+  Minimize2,
+  ChevronRight,
+  BadgePercent,
+  Clock,
+  Layers,
+  ArrowLeft,
+  SlidersHorizontal,
+  FileDown,
+  Search,
 } from 'lucide-react';
 import {
   SAUDE_360_CATALOG,
@@ -34,6 +50,7 @@ import {
   applyTagsToContractTemplate,
   generateContractPdfBase64,
 } from '@/services/contracts/saude360ContractEngine.service';
+import { downloadFilledDocx } from '@/services/contracts/docxContractEngine.service';
 import {
   WebPdfSignaturePositioner,
   SignatureFieldPosition,
@@ -83,7 +100,12 @@ export const ContractPreparationAndSignatureModal: React.FC<
   const [modalStep, setModalStep] = useState<
     'prepare_tags' | 'position_signatures' | 'links_generated'
   >('prepare_tags');
-  const [activeSubTab, setActiveSubTab] = useState<'guided' | 'raw_tags'>('guided');
+
+  // Sub-abas lógicas para evitar acúmulo e espremer o conteúdo
+  const [activeTab, setActiveTab] = useState<'programs' | 'financial' | 'patient' | 'raw_tags'>('programs');
+
+  // Visibilidade da Prévia Lateral
+  const [showPreview, setShowPreview] = useState<boolean>(true);
 
   // CRM da Dra. Ana (Persistido no localStorage para conveniência)
   const [crmDra, setCrmDra] = useState<string>(() => {
@@ -157,6 +179,7 @@ export const ContractPreparationAndSignatureModal: React.FC<
   const [generatedPdfBase64, setGeneratedPdfBase64] = useState<string>('');
   const [initialSignatureFields, setInitialSignatureFields] = useState<SignatureFieldPosition[]>([]);
   const [isGeneratingPdf, setIsGeneratingPdf] = useState<boolean>(false);
+  const [isDownloadingDocx, setIsDownloadingDocx] = useState<boolean>(false);
   const [isSavingDocument, setIsSavingDocument] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -168,6 +191,7 @@ export const ContractPreparationAndSignatureModal: React.FC<
   } | null>(null);
 
   const [copiedToken, setCopiedToken] = useState<string | null>(null);
+  const [tagSearch, setTagSearch] = useState<string>('');
 
   // Signatários Padrão (Paciente + Dra. Ana Carla Morong)
   const signers: WebSignerConfig[] = useMemo(
@@ -188,13 +212,13 @@ export const ContractPreparationAndSignatureModal: React.FC<
         cpf: '54.811.772/0001-32',
         email: 'financeiro@draanamorong.com.br',
         phoneWhatsapp: '(48) 98857-2882',
-        colorHex: '#10b981',
+        colorHex: '#047857',
       },
     ],
     [tags.nome, tags.cpf, tags.email, tags.telefone, patient]
   );
 
-  // Checagem de discrepância de arredondamento
+  // Checagem de discrepância de arredondamento comercial
   const pricingRoundingDifference = useMemo(() => {
     if (paymentModality === 'AVISTA') return 0;
     const computedTotal = Number((installmentsCount * installmentNumericValue).toFixed(2));
@@ -327,7 +351,8 @@ export const ContractPreparationAndSignatureModal: React.FC<
       valor_avista: mod === 'AVISTA' ? formattedTotal : '---',
       chk_cartao: mod === 'CARTAO' ? 'X' : ' ',
       num_parcelas_cartao: mod === 'CARTAO' ? String(cnt) : '--',
-      valor_parcela_cartao: mod === 'CARTAO' ? formattedInst : '---',
+      valor_parcela_cartao:
+        mod === 'CARTAO' ? formattedInst : '---',
       chk_pix_parcelado: mod === 'PIX_PARCELADO' ? 'X' : ' ',
       num_parcelas_pix: mod === 'PIX_PARCELADO' ? String(cnt) : '--',
       valor_parcela_pix: mod === 'PIX_PARCELADO' ? formattedInst : '---',
@@ -362,6 +387,12 @@ export const ContractPreparationAndSignatureModal: React.FC<
   const handleProceedToSignaturePositioner = async () => {
     if (!crmDra || crmDra.trim() === '' || crmDra === '____') {
       setErrorMessage('Por favor, informe o CRM da Dra. Ana Carla Morong antes de prosseguir.');
+      setActiveTab('patient');
+      return;
+    }
+    if (!tags.nome || !tags.cpf) {
+      setErrorMessage('Nome completo e CPF do paciente são obrigatórios.');
+      setActiveTab('patient');
       return;
     }
     setErrorMessage(null);
@@ -429,6 +460,23 @@ export const ContractPreparationAndSignatureModal: React.FC<
     }
   };
 
+  // Dispara o preenchimento das chaves no modelo oficial DOCX e inicia o download
+  const handleDownloadDocx = async () => {
+    setIsDownloadingDocx(true);
+    setErrorMessage(null);
+    try {
+      const cleanName = (tags.nome || 'Paciente').trim().replace(/[^a-zA-Z0-9]/g, '_');
+      await downloadFilledDocx(
+        tags,
+        `Contrato_Dra_Ana_Morong_${cleanName}.docx`
+      );
+    } catch (err: any) {
+      setErrorMessage(`Erro ao gerar Word (.docx): ${err.message}`);
+    } finally {
+      setIsDownloadingDocx(false);
+    }
+  };
+
   // Grava o documento no Cloudflare D1 e abre tela de links (Passo 3)
   const handleSaveAndDispatch = async (
     positionedFields: SignatureFieldPosition[],
@@ -485,289 +533,542 @@ export const ContractPreparationAndSignatureModal: React.FC<
   const currentPlanMeta = SAUDE_360_CATALOG[selectedPlanId];
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-2 md:p-4">
-      <div className="bg-slate-950 border border-slate-800 rounded-2xl w-full max-w-[96vw] h-[94vh] flex flex-col overflow-hidden shadow-2xl text-slate-100">
-        {/* TOPBAR DO MODAL */}
-        <header className="h-14 bg-slate-900 border-b border-slate-800 px-5 flex items-center justify-between shrink-0">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
-              <FileText className="w-4 h-4" />
+    <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-5">
+      <div
+        className="bg-white rounded-2xl w-full max-w-[1520px] h-[92vh] max-h-[960px] flex flex-col overflow-hidden shadow-2xl border border-slate-200"
+        style={{ fontFamily: 'var(--font-family, "Plus Jakarta Sans", sans-serif)' }}
+      >
+        {/* ==================================================================== */}
+        {/* TOPBAR ELEGANTE (DESIGN SYSTEM OFICIAL DRA. ANA MORONG) */}
+        {/* ==================================================================== */}
+        <header className="h-18 bg-white border-b border-slate-200 px-6 sm:px-8 flex items-center justify-between shrink-0 shadow-xs">
+          <div className="flex items-center gap-3.5">
+            <div className="w-11 h-11 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-800 shadow-xs">
+              <FileText className="w-6 h-6 text-emerald-700" />
             </div>
             <div>
-              <h2 className="text-sm font-bold text-white flex items-center gap-2">
-                Estúdio de Preparação e Assinatura de Contrato — Jornada Saúde 360®
-                <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-950 text-emerald-300 border border-emerald-700/50">
-                  {modalStep === 'prepare_tags' && 'Passo 1: Configurar Plano e Tags'}
-                  {modalStep === 'position_signatures' && 'Passo 2: Posicionar Assinaturas'}
-                  {modalStep === 'links_generated' && 'Passo 3: Links Prontos para Assinatura'}
+              <div className="flex items-center gap-2.5">
+                <h2 className="text-base sm:text-lg font-bold text-slate-900 tracking-tight">
+                  Estúdio de Contratos — Jornada Saúde 360®
+                </h2>
+                <span className="hidden sm:inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                  <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
+                  Modelo Oficial Dra. Ana Morong
                 </span>
-              </h2>
-              <p className="text-[11px] text-slate-400">
-                Paciente: <strong className="text-slate-200">{tags.nome}</strong> • CPF: {tags.cpf}
+              </div>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Paciente: <strong className="text-slate-800 font-bold">{tags.nome || 'Não informado'}</strong>
+                {tags.cpf ? ` • CPF: ${tags.cpf}` : ''}
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
+            {/* ETAPAS STEPPER INTERATIVO */}
+            <nav className="hidden lg:flex items-center gap-1 bg-slate-100 p-1.5 rounded-2xl border border-slate-200 text-xs font-semibold">
+              <button
+                type="button"
+                onClick={() => {
+                  if (modalStep === 'position_signatures') setModalStep('prepare_tags');
+                }}
+                disabled={modalStep === 'prepare_tags' || modalStep === 'links_generated'}
+                className={`px-3 py-1.5 rounded-xl transition-all flex items-center gap-2 ${
+                  modalStep === 'prepare_tags'
+                    ? 'bg-white text-emerald-950 shadow-xs font-bold border border-slate-200/60'
+                    : modalStep === 'position_signatures'
+                    ? 'text-slate-700 hover:text-emerald-900 hover:bg-slate-200/60 cursor-pointer'
+                    : 'text-slate-400 opacity-60 cursor-default'
+                }`}
+              >
+                <span
+                  className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 transition-colors ${
+                    modalStep === 'prepare_tags'
+                      ? 'bg-emerald-700 text-white'
+                      : modalStep === 'position_signatures' || modalStep === 'links_generated'
+                      ? 'bg-emerald-100 text-emerald-800'
+                      : 'bg-slate-200 text-slate-500'
+                  }`}
+                >
+                  {modalStep !== 'prepare_tags' ? (
+                    <Check className="w-3 h-3 stroke-[3]" />
+                  ) : (
+                    '1'
+                  )}
+                </span>
+                <span>1. Parâmetros & Tags</span>
+              </button>
+
+              <div className="w-3 h-0.5 bg-slate-300 rounded-full" />
+
+              <button
+                type="button"
+                disabled={!generatedPdfBase64 || modalStep === 'links_generated'}
+                onClick={() => {
+                  if (generatedPdfBase64 && modalStep === 'prepare_tags') {
+                    setModalStep('position_signatures');
+                  }
+                }}
+                className={`px-3 py-1.5 rounded-xl transition-all flex items-center gap-2 ${
+                  modalStep === 'position_signatures'
+                    ? 'bg-white text-emerald-950 shadow-xs font-bold border border-slate-200/60'
+                    : generatedPdfBase64 && modalStep !== 'links_generated'
+                    ? 'text-slate-700 hover:text-emerald-900 hover:bg-slate-200/60 cursor-pointer'
+                    : 'text-slate-400 opacity-60 cursor-default'
+                }`}
+              >
+                <span
+                  className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 transition-colors ${
+                    modalStep === 'position_signatures'
+                      ? 'bg-emerald-700 text-white'
+                      : modalStep === 'links_generated'
+                      ? 'bg-emerald-100 text-emerald-800'
+                      : 'bg-slate-200 text-slate-500'
+                  }`}
+                >
+                  {modalStep === 'links_generated' ? (
+                    <Check className="w-3 h-3 stroke-[3]" />
+                  ) : (
+                    '2'
+                  )}
+                </span>
+                <span>2. Assinaturas</span>
+              </button>
+
+              <div className="w-3 h-0.5 bg-slate-300 rounded-full" />
+
+              <div
+                className={`px-3 py-1.5 rounded-xl transition-all flex items-center gap-2 ${
+                  modalStep === 'links_generated'
+                    ? 'bg-white text-emerald-950 shadow-xs font-bold border border-slate-200/60'
+                    : 'text-slate-400 opacity-60'
+                }`}
+              >
+                <span
+                  className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 ${
+                    modalStep === 'links_generated'
+                      ? 'bg-emerald-700 text-white'
+                      : 'bg-slate-200 text-slate-500'
+                  }`}
+                >
+                  3
+                </span>
+                <span>3. Finalização</span>
+              </div>
+            </nav>
+
+            {/* TOGGLE DA PRÉVIA LATERAL */}
+            {modalStep === 'prepare_tags' && (
+              <button
+                type="button"
+                onClick={() => setShowPreview(!showPreview)}
+                className="hidden xl:flex items-center gap-2 px-3.5 py-2 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-xs font-bold text-slate-700 transition cursor-pointer active:scale-95 shadow-xs"
+              >
+                {showPreview ? (
+                  <>
+                    <Minimize2 className="w-4 h-4 text-slate-500" />
+                    Ocultar Prévia
+                  </>
+                ) : (
+                  <>
+                    <Maximize2 className="w-4 h-4 text-emerald-700" />
+                    Exibir Prévia Lado a Lado
+                  </>
+                )}
+              </button>
+            )}
+
             {modalStep === 'position_signatures' && (
               <button
                 type="button"
                 onClick={() => setModalStep('prepare_tags')}
-                className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-medium text-slate-200 transition"
+                className="px-4 py-2 rounded-xl border border-slate-300 hover:bg-slate-50 active:scale-95 text-xs font-bold text-slate-700 transition shadow-xs cursor-pointer"
               >
-                ← Voltar para Edição de Tags
+                ← Voltar para Edição
               </button>
             )}
+
             <button
               type="button"
               onClick={onClose}
-              className="p-1.5 rounded-lg bg-slate-800 hover:bg-rose-600/80 text-slate-300 hover:text-white transition"
+              className="p-2.5 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 active:scale-90 transition cursor-pointer"
               title="Fechar Janela"
             >
-              <X className="w-4 h-4" />
+              <X className="w-5 h-5" />
             </button>
           </div>
         </header>
 
         {/* ALERTA DE ERRO */}
         {errorMessage && (
-          <div className="bg-rose-950/80 border-b border-rose-800 px-5 py-2 text-xs text-rose-200 flex items-center justify-between shrink-0">
-            <span className="flex items-center gap-2">
-              <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+          <div className="bg-rose-50 border-b border-rose-200 px-8 py-3 text-xs text-rose-800 flex items-center justify-between shrink-0">
+            <span className="flex items-center gap-2 font-semibold">
+              <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
               {errorMessage}
             </span>
             <button
               type="button"
               onClick={() => setErrorMessage(null)}
-              className="text-rose-400 hover:text-white text-xs"
+              className="text-rose-700 font-bold hover:underline text-xs cursor-pointer"
             >
               Fechar
             </button>
           </div>
         )}
 
+        {/* ==================================================================== */}
         {/* PASSO 1: CONFIGURAÇÃO DO PLANO + EDIÇÃO DE TAGS + PREVIEW AO VIVO */}
+        {/* ==================================================================== */}
         {modalStep === 'prepare_tags' && (
-          <div className="flex-1 flex flex-col lg:flex-row overflow-hidden">
-            {/* COLUNA ESQUERDA: CONFIGURADOR GUIADO OU EDIÇÃO DIRETA DE TODAS AS TAGS */}
-            <div className="w-full lg:w-[55%] border-r border-slate-800 flex flex-col overflow-hidden bg-slate-950">
-              {/* Sub-Abas: Configuração Guiada (Escada de Valor) vs. Editor Direto de Tags */}
-              <div className="flex border-b border-slate-800 bg-slate-900/60 px-5 pt-3 gap-2 shrink-0">
-                <button
-                  type="button"
-                  onClick={() => setActiveSubTab('guided')}
-                  className={`pb-2.5 px-3 text-xs font-bold border-b-2 transition flex items-center gap-1.5 ${
-                    activeSubTab === 'guided'
-                      ? 'border-emerald-400 text-emerald-400'
-                      : 'border-transparent text-slate-400 hover:text-slate-200'
-                  }`}
-                >
-                  <Sparkles className="w-3.5 h-3.5" />
-                  1. Seleção de Programa & Valores Padrão (Saúde 360®)
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setActiveSubTab('raw_tags')}
-                  className={`pb-2.5 px-3 text-xs font-bold border-b-2 transition flex items-center gap-1.5 ${
-                    activeSubTab === 'raw_tags'
-                      ? 'border-sky-400 text-sky-400'
-                      : 'border-transparent text-slate-400 hover:text-slate-200'
-                  }`}
-                >
-                  <Edit3 className="w-3.5 h-3.5" />
-                  2. Editar Todas as Tags Manualmente (33 Tags)
-                </button>
+          <div className="flex-1 flex min-h-0 overflow-hidden">
+            
+            {/* -------------------------------------------------------------- */}
+            {/* COLUNA ESQUERDA: FORMULÁRIO COM NAVEGAÇÃO ESPAÇOSA E FLUÍDA */}
+            {/* -------------------------------------------------------------- */}
+            <div
+              className="flex flex-col min-h-0 h-full border-r border-slate-200 bg-white transition-all duration-300"
+              style={{
+                width: showPreview ? '54%' : '100%',
+                flexShrink: 0,
+              }}
+            >
+              {/* SUB-ABAS MODERNAS (ESTILO SEGMENTED CONTROL) */}
+              <div className="px-6 sm:px-8 pt-4 pb-3 border-b border-slate-200 bg-slate-50/80 flex flex-wrap items-center justify-between gap-3 shrink-0">
+                <div className="inline-flex bg-slate-200/80 p-1.5 rounded-2xl gap-1">
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('programs')}
+                    className={`px-3.5 sm:px-4 py-2 rounded-xl text-xs font-bold transition-all duration-200 flex items-center gap-2 cursor-pointer ${
+                      activeTab === 'programs'
+                        ? 'bg-white text-emerald-950 shadow-sm'
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/60'
+                    }`}
+                  >
+                    <Sparkles className="w-4 h-4 text-emerald-600" />
+                    <span>1. Programa 360®</span>
+                    <span className="text-[10px] bg-emerald-50 text-emerald-800 font-extrabold px-2 py-0.5 rounded-md border border-emerald-200/70">
+                      {currentPlanMeta.name.split(' ')[0]}
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('financial')}
+                    className={`px-3.5 sm:px-4 py-2 rounded-xl text-xs font-bold transition-all duration-200 flex items-center gap-2 cursor-pointer ${
+                      activeTab === 'financial'
+                        ? 'bg-white text-emerald-950 shadow-sm'
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/60'
+                    }`}
+                  >
+                    <DollarSign className="w-4 h-4 text-emerald-600" />
+                    <span>2. Escada & Valores</span>
+                    <span className="text-[10px] bg-slate-100 text-slate-700 font-mono font-bold px-2 py-0.5 rounded-md border border-slate-200">
+                      R$ {tags.valor_plano}
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('patient')}
+                    className={`px-3.5 sm:px-4 py-2 rounded-xl text-xs font-bold transition-all duration-200 flex items-center gap-2 cursor-pointer ${
+                      activeTab === 'patient'
+                        ? 'bg-white text-emerald-950 shadow-sm'
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/60'
+                    }`}
+                  >
+                    <User className="w-4 h-4 text-slate-500" />
+                    <span>3. Paciente & Médica</span>
+                    {!tags.cpf || !tags.nome ? (
+                      <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" title="Dados pendentes" />
+                    ) : (
+                      <Check className="w-3.5 h-3.5 text-emerald-600 stroke-[3]" />
+                    )}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('raw_tags')}
+                    className={`px-3.5 sm:px-4 py-2 rounded-xl text-xs font-bold transition-all duration-200 flex items-center gap-2 cursor-pointer ${
+                      activeTab === 'raw_tags'
+                        ? 'bg-white text-emerald-950 shadow-sm'
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/60'
+                    }`}
+                  >
+                    <SlidersHorizontal className="w-4 h-4 text-slate-500" />
+                    <span>4. Tags</span>
+                    <span className="text-[10px] bg-slate-100 text-slate-600 font-bold px-2 py-0.5 rounded-md">
+                      33
+                    </span>
+                  </button>
+                </div>
               </div>
 
-              {/* CONTEÚDO ROLÁVEL DA ESQUERDA */}
-              <div className="flex-1 overflow-y-auto p-5 space-y-6">
-                {activeSubTab === 'guided' ? (
+              {/* CONTEÚDO ROLÁVEL COM ESPAÇAMENTO RESPIRÁVEL */}
+              <div className="flex-1 overflow-y-auto px-6 sm:px-8 py-6 space-y-6 bg-slate-50/40">
+                
+                {/* ---------------------------------------------------------- */}
+                {/* ABA 1: PROGRAMA & ESCADA DE VALOR */}
+                {/* ---------------------------------------------------------- */}
+                {activeTab === 'programs' && (
                   <>
-                    {/* BLOCO CRM DA MÉDICA */}
-                    <section className="bg-emerald-950/20 border border-emerald-900/40 rounded-xl p-3 flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <Stethoscope className="w-4 h-4 text-emerald-400" />
-                        <div>
-                          <p className="text-xs font-bold text-white">Médica Contratada</p>
-                          <p className="text-[11px] text-slate-400">Dra. Ana Carla Morong</p>
-                        </div>
+                    {/* SELEÇÃO DO PROGRAMA SAÚDE 360® */}
+                    <section className="space-y-4">
+                      <div>
+                        <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-2">
+                          <Sparkles className="w-4 h-4 text-emerald-700" />
+                          Escolha o Programa da Jornada Saúde 360® (Cláusula II)
+                        </h3>
+                        <p className="text-xs text-slate-500 mt-0.5">
+                          Selecione um programa para aplicar automaticamente os escopos clínicos e matriz de valores:
+                        </p>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <label className="text-xs text-slate-300">CRM/SC:</label>
-                        <input
-                          type="text"
-                          value={crmDra}
-                          onChange={(e) => handleCrmChange(e.target.value)}
-                          placeholder="Ex: 28412"
-                          className="w-28 bg-slate-900 border border-emerald-600/50 rounded px-2.5 py-1 text-xs text-emerald-300 font-mono"
-                        />
-                      </div>
-                    </section>
 
-                    {/* BLOCO 1: ESCOLHA DO PROGRAMA DA JORNADA SAÚDE 360® */}
-                    <section className="space-y-2.5">
-                      <label className="text-xs font-bold uppercase tracking-wider text-emerald-400 flex items-center gap-1.5">
-                        <Sparkles className="w-3.5 h-3.5" />
-                        Escolha o Programa de Acompanhamento (Cláusula II)
-                      </label>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
-                        {(Object.keys(SAUDE_360_CATALOG) as Saude360PlanId[]).map(
-                          (planKey) => {
-                            const item = SAUDE_360_CATALOG[planKey];
-                            const isSelected = selectedPlanId === planKey;
-                            return (
-                              <button
-                                key={planKey}
-                                type="button"
-                                onClick={() =>
-                                  applyPlanAndTierDefaults(planKey, 'IDEAL_AVISTA')
-                                }
-                                className={`p-3 rounded-xl border text-left transition flex flex-col justify-between ${
-                                  isSelected
-                                    ? 'bg-emerald-950/40 border-emerald-500 ring-1 ring-emerald-500/40'
-                                    : 'bg-slate-900/70 border-slate-800 hover:border-slate-700'
-                                }`}
-                              >
-                                <div>
-                                  <div className="flex items-center justify-between">
-                                    <span className="text-xs font-bold text-white">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                        {(Object.keys(SAUDE_360_CATALOG) as Saude360PlanId[]).map((planKey) => {
+                          const item = SAUDE_360_CATALOG[planKey];
+                          const isSelected = selectedPlanId === planKey;
+                          return (
+                            <div
+                              key={planKey}
+                              onClick={() => applyPlanAndTierDefaults(planKey, 'IDEAL_AVISTA')}
+                              className={`p-4 sm:p-5 rounded-2xl border-2 text-left transition-all duration-200 cursor-pointer flex flex-col justify-between group ${
+                                isSelected
+                                  ? 'bg-emerald-50/70 border-emerald-600 shadow-md ring-4 ring-emerald-600/10'
+                                  : 'bg-white border-slate-200 hover:border-emerald-400 hover:bg-emerald-50/20 hover:shadow-md hover:-translate-y-0.5 active:scale-[0.98]'
+                              }`}
+                            >
+                              <div>
+                                <div className="flex items-start justify-between gap-3 mb-2">
+                                  <div>
+                                    <span
+                                      className={`text-sm font-extrabold tracking-tight block ${
+                                        isSelected ? 'text-emerald-950' : 'text-slate-900 group-hover:text-emerald-900'
+                                      }`}
+                                    >
                                       {item.name}
                                     </span>
-                                    <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-800 text-emerald-300">
-                                      R$ {formatMoneyBRL(item.pricing.idealCash)}
+                                    <span className="inline-block text-[10px] font-bold uppercase tracking-wider text-emerald-700 bg-emerald-100/60 px-2 py-0.5 rounded-md mt-1">
+                                      {item.durationLabel}
                                     </span>
                                   </div>
-                                  <p className="text-[11px] text-slate-400 mt-1">
-                                    {item.subtitle}
-                                  </p>
+                                  <div
+                                    className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 transition-colors ${
+                                      isSelected
+                                        ? 'bg-emerald-600 text-white shadow-xs'
+                                        : 'border-2 border-slate-300 bg-white group-hover:border-emerald-400'
+                                    }`}
+                                  >
+                                    {isSelected && <Check className="w-3.5 h-3.5 stroke-[3]" />}
+                                  </div>
                                 </div>
-                              </button>
-                            );
-                          }
-                        )}
+                                <p className="text-xs text-slate-600 leading-relaxed mt-1">
+                                  {item.subtitle}
+                                </p>
+                              </div>
+
+                              <div className="mt-4 pt-3 border-t border-slate-200/80 flex items-center justify-between">
+                                <span className="text-[11px] text-slate-500 font-medium">Ideal À Vista:</span>
+                                <span className="font-extrabold text-emerald-800 font-mono text-sm sm:text-base">
+                                  R$ {formatMoneyBRL(item.pricing.idealCash)}
+                                </span>
+                              </div>
+                            </div>
+                          );
+                        })}
                       </div>
 
-                      {/* Resumo das Etapas do Programa (Extraído do Notebook) */}
-                      <div className="bg-slate-900/90 border border-slate-800 rounded-xl p-3.5 space-y-1.5">
-                        <p className="text-xs font-bold text-slate-200">
-                          Estrutura Clínica do {currentPlanMeta.name}:
-                        </p>
-                        <ul className="text-[11px] text-slate-400 space-y-1 list-disc list-inside">
+                      {/* Resumo da Estrutura Clínica */}
+                      <div className="bg-white border border-slate-200 rounded-2xl p-5 space-y-3 shadow-xs">
+                        <div className="flex items-center justify-between">
+                          <p className="text-xs font-bold text-slate-900 flex items-center gap-2">
+                            <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                            Estrutura Clínica Prevista — {currentPlanMeta.name}:
+                          </p>
+                          <span className="text-[11px] font-bold text-emerald-800 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200">
+                            {currentPlanMeta.durationLabel}
+                          </span>
+                        </div>
+                        <div className="grid grid-cols-1 gap-2 pt-1">
                           {currentPlanMeta.stagesSummary.map((st, i) => (
-                            <li key={i}>{st}</li>
+                            <div key={i} className="flex items-start gap-2.5 text-xs text-slate-700 font-medium leading-relaxed">
+                              <span className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-800 flex items-center justify-center text-[10px] font-bold shrink-0 mt-0.5">
+                                {i + 1}
+                              </span>
+                              <span>{st}</span>
+                            </div>
                           ))}
-                        </ul>
+                        </div>
+                        <div className="pt-3 text-xs text-slate-500 border-t border-slate-100 flex flex-wrap gap-4 font-medium">
+                          <div className="flex items-center gap-1.5">
+                            <Calendar className="w-3.5 h-3.5 text-slate-400" />
+                            <span><strong>Cronograma:</strong> {currentPlanMeta.consultationsSchedule}</span>
+                          </div>
+                        </div>
                       </div>
                     </section>
+                  </>
+                )}
 
-                    {/* BLOCO 2: PRESETS DA ESCADA DE VALOR (IDEAL VS MÍNIMO / À VISTA VS 12X) */}
-                    <section className="space-y-3 bg-slate-900/60 p-4 rounded-xl border border-slate-800">
-                      <label className="text-xs font-bold uppercase tracking-wider text-amber-400 flex items-center gap-1.5">
-                        <DollarSign className="w-3.5 h-3.5" />
-                        Tabela Comercial Padrão (Escada de Valor do Notebook)
-                      </label>
-                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                {/* ---------------------------------------------------------- */}
+                {/* ABA 2: ESCADA DE VALOR & CONDIÇÕES COMERCIAIS */}
+                {/* ---------------------------------------------------------- */}
+                {activeTab === 'financial' && (
+                  <>
+                    {/* ESCADA DE VALOR (PRESETS OFICIAIS DO NOTEBOOK) */}
+                    <section className="space-y-4 bg-white p-5 sm:p-6 rounded-2xl border border-slate-200 shadow-xs">
+                      <div>
+                        <h4 className="text-xs font-bold uppercase tracking-wider text-slate-800 flex items-center gap-2">
+                          <DollarSign className="w-4 h-4 text-emerald-700" />
+                          Tabela Comercial Oficial (Escada de Valor Dra. Ana)
+                        </h4>
+                        <p className="text-xs text-slate-500 mt-0.5">
+                          Selecione o tier comercial para calcular parcelas e valor por extenso:
+                        </p>
+                      </div>
+
+                      <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
+                        {/* IDEAL À VISTA */}
                         <button
                           type="button"
-                          onClick={() =>
-                            applyPlanAndTierDefaults(selectedPlanId, 'IDEAL_AVISTA')
-                          }
-                          className={`p-2.5 rounded-lg border text-left transition ${
+                          onClick={() => applyPlanAndTierDefaults(selectedPlanId, 'IDEAL_AVISTA')}
+                          className={`p-3.5 sm:p-4 rounded-xl border-2 text-left transition-all duration-200 flex flex-col justify-between cursor-pointer min-h-[110px] ${
                             pricingTier === 'IDEAL_AVISTA'
-                              ? 'bg-emerald-900/40 border-emerald-400 text-white'
-                              : 'bg-slate-950 border-slate-800 text-slate-300'
+                              ? 'bg-gradient-to-br from-emerald-700 to-emerald-800 text-white border-emerald-700 shadow-md ring-4 ring-emerald-600/20'
+                              : 'bg-white hover:bg-emerald-50/20 hover:border-emerald-400 border-slate-200 text-slate-800 hover:-translate-y-0.5 active:scale-[0.98]'
                           }`}
                         >
-                          <p className="text-[10px] uppercase text-emerald-400 font-bold">
+                          <span
+                            className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md inline-block w-fit ${
+                              pricingTier === 'IDEAL_AVISTA'
+                                ? 'bg-white/20 text-white'
+                                : 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                            }`}
+                          >
                             Ideal À Vista
-                          </p>
-                          <p className="text-xs font-bold mt-0.5">
+                          </span>
+                          <span className="text-base sm:text-lg font-black mt-1.5 font-mono">
                             R$ {formatMoneyBRL(currentPlanMeta.pricing.idealCash)}
-                          </p>
+                          </span>
+                          <span
+                            className={`text-xs mt-0.5 font-medium ${
+                              pricingTier === 'IDEAL_AVISTA' ? 'text-emerald-100' : 'text-slate-500'
+                            }`}
+                          >
+                            PIX / TED
+                          </span>
                         </button>
 
+                        {/* IDEAL 12X */}
                         <button
                           type="button"
-                          onClick={() =>
-                            applyPlanAndTierDefaults(selectedPlanId, 'IDEAL_12X')
-                          }
-                          className={`p-2.5 rounded-lg border text-left transition ${
+                          onClick={() => applyPlanAndTierDefaults(selectedPlanId, 'IDEAL_12X')}
+                          className={`p-3.5 sm:p-4 rounded-xl border-2 text-left transition-all duration-200 flex flex-col justify-between cursor-pointer min-h-[110px] ${
                             pricingTier === 'IDEAL_12X'
-                              ? 'bg-emerald-900/40 border-emerald-400 text-white'
-                              : 'bg-slate-950 border-slate-800 text-slate-300'
+                              ? 'bg-gradient-to-br from-emerald-700 to-emerald-800 text-white border-emerald-700 shadow-md ring-4 ring-emerald-600/20'
+                              : 'bg-white hover:bg-emerald-50/20 hover:border-emerald-400 border-slate-200 text-slate-800 hover:-translate-y-0.5 active:scale-[0.98]'
                           }`}
                         >
-                          <p className="text-[10px] uppercase text-emerald-400 font-bold">
+                          <span
+                            className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md inline-block w-fit ${
+                              pricingTier === 'IDEAL_12X'
+                                ? 'bg-white/20 text-white'
+                                : 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                            }`}
+                          >
                             Ideal 12x Cartão
-                          </p>
-                          <p className="text-xs font-bold mt-0.5">
+                          </span>
+                          <span className="text-base sm:text-lg font-black mt-1.5 font-mono">
                             12x R$ {formatMoneyBRL(currentPlanMeta.pricing.idealInstallment12x)}
-                          </p>
-                          <p className="text-[10px] text-slate-400">
+                          </span>
+                          <span
+                            className={`text-xs mt-0.5 font-medium ${
+                              pricingTier === 'IDEAL_12X' ? 'text-emerald-100' : 'text-slate-500'
+                            }`}
+                          >
                             Total: R$ {formatMoneyBRL(currentPlanMeta.pricing.idealTotal12x)}
-                          </p>
+                          </span>
                         </button>
 
+                        {/* MÍNIMO À VISTA */}
                         <button
                           type="button"
-                          onClick={() =>
-                            applyPlanAndTierDefaults(selectedPlanId, 'MINIMO_AVISTA')
-                          }
-                          className={`p-2.5 rounded-lg border text-left transition ${
+                          onClick={() => applyPlanAndTierDefaults(selectedPlanId, 'MINIMO_AVISTA')}
+                          className={`p-3.5 sm:p-4 rounded-xl border-2 text-left transition-all duration-200 flex flex-col justify-between cursor-pointer min-h-[110px] ${
                             pricingTier === 'MINIMO_AVISTA'
-                              ? 'bg-sky-900/40 border-sky-400 text-white'
-                              : 'bg-slate-950 border-slate-800 text-slate-300'
+                              ? 'bg-gradient-to-br from-slate-800 to-slate-900 text-white border-slate-800 shadow-md ring-4 ring-slate-800/20'
+                              : 'bg-white hover:bg-slate-100 hover:border-slate-400 border-slate-200 text-slate-800 hover:-translate-y-0.5 active:scale-[0.98]'
                           }`}
                         >
-                          <p className="text-[10px] uppercase text-sky-400 font-bold">
+                          <span
+                            className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md inline-block w-fit ${
+                              pricingTier === 'MINIMO_AVISTA'
+                                ? 'bg-white/20 text-white'
+                                : 'bg-slate-100 text-slate-700 border border-slate-200'
+                            }`}
+                          >
                             Mínimo À Vista
-                          </p>
-                          <p className="text-xs font-bold mt-0.5">
+                          </span>
+                          <span className="text-base sm:text-lg font-black mt-1.5 font-mono">
                             R$ {formatMoneyBRL(currentPlanMeta.pricing.minCash)}
-                          </p>
+                          </span>
+                          <span
+                            className={`text-xs mt-0.5 font-medium ${
+                              pricingTier === 'MINIMO_AVISTA' ? 'text-slate-300' : 'text-slate-500'
+                            }`}
+                          >
+                            Piso Negociado
+                          </span>
                         </button>
 
+                        {/* MÍNIMO 12X */}
                         <button
                           type="button"
-                          onClick={() =>
-                            applyPlanAndTierDefaults(selectedPlanId, 'MINIMO_12X')
-                          }
-                          className={`p-2.5 rounded-lg border text-left transition ${
+                          onClick={() => applyPlanAndTierDefaults(selectedPlanId, 'MINIMO_12X')}
+                          className={`p-3.5 sm:p-4 rounded-xl border-2 text-left transition-all duration-200 flex flex-col justify-between cursor-pointer min-h-[110px] ${
                             pricingTier === 'MINIMO_12X'
-                              ? 'bg-sky-900/40 border-sky-400 text-white'
-                              : 'bg-slate-950 border-slate-800 text-slate-300'
+                              ? 'bg-gradient-to-br from-slate-800 to-slate-900 text-white border-slate-800 shadow-md ring-4 ring-slate-800/20'
+                              : 'bg-white hover:bg-slate-100 hover:border-slate-400 border-slate-200 text-slate-800 hover:-translate-y-0.5 active:scale-[0.98]'
                           }`}
                         >
-                          <p className="text-[10px] uppercase text-sky-400 font-bold">
-                            Mínimo 12x Cartão
-                          </p>
-                          <p className="text-xs font-bold mt-0.5">
+                          <span
+                            className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md inline-block w-fit ${
+                              pricingTier === 'MINIMO_12X'
+                                ? 'bg-white/20 text-white'
+                                : 'bg-slate-100 text-slate-700 border border-slate-200'
+                            }`}
+                          >
+                            Mínimo 12x
+                          </span>
+                          <span className="text-base sm:text-lg font-black mt-1.5 font-mono">
                             12x R$ {formatMoneyBRL(currentPlanMeta.pricing.minInstallment12x)}
-                          </p>
-                          <p className="text-[10px] text-slate-400">
+                          </span>
+                          <span
+                            className={`text-xs mt-0.5 font-medium ${
+                              pricingTier === 'MINIMO_12X' ? 'text-slate-300' : 'text-slate-500'
+                            }`}
+                          >
                             Total: R$ {formatMoneyBRL(currentPlanMeta.pricing.minTotal12x)}
-                          </p>
+                          </span>
                         </button>
                       </div>
 
                       {/* Notificação amigável de arredondamento comercial */}
                       {pricingRoundingDifference !== 0 && (
-                        <div className="bg-amber-950/40 border border-amber-800/60 rounded-lg p-2 text-[11px] text-amber-300 flex items-center gap-2">
-                          <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                        <div className="bg-amber-50 border border-amber-200/90 rounded-xl p-3.5 text-xs text-amber-900 flex items-center gap-2.5">
+                          <AlertCircle className="w-4 h-4 text-amber-700 shrink-0" />
                           <span>
-                            Diferença de arredondamento comercial:{' '}
-                            {installmentsCount}x de R$ {formatMoneyBRL(installmentNumericValue)} = R${' '}
-                            {formatMoneyBRL(installmentsCount * installmentNumericValue)} (Total tabelado:{' '}
-                            R$ {formatMoneyBRL(totalNumericValue)}).
+                            Arredondamento do plano: {installmentsCount}x de R${' '}
+                            {formatMoneyBRL(installmentNumericValue)} = R${' '}
+                            {formatMoneyBRL(installmentsCount * installmentNumericValue)} (Total nominal: R${' '}
+                            {formatMoneyBRL(totalNumericValue)}).
                           </span>
                         </div>
                       )}
 
-                      {/* Ajuste Fino de Valores e Modalidade */}
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
+                      {/* AJUSTE MANUAL DE VALORES E MODALIDADES */}
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2">
                         <div>
-                          <label className="block text-[11px] text-slate-400 mb-1">
-                            Modalidade de Pagamento
+                          <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                            Forma de Pagamento
                           </label>
                           <select
                             value={paymentModality}
@@ -776,7 +1077,7 @@ export const ContractPreparationAndSignatureModal: React.FC<
                                 modality: e.target.value as PaymentModality,
                               })
                             }
-                            className="w-full bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-2 text-xs text-white"
+                            className="w-full h-11 bg-white border border-slate-300 rounded-xl px-3.5 text-xs text-slate-900 font-semibold outline-none focus:border-emerald-600 focus:ring-4 focus:ring-emerald-600/10 transition"
                           >
                             <option value="AVISTA">À Vista (PIX / Transferência)</option>
                             <option value="CARTAO">Cartão de Crédito Parcelado</option>
@@ -785,7 +1086,7 @@ export const ContractPreparationAndSignatureModal: React.FC<
                         </div>
 
                         <div>
-                          <label className="block text-[11px] text-slate-400 mb-1">
+                          <label className="block text-xs font-bold text-slate-700 mb-1.5">
                             Valor Total do Contrato (R$)
                           </label>
                           <input
@@ -797,15 +1098,15 @@ export const ContractPreparationAndSignatureModal: React.FC<
                                 total: parseFloat(e.target.value) || 0,
                               })
                             }
-                            className="w-full bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-2 text-xs text-white font-mono"
+                            className="w-full h-11 bg-white border border-slate-300 rounded-xl px-3.5 text-xs text-slate-900 font-bold font-mono outline-none focus:border-emerald-600 focus:ring-4 focus:ring-emerald-600/10 transition"
                           />
                         </div>
 
                         {paymentModality !== 'AVISTA' && (
-                          <div className="grid grid-cols-2 gap-2">
+                          <div className="grid grid-cols-2 gap-2.5">
                             <div>
-                              <label className="block text-[11px] text-slate-400 mb-1">
-                                Nº Parcelas
+                              <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                                Parcelas
                               </label>
                               <input
                                 type="number"
@@ -817,12 +1118,12 @@ export const ContractPreparationAndSignatureModal: React.FC<
                                     count: parseInt(e.target.value, 10) || 1,
                                   })
                                 }
-                                className="w-full bg-slate-950 border border-slate-700 rounded-lg px-2 py-2 text-xs text-white"
+                                className="w-full h-11 bg-white border border-slate-300 rounded-xl px-3 text-xs text-slate-900 font-bold outline-none focus:border-emerald-600 focus:ring-4 focus:ring-emerald-600/10 transition"
                               />
                             </div>
                             <div>
-                              <label className="block text-[11px] text-slate-400 mb-1">
-                                Valor Parcela (R$)
+                              <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                                Valor Parcela
                               </label>
                               <input
                                 type="number"
@@ -833,7 +1134,7 @@ export const ContractPreparationAndSignatureModal: React.FC<
                                     installment: parseFloat(e.target.value) || 0,
                                   })
                                 }
-                                className="w-full bg-slate-950 border border-slate-700 rounded-lg px-2 py-2 text-xs text-white font-mono"
+                                className="w-full h-11 bg-white border border-slate-300 rounded-xl px-3 text-xs text-slate-900 font-bold font-mono outline-none focus:border-emerald-600 focus:ring-4 focus:ring-emerald-600/10 transition"
                               />
                             </div>
                           </div>
@@ -842,7 +1143,7 @@ export const ContractPreparationAndSignatureModal: React.FC<
 
                       {paymentModality === 'PIX_PARCELADO' && (
                         <div>
-                          <label className="block text-[11px] text-slate-400 mb-1">
+                          <label className="block text-xs font-bold text-slate-700 mb-1.5">
                             Dia de Vencimento Mensal (Tag {'{{dia_vencimento_pix}}'})
                           </label>
                           <input
@@ -855,14 +1156,14 @@ export const ContractPreparationAndSignatureModal: React.FC<
                                 dueDay: parseInt(e.target.value, 10) || 10,
                               })
                             }
-                            className="w-32 bg-slate-950 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-white"
+                            className="w-36 h-11 bg-white border border-slate-300 rounded-xl px-3.5 text-xs text-slate-900 font-bold outline-none focus:border-emerald-600 focus:ring-4 focus:ring-emerald-600/10 transition"
                           />
                         </div>
                       )}
 
                       <div>
-                        <label className="block text-[11px] text-slate-400 mb-1">
-                          Valor por Extenso Automático (Tag {'{{valor_plano_extenso}}'} — Editável)
+                        <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                          Valor por Extenso Automático ({'{{valor_plano_extenso}}'})
                         </label>
                         <input
                           type="text"
@@ -870,43 +1171,84 @@ export const ContractPreparationAndSignatureModal: React.FC<
                           onChange={(e) =>
                             handleDirectTagEdit('valor_plano_extenso', e.target.value)
                           }
-                          className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-emerald-300"
+                          className="w-full h-11 bg-slate-50 border border-slate-300 rounded-xl px-3.5 text-xs text-slate-800 font-medium outline-none focus:border-emerald-600 focus:bg-white focus:ring-4 focus:ring-emerald-600/10 transition"
                         />
                       </div>
                     </section>
+                  </>
+                )}
 
-                    {/* BLOCO 3: DADOS PESSOAIS DO PACIENTE (TAGS DO CABEÇALHO) */}
-                    <section className="space-y-3 bg-slate-900/40 p-4 rounded-xl border border-slate-800">
-                      <label className="text-xs font-bold uppercase tracking-wider text-sky-400 flex items-center gap-1.5">
-                        <User className="w-3.5 h-3.5" />
-                        Dados Pessoais do Contratante (Preenchidos do Cadastro)
-                      </label>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {/* ---------------------------------------------------------- */}
+                {/* ABA 2: DADOS DO PACIENTE & MÉDICA */}
+                {/* ---------------------------------------------------------- */}
+                {activeTab === 'patient' && (
+                  <>
+                    {/* DADOS DA MÉDICA */}
+                    <div className="bg-emerald-50/70 border border-emerald-200/80 rounded-2xl p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-xs">
+                      <div className="flex items-center gap-4">
+                        <div className="w-12 h-12 rounded-xl bg-emerald-700 text-white flex items-center justify-center font-bold text-base shadow-xs shrink-0">
+                          <Stethoscope className="w-6 h-6" />
+                        </div>
                         <div>
-                          <label className="block text-[10px] text-slate-400">
+                          <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                            Médica Contratada
+                          </p>
+                          <h3 className="text-sm font-bold text-slate-900 mt-0.5">
+                            Dra. Ana Carla Morong
+                          </h3>
+                          <p className="text-xs text-emerald-800 font-medium">
+                            CNPJ: 54.811.772/0001-32 • Florianópolis - SC
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-3 bg-white px-4 py-2.5 rounded-xl border border-emerald-200 shadow-xs">
+                        <label className="text-xs font-bold text-slate-700 whitespace-nowrap">
+                          CRM/SC:
+                        </label>
+                        <input
+                          type="text"
+                          value={crmDra}
+                          onChange={(e) => handleCrmChange(e.target.value)}
+                          placeholder="Ex: 28412"
+                          className="w-28 bg-emerald-50/50 border border-emerald-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-700/20 rounded-lg px-2.5 py-1 text-xs text-slate-900 font-bold font-mono outline-none transition"
+                        />
+                      </div>
+                    </div>
+
+                    {/* DADOS CADASTRAIS DO PACIENTE */}
+                    <section className="space-y-4 bg-white p-6 rounded-2xl border border-slate-200 shadow-xs">
+                      <h4 className="text-xs font-bold uppercase tracking-wider text-slate-800 flex items-center gap-2">
+                        <User className="w-4 h-4 text-emerald-700" />
+                        Dados Pessoais do Contratante (Paciente)
+                      </h4>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-xs font-bold text-slate-700 mb-1.5">
                             Nome Completo ({'{{nome}}'})
                           </label>
                           <input
                             type="text"
                             value={tags.nome}
                             onChange={(e) => handleDirectTagEdit('nome', e.target.value)}
-                            className="w-full bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-white mt-0.5"
+                            className="w-full h-11 bg-white border border-slate-300 rounded-xl px-3.5 text-xs text-slate-900 font-bold outline-none focus:border-emerald-600 focus:ring-4 focus:ring-emerald-600/10 transition"
                           />
                         </div>
-                        <div className="grid grid-cols-2 gap-2">
+                        <div className="grid grid-cols-2 gap-3">
                           <div>
-                            <label className="block text-[10px] text-slate-400">
+                            <label className="block text-xs font-bold text-slate-700 mb-1.5">
                               CPF ({'{{cpf}}'})
                             </label>
                             <input
                               type="text"
                               value={tags.cpf}
                               onChange={(e) => handleDirectTagEdit('cpf', e.target.value)}
-                              className="w-full bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-white mt-0.5"
+                              placeholder="000.000.000-00"
+                              className="w-full h-11 bg-white border border-slate-300 rounded-xl px-3.5 text-xs text-slate-900 font-mono font-medium outline-none focus:border-emerald-600 focus:ring-4 focus:ring-emerald-600/10 transition"
                             />
                           </div>
                           <div>
-                            <label className="block text-[10px] text-slate-400">
+                            <label className="block text-xs font-bold text-slate-700 mb-1.5">
                               Nascimento ({'{{data_nascimento}}'})
                             </label>
                             <input
@@ -915,25 +1257,28 @@ export const ContractPreparationAndSignatureModal: React.FC<
                               onChange={(e) =>
                                 handleDirectTagEdit('data_nascimento', e.target.value)
                               }
-                              className="w-full bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-white mt-0.5"
+                              placeholder="DD/MM/AAAA"
+                              className="w-full h-11 bg-white border border-slate-300 rounded-xl px-3.5 text-xs text-slate-900 outline-none focus:border-emerald-600 focus:ring-4 focus:ring-emerald-600/10 transition"
                             />
                           </div>
                         </div>
+
                         <div>
-                          <label className="block text-[10px] text-slate-400">
+                          <label className="block text-xs font-bold text-slate-700 mb-1.5">
                             Endereço Residencial ({'{{endereco}}'})
                           </label>
                           <input
                             type="text"
                             value={tags.endereco}
                             onChange={(e) => handleDirectTagEdit('endereco', e.target.value)}
-                            placeholder="Rua / Av., número, complemento"
-                            className="w-full bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-white mt-0.5"
+                            placeholder="Rua, número e complemento"
+                            className="w-full h-11 bg-white border border-slate-300 rounded-xl px-3.5 text-xs text-slate-900 outline-none focus:border-emerald-600 focus:ring-4 focus:ring-emerald-600/10 transition"
                           />
                         </div>
-                        <div className="grid grid-cols-3 gap-2">
+
+                        <div className="grid grid-cols-3 gap-2.5">
                           <div className="col-span-2">
-                            <label className="block text-[10px] text-slate-400">
+                            <label className="block text-xs font-bold text-slate-700 mb-1.5">
                               Bairro / Cidade / UF ({'{{bairro_cidade_uf}}'})
                             </label>
                             <input
@@ -942,147 +1287,305 @@ export const ContractPreparationAndSignatureModal: React.FC<
                               onChange={(e) =>
                                 handleDirectTagEdit('bairro_cidade_uf', e.target.value)
                               }
-                              className="w-full bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-white mt-0.5"
+                              className="w-full h-11 bg-white border border-slate-300 rounded-xl px-3.5 text-xs text-slate-900 outline-none focus:border-emerald-600 focus:ring-4 focus:ring-emerald-600/10 transition"
                             />
                           </div>
                           <div>
-                            <label className="block text-[10px] text-slate-400">
+                            <label className="block text-xs font-bold text-slate-700 mb-1.5">
                               CEP ({'{{cep}}'})
                             </label>
                             <input
                               type="text"
                               value={tags.cep}
                               onChange={(e) => handleDirectTagEdit('cep', e.target.value)}
-                              className="w-full bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-white mt-0.5"
+                              placeholder="88000-000"
+                              className="w-full h-11 bg-white border border-slate-300 rounded-xl px-3 text-xs text-slate-900 font-mono outline-none focus:border-emerald-600 focus:ring-4 focus:ring-emerald-600/10 transition"
                             />
                           </div>
                         </div>
+
                         <div>
-                          <label className="block text-[10px] text-slate-400">
+                          <label className="block text-xs font-bold text-slate-700 mb-1.5">
                             Telefone / WhatsApp ({'{{telefone}}'})
                           </label>
                           <input
                             type="text"
                             value={tags.telefone}
                             onChange={(e) => handleDirectTagEdit('telefone', e.target.value)}
-                            className="w-full bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-white mt-0.5"
+                            placeholder="(48) 99999-9999"
+                            className="w-full h-11 bg-white border border-slate-300 rounded-xl px-3.5 text-xs text-slate-900 outline-none focus:border-emerald-600 focus:ring-4 focus:ring-emerald-600/10 transition"
                           />
                         </div>
+
                         <div>
-                          <label className="block text-[10px] text-slate-400">
+                          <label className="block text-xs font-bold text-slate-700 mb-1.5">
                             E-mail ({'{{email}}'})
                           </label>
                           <input
                             type="email"
                             value={tags.email}
                             onChange={(e) => handleDirectTagEdit('email', e.target.value)}
-                            className="w-full bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-white mt-0.5"
+                            placeholder="paciente@exemplo.com.br"
+                            className="w-full h-11 bg-white border border-slate-300 rounded-xl px-3.5 text-xs text-slate-900 outline-none focus:border-emerald-600 focus:ring-4 focus:ring-emerald-600/10 transition"
                           />
                         </div>
                       </div>
                     </section>
                   </>
-                ) : (
-                  /* ABA 2: EDITOR DIRETO DE TODAS AS 33 TAGS DO CONTRATO */
-                  <section className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <p className="text-xs text-slate-300">
-                        Edite diretamente qualquer variável <code className="text-sky-400">{'{{tag}}'}</code> abaixo. O contrato ao lado reflete a alteração instantaneamente:
-                      </p>
-                      <button
-                        type="button"
-                        onClick={() => applyPlanAndTierDefaults(selectedPlanId, pricingTier)}
-                        className="text-xs text-slate-400 hover:text-white flex items-center gap-1 transition"
-                      >
-                        <RotateCcw className="w-3.5 h-3.5" /> Restaurar Padrão do Plano
-                      </button>
+                )}
+
+                {/* ---------------------------------------------------------- */}
+                {/* ABA 3: TODAS AS 33 TAGS (EDIÇÃO LIVRE COM BUSCA) */}
+                {/* ---------------------------------------------------------- */}
+                {activeTab === 'raw_tags' && (
+                  <section className="space-y-4">
+                    <div className="bg-white border border-slate-200 rounded-2xl p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-xs">
+                      <div>
+                        <h4 className="text-sm font-bold text-slate-900">
+                          Edição Direta de Variáveis Oficiais
+                        </h4>
+                        <p className="text-xs text-slate-500 mt-0.5">
+                          Altere qualquer uma das <strong>33 tags</strong> livremente. A minuta atualiza em tempo real:
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2.5">
+                        <button
+                          type="button"
+                          onClick={() => applyPlanAndTierDefaults(selectedPlanId, pricingTier)}
+                          className="px-3.5 py-2 rounded-xl border border-slate-300 bg-slate-50 hover:bg-slate-100 active:scale-[0.98] text-xs font-bold text-slate-700 flex items-center gap-1.5 transition shadow-xs cursor-pointer"
+                        >
+                          <RotateCcw className="w-3.5 h-3.5" /> Restaurar Padrões
+                        </button>
+                      </div>
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                      {(Object.keys(tags) as Array<keyof OfficialContractTagMap>).map(
-                        (tagKey) => (
+                    {/* BARRA DE PESQUISA DAS TAGS */}
+                    <div className="relative">
+                      <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                      <input
+                        type="text"
+                        value={tagSearch}
+                        onChange={(e) => setTagSearch(e.target.value)}
+                        placeholder="Filtrar por nome da tag ou valor (ex: nome, valor, cpf, crm, cartao)..."
+                        className="w-full h-11 bg-white border border-slate-300 rounded-xl pl-10 pr-10 text-xs text-slate-900 font-medium outline-none focus:border-emerald-600 focus:ring-4 focus:ring-emerald-600/10 transition shadow-2xs"
+                      />
+                      {tagSearch && (
+                        <button
+                          type="button"
+                          onClick={() => setTagSearch('')}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs font-bold"
+                        >
+                          Limpar
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                      {(Object.keys(tags) as Array<keyof OfficialContractTagMap>)
+                        .filter((tagKey) => {
+                          if (!tagSearch.trim()) return true;
+                          const q = tagSearch.toLowerCase();
+                          return (
+                            tagKey.toLowerCase().includes(q) ||
+                            String(tags[tagKey]).toLowerCase().includes(q)
+                          );
+                        })
+                        .map((tagKey) => (
                           <div
                             key={tagKey}
-                            className="bg-slate-900/80 border border-slate-800 rounded-lg p-2.5"
+                            className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs hover:border-emerald-300 transition"
                           >
-                            <label className="block text-[10px] font-mono text-sky-400 mb-1">
-                              {`{{${tagKey}}}`}
-                            </label>
+                            <div className="flex items-center justify-between mb-2">
+                              <span className="text-[11px] font-mono font-bold text-emerald-800 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200">
+                                {`{{${tagKey}}}`}
+                              </span>
+                            </div>
                             <input
                               type="text"
                               value={tags[tagKey]}
-                              onChange={(e) =>
-                                handleDirectTagEdit(tagKey, e.target.value)
-                              }
-                              className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-xs text-white"
+                              onChange={(e) => handleDirectTagEdit(tagKey, e.target.value)}
+                              className="w-full h-10 bg-slate-50/70 border border-slate-300 rounded-xl px-3 text-xs text-slate-900 outline-none focus:bg-white focus:border-emerald-600 focus:ring-4 focus:ring-emerald-600/10 transition"
                             />
                           </div>
-                        )
-                      )}
+                        ))}
                     </div>
                   </section>
                 )}
+
               </div>
 
-              {/* RODAPÉ DE AÇÃO DO PASSO 1 */}
-              <footer className="p-4 bg-slate-900 border-t border-slate-800 flex items-center justify-between shrink-0">
-                <div className="text-xs">
-                  <span className="text-slate-400">Total Selecionado: </span>
-                  <strong className="text-emerald-400 text-sm">
-                    R$ {tags.valor_plano}
-                  </strong>
-                  <span className="text-[11px] text-slate-500 ml-2">
-                    ({tags.vigencia_contrato})
+              {/* RODAPÉ FIXO DO FORMULÁRIO COM BOTÃO PRIMÁRIO DESTACADO */}
+              <footer className="h-22 bg-white border-t border-slate-200 px-6 sm:px-8 flex items-center justify-between shrink-0 shadow-lg z-10">
+                <div>
+                  <span className="text-[11px] text-slate-500 font-semibold uppercase tracking-wider block">
+                    Total Selecionado:
                   </span>
+                  <div className="flex items-baseline gap-2.5 mt-0.5">
+                    <strong className="text-2xl font-black text-emerald-800 font-mono tracking-tight">
+                      R$ {tags.valor_plano}
+                    </strong>
+                    <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200">
+                      {tags.vigencia_contrato}
+                    </span>
+                  </div>
                 </div>
 
-                <button
-                  type="button"
-                  disabled={isGeneratingPdf || !tags.nome || !tags.cpf}
-                  onClick={handleProceedToSignaturePositioner}
-                  className="py-2.5 px-5 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 text-white font-bold text-xs flex items-center gap-2 shadow-lg transition"
-                >
-                  {isGeneratingPdf ? (
-                    'Gerando PDF Paginado...'
-                  ) : (
-                    <>
-                      Confirmar Dados e Posicionar Assinaturas
+                <div className="flex items-center gap-3">
+                  {/* BOTÃO PARA BAIXAR O ARQUIVO WORD ORIGINAL (.DOCX) PREENCHIDO */}
+                  <button
+                    type="button"
+                    disabled={isDownloadingDocx}
+                    onClick={handleDownloadDocx}
+                    className="hidden sm:flex items-center gap-2 px-4 py-3 rounded-xl border border-emerald-300 hover:border-emerald-500 bg-emerald-50/70 hover:bg-emerald-100/70 active:scale-95 text-emerald-900 font-bold text-xs transition cursor-pointer shadow-2xs"
+                    title="Baixar arquivo oficial em Word (.docx) com papel timbrado e todas as tags preenchidas"
+                  >
+                    <FileDown className="w-4 h-4 text-emerald-700" />
+                    {isDownloadingDocx ? 'Gerando Word...' : 'Baixar .DOCX Oficial'}
+                  </button>
+
+                  {(!tags.cpf || !tags.nome) && (
+                    <div className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-xs font-semibold">
+                      <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                      <span>{!tags.nome ? 'Nome pendente' : 'CPF pendente'} na Aba 3</span>
+                    </div>
+                  )}
+
+                  {activeTab === 'programs' && (
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab('financial')}
+                      className="py-3 px-6 rounded-xl bg-emerald-700 hover:bg-emerald-800 active:scale-95 text-white font-bold text-xs flex items-center gap-2 shadow-sm transition cursor-pointer"
+                    >
+                      Avançar para Valores
                       <ArrowRight className="w-4 h-4" />
+                    </button>
+                  )}
+
+                  {activeTab === 'financial' && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => setActiveTab('programs')}
+                        className="px-4 py-3 rounded-xl border border-slate-300 hover:bg-slate-50 active:scale-95 text-slate-700 font-bold text-xs transition cursor-pointer"
+                      >
+                        ← Voltar
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setActiveTab('patient')}
+                        className="py-3 px-6 rounded-xl bg-emerald-700 hover:bg-emerald-800 active:scale-95 text-white font-bold text-xs flex items-center gap-2 shadow-sm transition cursor-pointer"
+                      >
+                        Avançar para Paciente
+                        <ArrowRight className="w-4 h-4" />
+                      </button>
                     </>
                   )}
-                </button>
+
+                  {(activeTab === 'patient' || activeTab === 'raw_tags') && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => setActiveTab(activeTab === 'patient' ? 'financial' : 'patient')}
+                        className="px-4 py-3 rounded-xl border border-slate-300 hover:bg-slate-50 active:scale-95 text-slate-700 font-bold text-xs transition cursor-pointer"
+                      >
+                        ← Voltar
+                      </button>
+                      <button
+                        type="button"
+                        disabled={isGeneratingPdf}
+                        onClick={handleProceedToSignaturePositioner}
+                        className="py-3.5 px-7 rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800 active:scale-95 text-white font-bold text-sm flex items-center gap-2.5 shadow-md shadow-emerald-700/20 hover:shadow-lg hover:shadow-emerald-700/30 transition-all cursor-pointer"
+                      >
+                        {isGeneratingPdf ? (
+                          'Gerando PDF do Contrato...'
+                        ) : (
+                          <>
+                            Confirmar Dados e Posicionar Assinaturas
+                            <ArrowRight className="w-4 h-4" />
+                          </>
+                        )}
+                      </button>
+                    </>
+                  )}
+                </div>
               </footer>
             </div>
 
-            {/* COLUNA DIREITA: PREVIEW AO VIVO DO CONTRATO PREENCHIDO */}
-            <div className="w-full lg:w-[45%] bg-slate-900 flex flex-col overflow-hidden">
-              <div className="px-4 py-2.5 bg-slate-950 border-b border-slate-800 flex items-center justify-between">
-                <span className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
-                  <Eye className="w-3.5 h-3.5 text-emerald-400" />
-                  Preview em Tempo Real (MODELO CONTRATO FINANCEIRO DRA ANA 3)
-                </span>
-                <span className="text-[10px] text-emerald-400 bg-emerald-950/60 px-2 py-0.5 rounded border border-emerald-800">
-                  100% das Tags Preenchidas
-                </span>
-              </div>
+            {/* -------------------------------------------------------------- */}
+            {/* COLUNA DIREITA: VISUALIZADOR DO CONTRATO ESTILO FOLHA OFICIAL */}
+            {/* -------------------------------------------------------------- */}
+            {showPreview && (
+              <div
+                className="flex flex-col min-h-0 h-full bg-slate-100/90 border-l border-slate-200"
+                style={{
+                  width: '46%',
+                  flexShrink: 0,
+                }}
+              >
+                <div className="h-14 bg-white border-b border-slate-200 px-6 flex items-center justify-between shrink-0 shadow-2xs">
+                  <div className="flex items-center gap-2">
+                    <FileText className="w-4 h-4 text-emerald-700" />
+                    <span className="text-xs font-bold text-slate-800">
+                      Minuta Oficial do Contrato (Visualização em Tempo Real)
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      disabled={isDownloadingDocx}
+                      onClick={handleDownloadDocx}
+                      className="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 shadow-2xs transition cursor-pointer"
+                      title="Baixar arquivo Word com papel timbrado oficial preenchido"
+                    >
+                      <FileDown className="w-3.5 h-3.5 text-emerald-700" />
+                      {isDownloadingDocx ? 'Baixando...' : 'Baixar .DOCX'}
+                    </button>
+                    <span className="text-xs font-bold text-emerald-800 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-200 shadow-2xs">
+                      35 Tags Ativas
+                    </span>
+                  </div>
+                </div>
 
-              <div className="flex-1 overflow-y-auto p-6 bg-slate-900">
-                <div className="bg-white text-slate-900 rounded-xl shadow-2xl p-8 max-w-2xl mx-auto font-serif text-[12px] leading-relaxed whitespace-pre-wrap border border-slate-300">
-                  {renderedContractText}
+                <div className="flex-1 overflow-y-auto p-6 sm:p-8 flex justify-center items-start bg-slate-100/80">
+                  {/* FOLHA DE CONTRATO A4 COM SOMBRA PROFUNDA E TIMBRADO */}
+                  <div
+                    className="bg-white border border-slate-200 rounded-lg p-8 sm:p-10 max-w-xl w-full text-slate-900 text-[11px] leading-relaxed font-serif whitespace-pre-wrap select-text shadow-2xl my-2"
+                    style={{
+                      boxShadow: '0 20px 40px -15px rgba(15, 23, 42, 0.15), 0 0 0 1px rgba(15, 23, 42, 0.05)',
+                    }}
+                  >
+                    {/* CABEÇALHO TIMBRADO DA CLÍNICA NO TOPO DA FOLHA */}
+                    <div className="border-b border-slate-200 pb-4 mb-6 text-center font-sans">
+                      <h4 className="text-xs font-bold uppercase tracking-widest text-emerald-900">
+                        Dra. Ana Carla Morong
+                      </h4>
+                      <p className="text-[10px] text-slate-500 mt-0.5">
+                        Medicina de Precisão & Longevidade Saudável • Florianópolis / SC
+                      </p>
+                    </div>
+
+                    {renderedContractText}
+                  </div>
                 </div>
               </div>
-            </div>
+            )}
+
           </div>
         )}
 
-        {/* PASSO 2: POSICIONADOR DE ASSINATURAS E DISPARO (PRESENCIAL OU REMOTO) */}
+        {/* ==================================================================== */}
+        {/* PASSO 2: POSICIONADOR DE ASSINATURAS NO PDF */}
+        {/* ==================================================================== */}
         {modalStep === 'position_signatures' && generatedPdfBase64 && (
-          <div className="flex-1 overflow-hidden relative">
+          <div className="flex-1 overflow-hidden relative bg-slate-100 flex flex-col min-h-0 h-full">
             {isSavingDocument && (
-              <div className="absolute inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex flex-col items-center justify-center">
-                <div className="w-8 h-8 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin mb-3" />
-                <p className="text-sm font-medium text-white">
-                  Registrando documento de assinatura no sistema...
+              <div className="absolute inset-0 z-50 bg-slate-900/70 backdrop-blur-xs flex flex-col items-center justify-center text-white">
+                <div className="w-12 h-12 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin mb-4" />
+                <p className="text-base font-bold text-white">
+                  Gravando contrato e gerando trilha de auditoria inviolável...
+                </p>
+                <p className="text-xs text-emerald-200 mt-1">
+                  Integrando signatários no Cloudflare D1
                 </p>
               </div>
             )}
@@ -1101,84 +1604,86 @@ export const ContractPreparationAndSignatureModal: React.FC<
           </div>
         )}
 
-        {/* PASSO 3: SUCESSO - LINKS DE ASSINATURA GERADOS */}
+        {/* ==================================================================== */}
+        {/* PASSO 3: SUCESSO E DISPARO DE LINKS DE ASSINATURA */}
+        {/* ==================================================================== */}
         {modalStep === 'links_generated' && createdDocInfo && (
-          <div className="flex-1 overflow-y-auto p-6 flex flex-col items-center justify-center max-w-3xl mx-auto text-center space-y-6">
-            <div className="w-14 h-14 rounded-full bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400">
-              <CheckCircle2 className="w-7 h-7" />
+          <div className="flex-1 overflow-y-auto p-10 flex flex-col items-center justify-center max-w-3xl mx-auto text-center space-y-7">
+            <div className="w-18 h-18 rounded-full bg-emerald-100 border-2 border-emerald-300 flex items-center justify-center text-emerald-800 shadow-md">
+              <CheckCircle2 className="w-10 h-10" />
             </div>
 
-            <div className="space-y-1">
-              <h3 className="text-xl font-bold text-white">
-                Documento Registrado com Sucesso!
+            <div className="space-y-1.5">
+              <h3 className="text-2xl font-extrabold text-slate-900 tracking-tight">
+                Contrato Criado e Pronto para Assinatura!
               </h3>
-              <p className="text-xs text-slate-400">
-                Código de Verificação Pública:{' '}
-                <strong className="text-emerald-400 font-mono">
+              <p className="text-xs text-slate-600">
+                Código de Autenticação Pública:{' '}
+                <strong className="text-emerald-800 font-mono font-bold text-sm bg-emerald-50 px-2.5 py-1 rounded-md border border-emerald-200">
                   {createdDocInfo.verificationCode}
                 </strong>
               </p>
             </div>
 
-            {/* CARDS DE SIGNATÁRIOS */}
-            <div className="w-full space-y-3 text-left">
+            {/* CARDS DOS SIGNATÁRIOS */}
+            <div className="w-full space-y-4 text-left">
               {createdDocInfo.signers.map((signer) => {
                 const isPatient = signer.role === 'PACIENTE';
                 return (
                   <div
                     key={signer.id}
-                    className="bg-slate-900 border border-slate-800 rounded-xl p-4 space-y-3"
+                    className="bg-white border border-slate-200/90 rounded-2xl p-5 shadow-sm space-y-3.5 hover:border-slate-300 transition"
                   >
                     <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-3">
                         <div
-                          className={`w-3 h-3 rounded-full ${
-                            isPatient ? 'bg-sky-400' : 'bg-emerald-400'
+                          className={`w-4 h-4 rounded-full ${
+                            isPatient ? 'bg-sky-500' : 'bg-emerald-600'
                           }`}
                         />
-                        <span className="text-sm font-bold text-white">
+                        <span className="text-sm font-bold text-slate-900">
                           {signer.fullName} ({signer.role})
                         </span>
                       </div>
-                      <span className="text-[10px] px-2 py-0.5 rounded bg-slate-800 text-slate-300 font-mono">
+                      <span className="text-xs px-3 py-1 rounded-full bg-slate-100 text-slate-700 font-semibold border border-slate-200">
                         Aguardando Assinatura
                       </span>
                     </div>
 
-                    <div className="bg-slate-950 border border-slate-800 rounded-lg p-2.5 flex items-center justify-between text-xs font-mono text-slate-300 break-all">
-                      <span className="truncate pr-2">{signer.signUrl}</span>
+                    <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 flex items-center justify-between text-xs font-mono text-slate-700">
+                      <span className="truncate pr-3 font-medium">{signer.signUrl}</span>
                       <button
                         type="button"
                         onClick={() => copyToClipboard(signer.signUrl, signer.id)}
-                        className="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs shrink-0 flex items-center gap-1 transition"
+                        className="px-3 py-1.5 rounded-lg bg-white border border-slate-300 hover:bg-slate-50 active:scale-[0.97] text-slate-800 font-sans font-bold text-xs shrink-0 flex items-center gap-1.5 transition shadow-xs cursor-pointer"
                       >
                         {copiedToken === signer.id ? (
                           <>
-                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" /> Copiado!
+                            <Check className="w-4 h-4 text-emerald-600 stroke-[3]" /> Copiado!
                           </>
                         ) : (
                           <>
-                            <Copy className="w-3.5 h-3.5" /> Copiar Link
+                            <Copy className="w-4 h-4" /> Copiar Link
                           </>
                         )}
                       </button>
                     </div>
 
-                    <div className="flex flex-wrap gap-2">
+                    <div className="flex flex-wrap gap-3 pt-1">
                       <a
                         href={signer.signUrl}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className={`py-2 px-4 rounded-lg font-bold text-xs flex items-center gap-1.5 transition ${
+                        className={`py-2.5 px-5 rounded-xl font-bold text-xs flex items-center gap-2 transition shadow-md active:scale-[0.98] ${
                           isPatient
-                            ? 'bg-sky-600 hover:bg-sky-500 text-white shadow-lg shadow-sky-900/30'
-                            : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg shadow-emerald-900/30'
+                            ? 'bg-sky-600 hover:bg-sky-700 text-white shadow-sky-900/10'
+                            : 'bg-emerald-700 hover:bg-emerald-800 text-white shadow-emerald-900/15'
                         }`}
                       >
-                        <TabletSmartphone className="w-3.5 h-3.5" />
+                        <TabletSmartphone className="w-4 h-4" />
                         {isPatient
-                          ? 'Abrir para Paciente Assinar no Consultório / Tablet'
-                          : 'Assinar como Dra. Ana Carla Morong Agora'}
+                          ? 'Assinar no Tablet / Consultório Agora'
+                          : 'Assinar como Médica Agora'}
                       </a>
 
                       {isPatient && tags.telefone && (
@@ -1188,9 +1693,9 @@ export const ContractPreparationAndSignatureModal: React.FC<
                           )}`}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="py-2 px-3.5 rounded-lg bg-emerald-950/80 border border-emerald-700 hover:bg-emerald-900 text-emerald-300 font-medium text-xs flex items-center gap-1.5 transition"
+                          className="py-2.5 px-5 rounded-xl bg-emerald-50 border border-emerald-300 hover:bg-emerald-100 active:scale-[0.98] text-emerald-800 font-bold text-xs flex items-center gap-2 transition"
                         >
-                          <Send className="w-3.5 h-3.5" /> Enviar via WhatsApp
+                          <Send className="w-4 h-4 text-emerald-600" /> Enviar para WhatsApp do Paciente
                         </a>
                       )}
                     </div>
@@ -1199,17 +1704,18 @@ export const ContractPreparationAndSignatureModal: React.FC<
               })}
             </div>
 
-            <div className="pt-2 flex items-center gap-3">
+            <div className="pt-3">
               <button
                 type="button"
                 onClick={onClose}
-                className="py-2 px-6 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs transition"
+                className="py-3 px-8 rounded-xl bg-slate-100 hover:bg-slate-200 active:scale-[0.98] text-slate-800 font-bold text-xs transition cursor-pointer shadow-xs"
               >
-                Concluir e Voltar ao Prontuário
+                Concluir e Retornar ao Prontuário
               </button>
             </div>
           </div>
         )}
+
       </div>
     </div>
   );

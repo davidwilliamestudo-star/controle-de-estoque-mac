@@ -1,5 +1,9 @@
 // src/services/contracts/saude360ContractEngine.service.ts
-import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
+import { PDFDocument, StandardFonts, rgb, PDFImage } from 'pdf-lib';
+import {
+  LETTERHEAD_PAGE1_BASE64,
+  LETTERHEAD_PAGE2_BASE64,
+} from '@/assets/contractLetterheadBase64';
 
 export type Saude360PlanId =
   | 'MAPA_360'
@@ -525,6 +529,19 @@ function sanitizeTextForHelvetica(text: string): string {
  * Gera um PDF A4 paginado a partir do contrato preenchido e retorna Base64 + total de páginas
  * Garante margens de resguardo para rubricas no rodapé e formatação profissional.
  */
+function base64ToUint8Array(base64: string): Uint8Array {
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  return bytes;
+}
+
+/**
+ * Gera um PDF A4 paginado a partir do contrato preenchido e retorna Base64 + total de páginas
+ * Utiliza o Papel Timbrado Oficial da Clínica Dra. Ana Morong (Logo, Cabeçalho, Marca d'água e Rodapé).
+ */
 export async function generateContractPdfBase64(filledContractText: string): Promise<{
   pdfBase64: string;
   pageCount: number;
@@ -533,33 +550,44 @@ export async function generateContractPdfBase64(filledContractText: string): Pro
   const fontRegular = await pdfDoc.embedFont(StandardFonts.Helvetica);
   const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
 
+  // Carrega e embute o Papel Timbrado Oficial
+  let bgImg1: PDFImage | null = null;
+  let bgImg2: PDFImage | null = null;
+
+  try {
+    const page1Bytes = base64ToUint8Array(LETTERHEAD_PAGE1_BASE64);
+    const page2Bytes = base64ToUint8Array(LETTERHEAD_PAGE2_BASE64);
+    bgImg1 = await pdfDoc.embedPng(page1Bytes);
+    bgImg2 = await pdfDoc.embedPng(page2Bytes);
+  } catch (err) {
+    console.warn('Papel timbrado não pôde ser embutido, gerando versão padrão:', err);
+  }
+
   const pageWidth = 595.28; // A4 standard width (pt)
   const pageHeight = 841.89; // A4 standard height (pt)
-  const marginX = 42;
+  const marginX = 48;
   const maxTextWidth = pageWidth - marginX * 2;
-  const bottomMargin = 80; // Resguardo para não sobrepor rubricas (y_percent ~ 91%)
-  const topMargin = 48;
+  const bottomMargin = 85; // Resguardo para o rodapé timbrado e rubricas
+  const page1TopMargin = 148; // Resguardo para o cabeçalho timbrado na pág. 1
+  const generalTopMargin = 48; // Resguardo para o topo nas demais páginas
 
-  let page = pdfDoc.addPage([pageWidth, pageHeight]);
-  let y = pageHeight - topMargin;
   let pageIndex = 1;
+  let page = pdfDoc.addPage([pageWidth, pageHeight]);
+  if (bgImg1) {
+    page.drawImage(bgImg1, { x: 0, y: 0, width: pageWidth, height: pageHeight });
+  }
+  let y = pageHeight - (bgImg1 ? page1TopMargin : 48);
 
   const sanitized = sanitizeTextForHelvetica(filledContractText);
   const lines = sanitized.split('\n');
 
   const addPageBreak = () => {
-    // Desenha número de página no rodapé antes de criar nova página
-    page.drawText(`Página ${pageIndex}`, {
-      x: pageWidth - marginX - 50,
-      y: 22,
-      size: 8,
-      font: fontRegular,
-      color: rgb(0.5, 0.55, 0.6),
-    });
-
-    page = pdfDoc.addPage([pageWidth, pageHeight]);
     pageIndex++;
-    y = pageHeight - topMargin;
+    page = pdfDoc.addPage([pageWidth, pageHeight]);
+    if (bgImg2) {
+      page.drawImage(bgImg2, { x: 0, y: 0, width: pageWidth, height: pageHeight });
+    }
+    y = pageHeight - generalTopMargin;
   };
 
   for (let i = 0; i < lines.length; i++) {
@@ -567,7 +595,7 @@ export async function generateContractPdfBase64(filledContractText: string): Pro
     const trimmed = rawLine.trim();
 
     if (!trimmed) {
-      y -= 8;
+      y -= 7;
       if (y < bottomMargin) {
         addPageBreak();
       }
@@ -583,8 +611,8 @@ export async function generateContractPdfBase64(filledContractText: string): Pro
       trimmed.startsWith('Parágrafo');
 
     const font = isMainTitle || isSectionHeader ? fontBold : fontRegular;
-    const size = isMainTitle ? 11 : isSectionHeader ? 9.2 : 8.6;
-    const lineHeight = size + 4.0;
+    const size = isMainTitle ? 10.5 : isSectionHeader ? 8.8 : 8.2;
+    const lineHeight = size + 3.8;
 
     // Se for o bloco final de assinatura, garante que não fique quebrado solitário
     if (trimmed.startsWith('E, por estarem plenamente esclarecidas') && y < 220) {
@@ -600,7 +628,6 @@ export async function generateContractPdfBase64(filledContractText: string): Pro
       try {
         candidateWidth = font.widthOfTextAtSize(candidate, size);
       } catch {
-        // Se algum caractere ainda falhar no encoding, desenha sem ele
         candidateWidth = font.widthOfTextAtSize(candidate.replace(/[^\x00-\x7F]/g, ''), size);
       }
 
@@ -657,14 +684,18 @@ export async function generateContractPdfBase64(filledContractText: string): Pro
     }
   }
 
-  // Rodapé da última página
-  page.drawText(`Página ${pageIndex} de ${pageIndex}`, {
-    x: pageWidth - marginX - 60,
-    y: 22,
-    size: 8,
-    font: fontRegular,
-    color: rgb(0.5, 0.55, 0.6),
-  });
+  // Numeração de páginas discreta e elegante
+  const totalPages = pdfDoc.getPageCount();
+  const allPages = pdfDoc.getPages();
+  for (let p = 0; p < totalPages; p++) {
+    allPages[p].drawText(`Pág. ${p + 1} de ${totalPages}`, {
+      x: pageWidth - marginX - 30,
+      y: 28,
+      size: 7.5,
+      font: fontRegular,
+      color: rgb(0.45, 0.5, 0.55),
+    });
+  }
 
   const pdfBytes = await pdfDoc.save();
   let binary = '';

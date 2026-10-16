@@ -2,12 +2,13 @@ import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Link } from "@tanstack/react-router";
-import { Settings, Save, Building2, Package, ShieldCheck, CalendarSync, ArrowRightLeft, PlayCircle, Camera, ScanSearch } from "lucide-react";
+import { Settings, Save, Building2, Package, ShieldCheck, CalendarSync, ArrowRightLeft, PlayCircle, Camera, ScanSearch, KeyRound, CheckCircle2 } from "lucide-react";
 
 import { settingsSchema, type SettingsFormData, type SettingsFormInput } from "../schemas/settings.schema";
 import { useOnboarding } from "@/features/onboarding/OnboardingContext";
 import { useSettings, useUpdateSettings } from "../hooks/useSettings";
 import { IntegrationLogsModal } from "@/features/integrations/apps-script/components/IntegrationLogsModal";
+import { DoctorCertificateVaultModal } from "@/components/signatures/DoctorCertificateVaultModal";
 import { appScriptIntegrationService } from "@/features/integrations/apps-script/services/appScriptIntegration.service";
 import { checkinSyncService } from "@/features/integrations/apps-script/services/checkinSync.service";
 
@@ -16,6 +17,7 @@ export default function SettingsPage() {
   const mutation = useUpdateSettings();
   const onboarding = useOnboarding();
   const [isLogsModalOpen, setIsLogsModalOpen] = useState(false);
+  const [isVaultModalOpen, setIsVaultModalOpen] = useState(false);
   const [isTestingConnection, setIsTestingConnection] = useState(false);
   const [isTestingEmail, setIsTestingEmail] = useState(false);
   const [isSyncingCheckins, setIsSyncingCheckins] = useState(false);
@@ -178,6 +180,41 @@ export default function SettingsPage() {
                 <span className="font-medium" style={{ color: "var(--color-gray-700)" }}>Backup Automático ao Fechar</span>
               </label>
             </div>
+          </div>
+        </div>
+
+        {/* Assinatura Digital & Cofre ICP-Brasil */}
+        <div className="card" id="icp-brasil-vault">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-bold flex items-center gap-2" style={{ color: "var(--color-gray-900)" }}>
+              <ShieldCheck size={20} className="text-emerald-600" />
+              Cofre de Assinatura Automática ICP-Brasil (PAdES)
+            </h2>
+            <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+              MP 2.200-2/2001 & Lei 14.063
+            </span>
+          </div>
+          <p className="text-xs text-gray-600 mb-4">
+            Gerencie o Certificado Digital A1 (.pfx/.p12) e a rubrica caligráfica da Dra. Ana Carla Morong (CNPJ 54.811.772/0001-32).
+            Quando o paciente assina o contrato ou TCLE, o sistema contra-assina automaticamente com validade jurídica plena e carimbo PAdES.
+          </p>
+          <div className="p-4 rounded-xl border border-gray-200 bg-gray-50 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
+                <KeyRound size={18} />
+              </div>
+              <div>
+                <p className="text-xs font-bold text-gray-900">Cofre Criptográfico com Proteção AES-256-GCM</p>
+                <p className="text-[11px] text-gray-500">Chave privada e senha criptografadas em repouso no Cloudflare D1</p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setIsVaultModalOpen(true)}
+              className="btn btn-secondary text-xs font-semibold py-2 px-4 shadow-sm hover:border-emerald-500 hover:text-emerald-700 transition"
+            >
+              Configurar Certificado A1 & Rubrica
+            </button>
           </div>
         </div>
 
@@ -480,6 +517,11 @@ export default function SettingsPage() {
       <IntegrationLogsModal 
         isOpen={isLogsModalOpen} 
         onClose={() => setIsLogsModalOpen(false)} 
+      />
+
+      <DoctorCertificateVaultModal
+        isOpen={isVaultModalOpen}
+        onClose={() => setIsVaultModalOpen(false)}
       />
     </>
   );
