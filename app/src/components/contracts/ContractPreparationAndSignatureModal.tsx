@@ -428,16 +428,16 @@ export const ContractPreparationAndSignatureModal: React.FC<
         });
       }
 
-      // Assinatura da Médica e do Paciente na última página (sobre as linhas de assinatura)
+      // Assinatura da Médica e do Paciente na última página (sobre as linhas de assinatura centralizadas)
       autoFields.push({
         id: crypto.randomUUID(),
         signer_id: 'signer-dra-ana',
         field_type: 'signature',
         page: pageCount,
-        x_percent: 12,
-        y_percent: 74,
-        width_percent: 36,
-        height_percent: 9,
+        x_percent: 28,
+        y_percent: 12,
+        width_percent: 44,
+        height_percent: 7,
       });
 
       autoFields.push({
@@ -445,10 +445,10 @@ export const ContractPreparationAndSignatureModal: React.FC<
         signer_id: 'signer-patient',
         field_type: 'signature',
         page: pageCount,
-        x_percent: 52,
-        y_percent: 74,
-        width_percent: 36,
-        height_percent: 9,
+        x_percent: 28,
+        y_percent: 27,
+        width_percent: 44,
+        height_percent: 7,
       });
 
       setInitialSignatureFields(autoFields);

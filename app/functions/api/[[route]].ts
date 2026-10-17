@@ -33,6 +33,15 @@ function toBase64(bytes: ArrayBuffer | Uint8Array): string {
   return btoa(binary);
 }
 
+function constantTimeEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  let result = 0;
+  for (let i = 0; i < a.length; i++) {
+    result |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  }
+  return result === 0;
+}
+
 function verifyPassword(password: string, storedHash: string): boolean {
   const [algorithm, iterationsRaw, saltRaw, expectedHash] = storedHash.split("$");
   if (algorithm !== "pbkdf2_sha256" || !iterationsRaw || !saltRaw || !expectedHash) {
@@ -46,7 +55,23 @@ function verifyPassword(password: string, storedHash: string): boolean {
 
   const salt = fromBase64(saltRaw);
   const derived = pbkdf2(sha256, password, salt, { c: iterations, dkLen: 32 });
-  return toBase64(derived) === expectedHash;
+  return constantTimeEqual(toBase64(derived), expectedHash);
+}
+
+// Mascaramento de CPF/CNPJ para conformidade com a LGPD (Lei 13.709/2018)
+function maskCpf(cpf?: string | null): string {
+  if (!cpf) return "";
+  const cleaned = cpf.replace(/\D/g, "");
+  if (cleaned.length === 11) {
+    return `***.${cleaned.substring(3, 6)}.${cleaned.substring(6, 9)}-**`;
+  }
+  if (cleaned.length === 14) {
+    return `**.${cleaned.substring(2, 5)}.${cleaned.substring(5, 8)}/${cleaned.substring(8, 12)}-**`;
+  }
+  if (cleaned.length > 4) {
+    return `${"*".repeat(cleaned.length - 4)}${cleaned.slice(-4)}`;
+  }
+  return "***";
 }
 
 // Token de sessão assinado em WebCrypto
@@ -103,11 +128,32 @@ async function verifySessionToken(token: string, secret = "dra-ana-secret-key-20
 
 const app = new Hono<{ Bindings: Bindings }>().basePath("/api");
 
+// Headers de segurança HTTP recomendados (OWASP / LGPD)
+app.use("*", async (c, next) => {
+  await next();
+  c.header("X-Content-Type-Options", "nosniff");
+  c.header("X-Frame-Options", "SAMEORIGIN");
+  c.header("Referrer-Policy", "strict-origin-when-cross-origin");
+  c.header("Permissions-Policy", "camera=(self), geolocation=(self), microphone=()");
+});
+
 // CORS middleware para desenvolvimento e produção
 app.use("*", cors({
-  origin: (origin) => origin || "*",
+  origin: (origin) => {
+    if (!origin) return "*";
+    if (
+      origin.includes("localhost") ||
+      origin.includes("127.0.0.1") ||
+      origin.endsWith(".draanamorong.com.br") ||
+      origin === "https://draanamorong.com.br" ||
+      origin.endsWith(".pages.dev")
+    ) {
+      return origin;
+    }
+    return origin;
+  },
   allowMethods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-  allowHeaders: ["Content-Type", "Authorization"],
+  allowHeaders: ["Content-Type", "Authorization", "x-signature-hmac", "x-webhook-secret"],
   exposeHeaders: ["Content-Length"],
   maxAge: 86400,
 }));
@@ -158,14 +204,17 @@ app.post("/auth/login", async (c) => {
     ).bind(user.id).run();
 
     const exp = Date.now() + 1000 * 60 * 60 * 24 * 7; // 7 dias
-    const token = await generateSessionToken({
-      userId: user.id,
-      clinicId: user.clinic_id,
-      name: user.name,
-      email: user.email,
-      role: user.role,
-      exp,
-    });
+    const token = await generateSessionToken(
+      {
+        userId: user.id,
+        clinicId: user.clinic_id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        exp,
+      },
+      c.env.JWT_SECRET || "dra-ana-secret-key-2026"
+    );
 
     return c.json({
       success: true,
@@ -193,12 +242,30 @@ const authMiddleware = async (c: any, next: any) => {
     return c.json({ error: "Não autorizado. Token de sessão ausente." }, 401);
   }
   const token = authHeader.substring(7);
-  const payload = await verifySessionToken(token);
+  const payload = await verifySessionToken(token, c.env.JWT_SECRET || "dra-ana-secret-key-2026");
   if (!payload) {
     return c.json({ error: "Sessão expirada ou inválida. Por favor, faça login novamente." }, 401);
   }
   c.set("user", payload);
   await next();
+};
+
+// Middleware para restringir ações sensíveis apenas à Dra. Ana (admin)
+const adminOnlyMiddleware = async (c: any, next: any) => {
+  const user = c.get("user");
+  if (!user || user.role !== "admin") {
+    return c.json({ error: "Acesso negado. Ação restrita a administradores da clínica." }, 403);
+  }
+  await next();
+};
+
+// Trava de segurança: impede leitura ou alteração direta do cofre via endpoints genéricos de banco
+const isForbiddenVaultQuery = (query: string) => /\bdoctor_certificate_vault\b/i.test(query);
+
+// Trava de segurança: impede que usuários não administradores manipulem a tabela users via API genérica
+const isForbiddenUserModification = (query: string, role?: string) => {
+  if (role === "admin") return false;
+  return /\b(INSERT\s+INTO|UPDATE|DELETE\s+FROM|DROP|ALTER)\s+users\b/i.test(query);
 };
 
 // QUERY (SELECT)
@@ -209,12 +276,25 @@ app.post("/db/query", authMiddleware, async (c) => {
       return c.json({ error: "Parâmetro sql ausente." }, 400);
     }
 
+    if (isForbiddenVaultQuery(sql)) {
+      return c.json({ error: "Acesso bloqueado: o cofre criptográfico só pode ser acessado por rotas autenticadas dedicadas." }, 403);
+    }
+
     const stmt = c.env.DB.prepare(sql).bind(...args);
     const result = await stmt.all();
 
+    // LGPD & Segurança: nunca expor hashes de senha de usuários através do gateway genérico
+    const sanitizedRows = (result.results || []).map((row: any) => {
+      if (row && typeof row === "object" && "password_hash" in row) {
+        const { password_hash, ...rest } = row;
+        return rest;
+      }
+      return row;
+    });
+
     return c.json({
       success: true,
-      data: result.results || [],
+      data: sanitizedRows,
     });
   } catch (error: any) {
     console.error("Erro na consulta D1:", error, c.req.path);
@@ -225,9 +305,18 @@ app.post("/db/query", authMiddleware, async (c) => {
 // EXECUTE (INSERT / UPDATE / DELETE)
 app.post("/db/execute", authMiddleware, async (c) => {
   try {
+    const user = c.get("user");
     const { sql, args = [] } = await c.req.json<{ sql: string; args?: unknown[] }>();
     if (!sql) {
       return c.json({ error: "Parâmetro sql ausente." }, 400);
+    }
+
+    if (isForbiddenVaultQuery(sql)) {
+      return c.json({ error: "Acesso bloqueado: operações diretas no cofre criptográfico não são permitidas via API genérica." }, 403);
+    }
+
+    if (isForbiddenUserModification(sql, user?.role)) {
+      return c.json({ error: "Acesso negado: alterações na tabela de usuários requerem perfil administrador." }, 403);
     }
 
     const stmt = c.env.DB.prepare(sql).bind(...args);
@@ -249,12 +338,22 @@ app.post("/db/execute", authMiddleware, async (c) => {
 // TRANSACTION (BATCH DE OPERAÇÕES)
 app.post("/db/transaction", authMiddleware, async (c) => {
   try {
+    const user = c.get("user");
     const { queries } = await c.req.json<{
       queries: Array<{ sql: string; args?: unknown[]; requireRowsAffected?: boolean }>;
     }>();
 
     if (!Array.isArray(queries) || queries.length === 0) {
       return c.json({ success: true, count: 0 });
+    }
+
+    for (const q of queries) {
+      if (isForbiddenVaultQuery(q.sql)) {
+        return c.json({ error: "Acesso bloqueado: transações com o cofre criptográfico não são permitidas via API genérica." }, 403);
+      }
+      if (isForbiddenUserModification(q.sql, user?.role)) {
+        return c.json({ error: "Acesso negado: transações que modificam a tabela de usuários requerem perfil administrador." }, 403);
+      }
     }
 
     const statements = queries.map((q) => {
@@ -310,7 +409,7 @@ import { DoctorAutoSignVaultService } from "../../src/services/signatures/doctor
 import { PdfStampingEngineService } from "../../src/services/signatures/pdfStampingEngine.service";
 
 // -1. GET /api/signatures/vault — Retorna status do Cofre ICP-Brasil da Dra. Ana
-app.get("/signatures/vault", async (c) => {
+app.get("/signatures/vault", authMiddleware, async (c) => {
   try {
     const vault = await c.env.DB.prepare(
       `SELECT * FROM doctor_certificate_vault WHERE id = 'dra_ana_default_cert' LIMIT 1`
@@ -348,8 +447,8 @@ app.get("/signatures/vault", async (c) => {
   }
 });
 
-// -1. POST /api/signatures/vault — Valida, criptografa em AES-256-GCM e armazena certificado no Cofre
-app.post("/signatures/vault", async (c) => {
+// -1. POST /api/signatures/vault — Valida, criptografa em AES-256-GCM e armazena certificado no Cofre (Apenas Admin)
+app.post("/signatures/vault", authMiddleware, adminOnlyMiddleware, async (c) => {
   try {
     const body = await c.req.json<any>();
     const masterKey = c.env.VAULT_MASTER_KEY || "dra-ana-vault-master-key-2026-safe";
@@ -719,6 +818,18 @@ app.post("/assinar/:token", async (c) => {
 
     if (!doc) {
       return c.json({ error: "Documento não encontrado." }, 404);
+    }
+
+    if (signer.status === 'signed') {
+      return c.json({ error: "Este documento já foi assinado por você anteriormente." }, 400);
+    }
+
+    if (doc.status === 'completed') {
+      return c.json({ error: "O processo de assinatura deste documento já foi finalizado." }, 400);
+    }
+
+    if (doc.status === 'rejected') {
+      return c.json({ error: "Este documento foi cancelado ou recusado." }, 400);
     }
 
     const ipAddress = c.req.header("cf-connecting-ip") || c.req.header("x-forwarded-for") || "127.0.0.1";
@@ -1093,13 +1204,17 @@ app.get("/verificar/:code", async (c) => {
       category: doc.category,
       status: doc.status,
       patient_name: doc.patient_name,
-      patient_cpf: doc.patient_cpf,
+      patient_cpf: maskCpf(doc.patient_cpf),
       original_sha256: doc.original_pdf_sha256,
       signed_sha256: doc.signed_pdf_sha256,
       has_pades: Boolean(doc.pades_pkcs7_hex),
       completed_at: doc.completed_at,
       drive_file_url: doc.drive_file_url,
-      signers: signersRes.results || [],
+      signers: (signersRes.results || []).map((s: any) => ({
+        ...s,
+        cpf: maskCpf(s.cpf || s.cpf_cnpj),
+        cpf_cnpj: maskCpf(s.cpf_cnpj || s.cpf),
+      })),
       audit_trails: auditRes.results || [],
     });
   } catch (err: any) {

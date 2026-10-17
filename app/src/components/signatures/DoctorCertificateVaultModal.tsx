@@ -56,11 +56,24 @@ export const DoctorCertificateVaultModal: React.FC<
   const rubricCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const isDrawingRef = useRef<boolean>(false);
 
+  const getAuthHeaders = (): Record<string, string> => {
+    const token =
+      localStorage.getItem('dra_ana_auth_token') ||
+      localStorage.getItem('auth_token') ||
+      localStorage.getItem('token');
+    return {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    };
+  };
+
   const loadVaultStatus = async () => {
     try {
       setLoading(true);
       setErrorMsg(null);
-      const res = await fetch('/api/signatures/vault');
+      const res = await fetch('/api/signatures/vault', {
+        headers: getAuthHeaders(),
+      });
       const data: VaultStatusResponse = await res.json();
       setStatus(data);
       if (data.configured) {
@@ -106,20 +119,26 @@ export const DoctorCertificateVaultModal: React.FC<
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
     ctx.strokeStyle = '#0f172a';
-    ctx.lineWidth = 2.6;
+    ctx.lineWidth = 2.8;
     ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
     const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
     isDrawingRef.current = true;
     ctx.beginPath();
-    ctx.moveTo(e.clientX - rect.left, e.clientY - rect.top);
+    ctx.moveTo((e.clientX - rect.left) * scaleX, (e.clientY - rect.top) * scaleY);
   };
 
   const handleMoveDraw = (e: React.PointerEvent<HTMLCanvasElement>) => {
     if (!isDrawingRef.current || !rubricCanvasRef.current) return;
-    const rect = rubricCanvasRef.current.getBoundingClientRect();
-    const ctx = rubricCanvasRef.current.getContext('2d');
+    const canvas = rubricCanvasRef.current;
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    const ctx = canvas.getContext('2d');
     if (!ctx) return;
-    ctx.lineTo(e.clientX - rect.left, e.clientY - rect.top);
+    ctx.lineTo((e.clientX - rect.left) * scaleX, (e.clientY - rect.top) * scaleY);
     ctx.stroke();
   };
 
@@ -150,7 +169,7 @@ export const DoctorCertificateVaultModal: React.FC<
 
       const res = await fetch('/api/signatures/vault', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(),
         body: JSON.stringify({
           pfx_base64: pfxBase64,
           password,
@@ -179,8 +198,8 @@ export const DoctorCertificateVaultModal: React.FC<
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-2xl w-full p-6 text-slate-100 shadow-2xl space-y-5 max-h-[92vh] overflow-y-auto">
+    <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-4 sm:p-6">
+      <div className="bg-slate-900 border border-slate-800 rounded-3xl max-w-5xl w-full p-6 sm:p-8 text-slate-100 shadow-2xl space-y-6 max-h-[92vh] overflow-y-auto">
         <div className="flex items-center justify-between border-b border-slate-800 pb-4">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
@@ -211,6 +230,9 @@ export const DoctorCertificateVaultModal: React.FC<
           </div>
         ) : (
           <>
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            {/* COLUNA ESQUERDA: status do certificado e regras de automação */}
+            <div className="lg:col-span-5 space-y-6">
             {/* Card de Certificado Ativo */}
             {status?.configured && (
               <div className="bg-emerald-950/40 border border-emerald-500/40 rounded-xl p-4 space-y-1.5 text-xs">
@@ -271,7 +293,7 @@ export const DoctorCertificateVaultModal: React.FC<
                         e.target.value as 'ON_PATIENT_SIGNED' | 'ON_DOCUMENT_CREATED'
                       )
                     }
-                    className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-2 text-xs text-white"
+                    className="w-full h-11 bg-slate-900 border border-slate-700 rounded-xl px-3.5 text-sm text-white"
                   >
                     <option value="ON_PATIENT_SIGNED">
                       Contra-assinar assim que o Paciente assinar
@@ -291,12 +313,15 @@ export const DoctorCertificateVaultModal: React.FC<
                     value={crmRegister}
                     onChange={(e) => setCrmRegister(e.target.value)}
                     placeholder="Ex: CRM/SC 12345"
-                    className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white"
+                    className="w-full h-11 bg-slate-900 border border-slate-700 rounded-xl px-3.5 text-sm text-white"
                   />
                 </div>
               </div>
             </div>
+            </div>
 
+            {/* COLUNA DIREITA: upload do .pfx, senha e rubrica */}
+            <div className="lg:col-span-7 space-y-6">
             {/* Upload de Arquivo .PFX e Senha */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="bg-slate-950 border border-slate-800 rounded-xl p-4 space-y-2">
@@ -327,7 +352,7 @@ export const DoctorCertificateVaultModal: React.FC<
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="Digite a senha do certificado A1"
-                  className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white"
+                  className="w-full h-11 bg-slate-900 border border-slate-700 rounded-xl px-3.5 text-sm text-white focus:border-emerald-500 outline-none"
                 />
                 <p className="text-[10px] text-slate-400 flex items-center gap-1">
                   <Lock className="w-3 h-3 text-emerald-400" />
@@ -354,14 +379,16 @@ export const DoctorCertificateVaultModal: React.FC<
               <div className="bg-white rounded-lg overflow-hidden border border-slate-700">
                 <canvas
                   ref={rubricCanvasRef}
-                  width={540}
-                  height={110}
+                  width={600}
+                  height={140}
                   onPointerDown={handleStartDraw}
                   onPointerMove={handleMoveDraw}
                   onPointerUp={handleEndDraw}
-                  className="w-full h-28 touch-none cursor-crosshair block"
+                  className="w-full h-36 touch-none cursor-crosshair block"
                 />
               </div>
+            </div>
+            </div>
             </div>
 
             {successMsg && (

@@ -1,0 +1,25 @@
+﻿ 13: Nome Completo: {{nome}}
+ 14: CPF nº: {{cpf}}
+ 15: Data de Nascimento: {{data_nascimento}}
+ 16: Endereço Residencial: {{endereco}}
+ 17: Bairro / Cidade / UF: {{bairro_cidade_uf}}   |   CEP: {{cep}}
+ 18: Telefone / WhatsApp: {{telefone}}   |   E-mail: {{email}}
+ 24: [{{chk_mapa}}] MAPA DA SAÚDE 360® (Experiência Diagnóstica)
+ 29: [{{chk_restart}}] SAÚDE 360® RESTART (Programa de 3 Meses)
+ 37: [{{chk_evolution}}] SAÚDE 360® EVOLUTION (Programa de 6 Meses)
+ 43: [{{chk_signature}}] SAÚDE 360® SIGNATURE (Programa de 12 Meses)
+ 49: [{{chk_life}}] SAÚDE 360® LIFE (Programa de Assinatura Anual de Longevidade)
+ 55: [{{chk_personalizado}}] PROGRAMA PERSONALIZADO / PROTOCOLO CLÍNICO SEMANAL
+ 56: Duração: {{semanas_tratamento}} ({{duracao_personalizada}}).
+ 57: Número total / Seguimento de consultas médicas: {{consulta_seg}}.
+ 58: Frequência e procedimentos complementares em consultório: {{frequencia_procedimentos}}.
+ 59: Especificações terapêuticas: {{especificacoes_terapeuticas}}.
+ 70: 3.1. Em contraprestação aos serviços médicos acordados na Cláusula II, o(a) CONTRATANTE pagará à CONTRATADA o valor total de R$ {{valor_plano}} ({{valor_plano_extenso}}), conforme a modalidade de pagamento selecionada abaixo:
+ 72: [{{chk_avista}}] À Vista: Valor integral de R$ {{valor_avista}} quitado no ato da assinatura via PIX ou transferência bancária.
+ 73: [{{chk_cartao}}] Cartão de Crédito Parcelado: Em {{num_parcelas_cartao}} parcelas mensais de R$ {{valor_parcela_cartao}}, processadas na operadora da CONTRATADA.
+ 74: [{{chk_pix_parcelado}}] PIX Parcelado / Recorrência: Em {{num_parcelas_pix}} parcelas mensais de R$ {{valor_parcela_pix}}, com vencimento fixado para todo dia {{dia_vencimento_pix}} de cada mês.
+ 92: 4.1. Vigência do Contrato: O plano contratado possui prazo de vigência correspondente à sua duração estipulada na Cláusula II ({{vigencia_contrato}}), a contar da data de assinatura deste instrumento ou da data da consulta inicial. Todas as consultas e avaliações integrantes do pacote deverão ser agendadas e fruídas dentro deste intervalo de vigência.
+153: Florianópolis - SC, {{data_extenso}}.
+163: Médica CONTRATADA — CRM/SC {{crm_dra}}
+177: Nome: {{nome}}
+178: CPF: {{cpf}}

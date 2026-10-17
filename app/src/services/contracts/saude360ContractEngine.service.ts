@@ -1,5 +1,6 @@
 // src/services/contracts/saude360ContractEngine.service.ts
 import { PDFDocument, StandardFonts, rgb, PDFImage } from 'pdf-lib';
+import fontkit from '@pdf-lib/fontkit';
 import {
   LETTERHEAD_PAGE1_BASE64,
   LETTERHEAD_PAGE2_BASE64,
@@ -539,16 +540,47 @@ function base64ToUint8Array(base64: string): Uint8Array {
 }
 
 /**
- * Gera um PDF A4 paginado a partir do contrato preenchido e retorna Base64 + total de páginas
- * Utiliza o Papel Timbrado Oficial da Clínica Dra. Ana Morong (Logo, Cabeçalho, Marca d'água e Rodapé).
+ * Gera um PDF A4 paginado de altíssima fidelidade a partir do contrato preenchido e retorna Base64 + total de páginas.
+ * Reproduz rigorosamente a tipografia EB Garamond, o papel timbrado oficial da Dra. Ana Morong,
+ * os blocos de assinatura centralizados e o rodapé oficial em Poppins.
  */
 export async function generateContractPdfBase64(filledContractText: string): Promise<{
   pdfBase64: string;
   pageCount: number;
 }> {
   const pdfDoc = await PDFDocument.create();
-  const fontRegular = await pdfDoc.embedFont(StandardFonts.Helvetica);
-  const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+  pdfDoc.registerFontkit(fontkit);
+
+  // Carrega e embute fontes fiéis ao DOCX original (EB Garamond & Poppins)
+  let fontRegular: any;
+  let fontBold: any;
+  let fontFooter: any;
+
+  try {
+    const [regRes, boldRes, popRes] = await Promise.all([
+      fetch('/fonts/EBGaramond-regular.ttf'),
+      fetch('/fonts/EBGaramond-bold.ttf'),
+      fetch('/fonts/Poppins-regular.ttf'),
+    ]);
+
+    if (regRes.ok && boldRes.ok && popRes.ok) {
+      const [regBuf, boldBuf, popBuf] = await Promise.all([
+        regRes.arrayBuffer(),
+        boldRes.arrayBuffer(),
+        popRes.arrayBuffer(),
+      ]);
+      fontRegular = await pdfDoc.embedFont(new Uint8Array(regBuf));
+      fontBold = await pdfDoc.embedFont(new Uint8Array(boldBuf));
+      fontFooter = await pdfDoc.embedFont(new Uint8Array(popBuf));
+    } else {
+      throw new Error('Fontes TTF não disponíveis via HTTP');
+    }
+  } catch (err) {
+    console.warn('Utilizando fontes padrão do sistema com resguardo:', err);
+    fontRegular = await pdfDoc.embedFont(StandardFonts.Helvetica);
+    fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+    fontFooter = fontRegular;
+  }
 
   // Carrega e embute o Papel Timbrado Oficial
   let bgImg1: PDFImage | null = null;
@@ -563,20 +595,20 @@ export async function generateContractPdfBase64(filledContractText: string): Pro
     console.warn('Papel timbrado não pôde ser embutido, gerando versão padrão:', err);
   }
 
-  const pageWidth = 595.28; // A4 standard width (pt)
-  const pageHeight = 841.89; // A4 standard height (pt)
-  const marginX = 48;
+  const pageWidth = 595.28; // A4 padrão largura (pt)
+  const pageHeight = 841.89; // A4 padrão altura (pt)
+  const marginX = 56.7; // Margem oficial de 2cm (56.7 pt)
   const maxTextWidth = pageWidth - marginX * 2;
-  const bottomMargin = 85; // Resguardo para o rodapé timbrado e rubricas
-  const page1TopMargin = 148; // Resguardo para o cabeçalho timbrado na pág. 1
-  const generalTopMargin = 48; // Resguardo para o topo nas demais páginas
+  const bottomMargin = 72; // Resguardo para o rodapé timbrado e rubricas
+  const page1TopMargin = 142; // Resguardo para o cabeçalho timbrado na pág. 1
+  const generalTopMargin = 56; // Resguardo para o topo nas demais páginas
 
   let pageIndex = 1;
   let page = pdfDoc.addPage([pageWidth, pageHeight]);
   if (bgImg1) {
     page.drawImage(bgImg1, { x: 0, y: 0, width: pageWidth, height: pageHeight });
   }
-  let y = pageHeight - (bgImg1 ? page1TopMargin : 48);
+  let y = pageHeight - (bgImg1 ? page1TopMargin : 56);
 
   const sanitized = sanitizeTextForHelvetica(filledContractText);
   const lines = sanitized.split('\n');
@@ -590,34 +622,69 @@ export async function generateContractPdfBase64(filledContractText: string): Pro
     y = pageHeight - generalTopMargin;
   };
 
+  let inSignatureSection = false;
+
   for (let i = 0; i < lines.length; i++) {
     const rawLine = lines[i];
     const trimmed = rawLine.trim();
 
     if (!trimmed) {
-      y -= 7;
+      y -= 6.5;
       if (y < bottomMargin) {
         addPageBreak();
       }
       continue;
     }
 
+    if (
+      trimmed.startsWith('E, por estarem plenamente esclarecidas') ||
+      trimmed.startsWith('Florianópolis - SC')
+    ) {
+      inSignatureSection = true;
+    }
+
     const isMainTitle = trimmed.startsWith('CONTRATO DE PRESTAÇÃO');
     const isSectionHeader =
-      /^[IVX]+\s*-\s*/.test(trimmed) ||
+      /^[IVX]+\s*[-–—]\s*/.test(trimmed) ||
       trimmed.startsWith('CONTRATADA:') ||
       trimmed.startsWith('CONTRATANTE (PACIENTE):') ||
-      trimmed.startsWith('[X]') ||
+      trimmed.startsWith('2.2. Diretrizes Técnicas') ||
       trimmed.startsWith('Parágrafo');
 
-    const font = isMainTitle || isSectionHeader ? fontBold : fontRegular;
-    const size = isMainTitle ? 10.5 : isSectionHeader ? 8.8 : 8.2;
-    const lineHeight = size + 3.8;
+    const isProgramItem = /^\[[X\s]\]\s+/i.test(trimmed);
+    const isIndentedItem = /^[a-z]\)\s+/i.test(trimmed) || /^[-–]\s+/i.test(trimmed);
 
-    // Se for o bloco final de assinatura, garante que não fique quebrado solitário
-    if (trimmed.startsWith('E, por estarem plenamente esclarecidas') && y < 220) {
+    // Identificação de linhas centralizadas (conforme document.xml original)
+    const isCentered =
+      isMainTitle ||
+      (inSignatureSection &&
+        (trimmed.startsWith('___________________') ||
+          trimmed.startsWith('DRA. ANA CARLA MORONG') ||
+          trimmed.startsWith('Médica CONTRATADA') ||
+          trimmed.startsWith('CNPJ: 54.811.772/0001-32') ||
+          trimmed.startsWith('CONTRATANTE / PACIENTE') ||
+          trimmed.startsWith('Nome:') ||
+          trimmed.startsWith('CPF:')));
+
+    const font = isMainTitle || isSectionHeader || isProgramItem ? fontBold : fontRegular;
+    const size = isMainTitle ? 11.5 : isSectionHeader ? 10.5 : 10;
+    const lineHeight = size + 4.2;
+
+    // Espaçamento adicional antes de títulos de seção
+    if (isSectionHeader && !isMainTitle) {
+      y -= 4;
+      if (y < bottomMargin) {
+        addPageBreak();
+      }
+    }
+
+    // Proteção contra quebra órfã do bloco final de assinaturas
+    if (trimmed.startsWith('E, por estarem plenamente esclarecidas') && y < 270) {
       addPageBreak();
     }
+
+    const indent = isIndentedItem ? 14 : 0;
+    const currentMaxW = maxTextWidth - indent;
 
     const words = trimmed.split(/\s+/);
     let currentLine = '';
@@ -631,25 +698,37 @@ export async function generateContractPdfBase64(filledContractText: string): Pro
         candidateWidth = font.widthOfTextAtSize(candidate.replace(/[^\x00-\x7F]/g, ''), size);
       }
 
-      if (candidateWidth > maxTextWidth && currentLine) {
+      if (candidateWidth > currentMaxW && currentLine) {
         if (y < bottomMargin) {
           addPageBreak();
         }
+
+        let drawX = marginX + indent;
+        if (isCentered) {
+          let lineW = 0;
+          try {
+            lineW = font.widthOfTextAtSize(currentLine, size);
+          } catch {
+            lineW = font.widthOfTextAtSize(currentLine.replace(/[^\x00-\x7F]/g, ''), size);
+          }
+          drawX = (pageWidth - lineW) / 2;
+        }
+
         try {
           page.drawText(currentLine, {
-            x: marginX,
+            x: drawX,
             y,
             size,
             font,
-            color: rgb(0.08, 0.1, 0.14),
+            color: rgb(0.12, 0.14, 0.17),
           });
         } catch {
           page.drawText(currentLine.replace(/[^\x00-\x7F]/g, ''), {
-            x: marginX,
+            x: drawX,
             y,
             size,
             font,
-            color: rgb(0.08, 0.1, 0.14),
+            color: rgb(0.12, 0.14, 0.17),
           });
         }
         y -= lineHeight;
@@ -663,37 +742,57 @@ export async function generateContractPdfBase64(filledContractText: string): Pro
       if (y < bottomMargin) {
         addPageBreak();
       }
+
+      let drawX = marginX + indent;
+      if (isCentered) {
+        let lineW = 0;
+        try {
+          lineW = font.widthOfTextAtSize(currentLine, size);
+        } catch {
+          lineW = font.widthOfTextAtSize(currentLine.replace(/[^\x00-\x7F]/g, ''), size);
+        }
+        drawX = (pageWidth - lineW) / 2;
+      }
+
       try {
         page.drawText(currentLine, {
-          x: marginX,
+          x: drawX,
           y,
           size,
           font,
-          color: rgb(0.08, 0.1, 0.14),
+          color: rgb(0.12, 0.14, 0.17),
         });
       } catch {
         page.drawText(currentLine.replace(/[^\x00-\x7F]/g, ''), {
-          x: marginX,
+          x: drawX,
           y,
           size,
           font,
-          color: rgb(0.08, 0.1, 0.14),
+          color: rgb(0.12, 0.14, 0.17),
         });
       }
       y -= lineHeight;
     }
   }
 
-  // Numeração de páginas discreta e elegante
+  // Rodapé Oficial: "Clínica Dra. Ana Morong | Página X de Y." em Poppins (#405549)
   const totalPages = pdfDoc.getPageCount();
   const allPages = pdfDoc.getPages();
   for (let p = 0; p < totalPages; p++) {
-    allPages[p].drawText(`Pág. ${p + 1} de ${totalPages}`, {
-      x: pageWidth - marginX - 30,
+    const footerText = `Clínica Dra. Ana Morong | Página ${p + 1} de ${totalPages}.`;
+    const fSize = 8.5;
+    let fWidth = 0;
+    try {
+      fWidth = fontFooter.widthOfTextAtSize(footerText, fSize);
+    } catch {
+      fWidth = fontRegular.widthOfTextAtSize(footerText, fSize);
+    }
+    allPages[p].drawText(footerText, {
+      x: pageWidth - marginX - fWidth,
       y: 28,
-      size: 7.5,
-      font: fontRegular,
-      color: rgb(0.45, 0.5, 0.55),
+      size: fSize,
+      font: fontFooter,
+      color: rgb(0.25, 0.33, 0.29), // #405549 oficial da identidade visual
     });
   }
 

@@ -10,7 +10,9 @@ binding = "DB"
 database_name = "dra-ana-estoque-db"
 database_id = "446c4a2f-578b-4b58-b58e-2d9da59ec90d"
 
-# Variáveis de Ambiente e Segredos Criptográficos
+# Variáveis de Ambiente Públicas
+# ATENÇÃO DE SEGURANÇA: Segredos (como VAULT_MASTER_KEY e JWT_SECRET) não devem
+# ser salvos em texto plano neste arquivo. Configure-os como Secrets criptografados
+# no painel do Cloudflare Pages (Configurações > Variáveis de Ambiente) ou via CLI.
 [vars]
-PUBLIC_APP_URL = "https://draanamorong.com.br"
-# VAULT_MASTER_KEY deve ser configurado via Cloudflare Dashboard / Secrets para AES-256-GCM
+PUBLIC_APP_URL = "https://app.draanamorong.com.br"
