@@ -468,6 +468,31 @@ function getAuthHeaders(): Record<string, string> {
   };
 }
 
+async function safeParseWebPayload(response: Response, defaultError: string): Promise<any> {
+  let payload: any = null;
+  const contentType = response.headers.get("content-type") || "";
+  if (contentType.includes("application/json")) {
+    try {
+      payload = await response.json();
+    } catch {
+      payload = null;
+    }
+  }
+
+  if (!payload) {
+    if (response.status === 502 || response.status === 503 || response.status === 504) {
+      throw new Error("O servidor da nuvem está reiniciando ou sincronizando. Aguarde 5 segundos e tente novamente.");
+    }
+    throw new Error(`Falha de comunicação com o servidor (${response.status}).`);
+  }
+
+  if (!response.ok || !payload.success) {
+    throw new Error(payload.error || defaultError);
+  }
+
+  return payload;
+}
+
 async function webDbSelect<T = Row>(sql: string, args: unknown[] = []): Promise<T[]> {
   const response = await fetch("/api/db/query", {
     method: "POST",
@@ -475,10 +500,7 @@ async function webDbSelect<T = Row>(sql: string, args: unknown[] = []): Promise<
     body: JSON.stringify({ sql, args }),
   });
 
-  const payload = await response.json();
-  if (!response.ok || !payload.success) {
-    throw new Error(payload.error || "Erro ao consultar banco de dados remoto (Cloudflare D1).");
-  }
+  const payload = await safeParseWebPayload(response, "Erro ao consultar banco de dados remoto (Cloudflare D1).");
   return (payload.data || []) as T[];
 }
 
@@ -489,10 +511,7 @@ async function webDbExecute(sql: string, args: unknown[] = []): Promise<QueryRes
     body: JSON.stringify({ sql, args }),
   });
 
-  const payload = await response.json();
-  if (!response.ok || !payload.success) {
-    throw new Error(payload.error || "Erro ao executar operação no banco remoto (Cloudflare D1).");
-  }
+  const payload = await safeParseWebPayload(response, "Erro ao executar operação no banco remoto (Cloudflare D1).");
   return payload.data as QueryResult;
 }
 
@@ -585,10 +604,7 @@ export async function dbTransaction<T>(callback: () => Promise<T>): Promise<T> {
           headers: getAuthHeaders(),
           body: JSON.stringify({ queries: _activeTransaction }),
         });
-        const payload = await response.json();
-        if (!response.ok || !payload.success) {
-          throw new Error(payload.error || "Falha ao persistir transação no Cloudflare D1.");
-        }
+        await safeParseWebPayload(response, "Falha ao persistir transação no Cloudflare D1.");
       }
       return result;
     } finally {

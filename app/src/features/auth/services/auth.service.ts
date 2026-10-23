@@ -32,7 +32,23 @@ export const authService = {
         body: JSON.stringify({ email: normalizedEmail, password }),
       });
 
-      const payload = await response.json();
+      let payload: any = null;
+      const contentType = response.headers.get("content-type") || "";
+      if (contentType.includes("application/json")) {
+        try {
+          payload = await response.json();
+        } catch {
+          payload = null;
+        }
+      }
+
+      if (!payload) {
+        if (response.status === 502 || response.status === 503 || response.status === 504) {
+          throw new Error("O servidor da nuvem está sincronizando. Aguarde 5 segundos e tente novamente.");
+        }
+        throw new Error(`Falha de comunicação com o servidor (${response.status}). Tente novamente.`);
+      }
+
       if (!response.ok || !payload.success) {
         throw new Error(payload.error || "E-mail ou senha inválidos.");
       }
