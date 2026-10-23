@@ -294,23 +294,44 @@ export class PdfStampingEngine {
       }
     );
 
-    // Geração do QR Code em PNG DataURL
+    // Geração do QR Code vetorial nativo (sem dependência de Canvas)
     const qrTargetUrl = `${req.publicVerifyUrlBase}?code=${encodeURIComponent(
       req.verificationCode
     )}&sha256=${encodeURIComponent(originalSha256)}`;
-    const qrDataUrl = await QRCode.toDataURL(qrTargetUrl, {
-      width: 130,
-      margin: 1,
-    });
-    const qrBytes = this.base64ToBytes(qrDataUrl);
-    const qrEmbedded = await pdfDoc.embedPng(qrBytes as unknown as ArrayBuffer);
 
-    manifestPage.drawImage(qrEmbedded, {
-      x: mW - 122,
-      y: mH - 182,
-      width: 92,
-      height: 92,
-    });
+    const qrTargetX = mW - 122;
+    const qrTargetY = mH - 182;
+    const qrTargetSize = 92;
+
+    try {
+      const qr = QRCode.create(qrTargetUrl, { errorCorrectionLevel: 'M' });
+      const moduleCount = qr.modules.size;
+      const cellSize = qrTargetSize / moduleCount;
+
+      manifestPage.drawRectangle({
+        x: qrTargetX,
+        y: qrTargetY,
+        width: qrTargetSize,
+        height: qrTargetSize,
+        color: rgb(1, 1, 1),
+      });
+
+      for (let row = 0; row < moduleCount; row++) {
+        for (let col = 0; col < moduleCount; col++) {
+          if (qr.modules.get(row, col)) {
+            manifestPage.drawRectangle({
+              x: qrTargetX + col * cellSize,
+              y: qrTargetY + (moduleCount - 1 - row) * cellSize,
+              width: cellSize,
+              height: cellSize,
+              color: rgb(0, 0, 0),
+            });
+          }
+        }
+      }
+    } catch (qrErr) {
+      console.warn('Falha na renderização vetorial do QR Code:', qrErr);
+    }
 
     manifestPage.drawText('Escaneie p/ validar', {
       x: mW - 112,

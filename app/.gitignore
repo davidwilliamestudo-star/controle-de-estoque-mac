@@ -38,6 +38,7 @@ anamorong.key
 *.sqlite
 *.sqlite3
 db-backups/
+audit-reports/*.json
 estoque_backup.db
 
 # Artefatos de build Tauri (já cobertos em src-tauri/.gitignore, reforço)
