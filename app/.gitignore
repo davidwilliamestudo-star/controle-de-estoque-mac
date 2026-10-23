@@ -26,6 +26,7 @@ dist-ssr
 # Ambiente e segredos (nunca commitar)
 .env
 .env.*
+.dev.vars
 *.key
 *.pem
 tauri-private.key
