@@ -423,6 +423,7 @@ CREATE TABLE IF NOT EXISTS patients (
   full_name    TEXT NOT NULL,
   phone        TEXT,
   email        TEXT,
+  document     TEXT,
   birth_date   TEXT,
   notes        TEXT,
   alert_notes  TEXT,
@@ -1017,4 +1018,12 @@ CREATE TABLE IF NOT EXISTS signature_audit_trails (
 );
 
 CREATE INDEX IF NOT EXISTS idx_audit_trails_document ON signature_audit_trails(document_id);
+
+-- 6. Tabela de Proteção de Autenticação contra Ataques de Força Bruta (Rate Limiting)
+CREATE TABLE IF NOT EXISTS login_rate_limits (
+    rate_key TEXT PRIMARY KEY NOT NULL,
+    failed_attempts INTEGER NOT NULL DEFAULT 1,
+    last_attempt_at TEXT NOT NULL DEFAULT (datetime('now')),
+    locked_until TEXT
+);
 

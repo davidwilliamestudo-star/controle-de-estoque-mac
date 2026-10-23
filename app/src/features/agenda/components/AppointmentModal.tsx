@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { X, Save } from "lucide-react";
+import { Save } from "lucide-react";
 import { format } from "date-fns";
 import { useQuery } from "@tanstack/react-query";
 import { useCreateAppointment, useUpdateAppointment } from "../hooks/useAppointments";
@@ -8,6 +8,7 @@ import { useProtocols } from "@/features/protocols/hooks/useProtocols";
 import { patientApplicationsService } from "@/features/patients/services/patientApplications.service";
 import { StockValidationPanel } from "./StockValidationPanel";
 import type { Appointment, AppointmentFormData } from "../schemas/appointment.schema";
+import { Modal, FormField, Input, Select, Textarea, Button } from "@/components/ui";
 
 interface AppointmentModalProps {
   initialDate: Date;
@@ -105,207 +106,210 @@ export function AppointmentModal({ initialDate, appointment, defaultPatientId, d
   const isPending = createMutation.isPending || updateMutation.isPending;
 
   return (
-    <div className="modal-overlay active">
-      <div className="modal-content" style={{ maxWidth: 720, maxHeight: "90vh" }}>
-        <div className="modal-header">
-          <h2 className="modal-title">{isEditing ? "Editar Agendamento" : "Novo Agendamento"}</h2>
-          <button className="btn btn-ghost" onClick={onClose} type="button"><X size={20} /></button>
+    <Modal
+      isOpen={true}
+      onClose={onClose}
+      title={isEditing ? "Editar Agendamento" : "Novo Agendamento Clínico"}
+      description={
+        isEditing
+          ? "Atualize as informações do agendamento ou protocolo vinculado."
+          : "Agende consultas, sessões de aplicação de protocolos e retornos."
+      }
+      size="lg"
+      footer={
+        <div className="flex items-center justify-end gap-3 w-full">
+          <Button variant="secondary" onClick={onClose} disabled={isPending} type="button">
+            Cancelar
+          </Button>
+          <Button
+            type="submit"
+            form="appointment-form"
+            variant="primary"
+            isLoading={isPending}
+            leftIcon={<Save size={16} />}
+          >
+            {isEditing ? "Salvar Alterações" : "Confirmar Agendamento"}
+          </Button>
+        </div>
+      }
+    >
+      <form id="appointment-form" onSubmit={handleSubmit} className="space-y-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <FormField label="Paciente" required>
+            <Select
+              value={form.patient_id}
+              onChange={e => setForm({ ...form, patient_id: e.target.value })}
+              required
+            >
+              <option value="">Selecione o paciente...</option>
+              {patients.map(p => (
+                <option key={p.id} value={p.id}>{p.full_name}</option>
+              ))}
+            </Select>
+          </FormField>
+
+          <FormField label="Tipo de Agendamento" required>
+            <Select
+              value={form.type}
+              onChange={e => setForm({ ...form, type: e.target.value as any })}
+            >
+              <option value="application">Aplicação de Protocolo</option>
+              <option value="consultation">Consulta Médica</option>
+              <option value="return">Retorno Clínico</option>
+              <option value="other">Outro Procedimento</option>
+            </Select>
+          </FormField>
         </div>
 
-        <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0 overflow-hidden">
-          <div className="modal-body flex flex-col gap-4 overflow-y-auto">
-            
-            <div className="grid-2">
-              <div className="form-group">
-                <label className="form-label">Paciente</label>
-                <select 
-                  className="form-control" 
-                  value={form.patient_id} 
-                  onChange={e => setForm({ ...form, patient_id: e.target.value })}
-                  required
-                >
-                  <option value="">Selecione o paciente...</option>
-                  {patients.map(p => (
-                    <option key={p.id} value={p.id}>{p.full_name}</option>
-                  ))}
-                </select>
+        {form.type === "application" && form.patient_id && (
+          <div className="rounded-xl border border-emerald-200/90 bg-emerald-50/50 p-4 space-y-3.5 transition-all">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 rounded-full bg-emerald-600 animate-pulse" />
+                <h3 className="text-sm font-semibold text-emerald-950">Vínculo de Aplicação de Protocolo</h3>
               </div>
-
-              <div className="form-group">
-                <label className="form-label">Tipo de Consulta</label>
-                <select 
-                  className="form-control" 
-                  value={form.type}
-                  onChange={e => setForm({ ...form, type: e.target.value as any })}
-                >
-                  <option value="application">Aplicação</option>
-                  <option value="consultation">Consulta</option>
-                  <option value="return">Retorno</option>
-                  <option value="other">Outro</option>
-                </select>
-              </div>
+              <span className="text-xs text-emerald-700 font-medium">Controle de Estoque & Baixa</span>
             </div>
 
-            {form.type === "application" && form.patient_id && (
-              <div className="card p-3" style={{ background: "var(--bg-secondary)" }}>
-                <h3 className="text-sm font-semibold mb-2">Vínculo de Aplicação</h3>
-                
-                <div className="flex gap-4 mb-3">
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input 
-                      type="radio" 
-                      name="appMode" 
-                      checked={applicationMode === "existing"}
-                      onChange={() => setApplicationMode("existing")}
-                    />
-                    <span className="text-sm font-medium">Usar aplicação já planejada</span>
-                  </label>
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input 
-                      type="radio" 
-                      name="appMode" 
-                      checked={applicationMode === "new"}
-                      onChange={() => setApplicationMode("new")}
-                    />
-                    <span className="text-sm font-medium">Criar nova aplicação</span>
-                  </label>
-                </div>
+            <div className="flex items-center gap-2 p-1 bg-white rounded-lg border border-emerald-100 w-fit">
+              <button
+                type="button"
+                onClick={() => setApplicationMode("existing")}
+                className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-all ${
+                  applicationMode === "existing"
+                    ? "bg-emerald-600 text-white shadow-xs"
+                    : "text-slate-600 hover:text-slate-950 hover:bg-slate-50"
+                }`}
+              >
+                Aplicação já planejada
+              </button>
+              <button
+                type="button"
+                onClick={() => setApplicationMode("new")}
+                className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-all ${
+                  applicationMode === "new"
+                    ? "bg-emerald-600 text-white shadow-xs"
+                    : "text-slate-600 hover:text-slate-950 hover:bg-slate-50"
+                }`}
+              >
+                Criar nova aplicação
+              </button>
+            </div>
 
-                {applicationMode === "existing" && (
-                  <div className="form-group">
-                    <select 
-                      className="form-control"
-                      value={form.application_plan_id || ""}
-                      onChange={e => setForm({ ...form, application_plan_id: e.target.value })}
-                      required={applicationMode === "existing"}
-                    >
-                      <option value="">Selecione a aplicação...</option>
-                      {availablePlans.map(plan => (
-                        <option key={plan.id} value={plan.id}>
-                          {plan.protocolName} - {plan.routeName}
-                        </option>
-                      ))}
-                    </select>
-                    {availablePlans.length === 0 && (
-                      <p className="text-xs text-red mt-1">Este paciente não possui aplicações planejadas. Crie uma nova.</p>
-                    )}
-                  </div>
-                )}
+            {applicationMode === "existing" && (
+              <FormField
+                label="Aplicação Planejada do Paciente"
+                required
+                helperText={availablePlans.length > 0 ? "Selecione o plano em aberto para vincular a esta sessão." : undefined}
+                error={availablePlans.length === 0 ? "Este paciente não possui aplicações em aberto. Selecione 'Criar nova aplicação' acima." : undefined}
+              >
+                <Select
+                  value={form.application_plan_id || ""}
+                  onChange={e => setForm({ ...form, application_plan_id: e.target.value })}
+                  required={applicationMode === "existing"}
+                >
+                  <option value="">Selecione a aplicação...</option>
+                  {availablePlans.map(plan => (
+                    <option key={plan.id} value={plan.id}>
+                      {plan.protocolName} - {plan.routeName}
+                    </option>
+                  ))}
+                </Select>
+              </FormField>
+            )}
 
-                {applicationMode === "new" && (
-                  <div className="grid-2">
-                    <div className="form-group">
-                      <label className="form-label text-xs">Protocolo</label>
-                      <select 
-                        className="form-control"
-                        value={form.new_plan_protocol_id || ""}
-                        onChange={e => {
-                          const protocolId = e.target.value;
-                          const protocol = protocols.find(p => p.id === protocolId);
-                          setForm({ 
-                            ...form, 
-                            new_plan_protocol_id: protocolId,
-                            new_plan_route_id: protocol?.administrationRouteId || ""
-                          });
-                        }}
-                        required={applicationMode === "new"}
-                      >
-                        <option value="">Selecione o protocolo...</option>
-                        {protocols.filter(p => p.isActive === 1).map(p => (
-                          <option key={p.id} value={p.id}>{p.name}</option>
-                        ))}
-                      </select>
-                    </div>
-                    <div className="form-group">
-                      <label className="form-label text-xs">Via Padrão (automático)</label>
-                      <input 
-                        type="text" 
-                        className="form-control" 
-                        disabled 
-                        value={selectedProtocol?.administrationRouteId || "Via de administração..."} 
-                      />
-                    </div>
-                  </div>
-                )}
+            {applicationMode === "new" && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <FormField label="Protocolo Clínico" required>
+                  <Select
+                    value={form.new_plan_protocol_id || ""}
+                    onChange={e => {
+                      const protocolId = e.target.value;
+                      const protocol = protocols.find(p => p.id === protocolId);
+                      setForm({
+                        ...form,
+                        new_plan_protocol_id: protocolId,
+                        new_plan_route_id: protocol?.administrationRouteId || "",
+                      });
+                    }}
+                    required={applicationMode === "new"}
+                  >
+                    <option value="">Selecione o protocolo...</option>
+                    {protocols.filter(p => p.isActive === 1).map(p => (
+                      <option key={p.id} value={p.id}>{p.name}</option>
+                    ))}
+                  </Select>
+                </FormField>
 
-                <StockValidationPanel 
-                  applicationPlanId={applicationMode === "existing" ? form.application_plan_id : undefined}
-                  protocolId={applicationMode === "new" ? form.new_plan_protocol_id : undefined}
-                  excludeAppointmentId={appointment?.id}
-                  onValidationChange={setIsStockSufficient}
-                />
+                <FormField label="Via de Administração (Automática)">
+                  <Input
+                    type="text"
+                    disabled
+                    value={selectedProtocol?.administrationRouteId || "Preenchimento automático..."}
+                    className="bg-slate-50 text-slate-500 cursor-not-allowed"
+                  />
+                </FormField>
               </div>
             )}
 
-            <div className="grid-2 mt-2">
-              <div className="form-group">
-                <label className="form-label">Data e Hora</label>
-                <input 
-                  type="datetime-local" 
-                  className="form-control" 
-                  value={form.appointment_date}
-                  onChange={e => setForm({ ...form, appointment_date: e.target.value })}
-                  required
-                />
-              </div>
-
-              <div className="form-group">
-                <label className="form-label">Duração (minutos)</label>
-                <select 
-                  className="form-control" 
-                  value={form.duration_minutes}
-                  onChange={e => setForm({ ...form, duration_minutes: Number(e.target.value) })}
-                >
-                  <option value="15">15 minutos</option>
-                  <option value="30">30 minutos</option>
-                  <option value="45">45 minutos</option>
-                  <option value="60">1 hora</option>
-                  <option value="90">1 hora e meia</option>
-                  <option value="120">2 horas</option>
-                </select>
-              </div>
-            </div>
-
-            <div className="grid-2">
-              <div className="form-group">
-                <label className="form-label">Status</label>
-                <select 
-                  className="form-control" 
-                  value={form.status}
-                  onChange={e => setForm({ ...form, status: e.target.value as any })}
-                >
-                  <option value="scheduled">Agendado</option>
-                  <option value="confirmed">Confirmado</option>
-                  <option value="done">Realizado</option>
-                  <option value="missed">Faltou</option>
-                  <option value="canceled">Cancelado</option>
-                </select>
-              </div>
-              <div className="form-group">
-                <label className="form-label">Observações</label>
-                <textarea 
-                  className="form-control" 
-                  rows={2}
-                  placeholder="Observações administrativas..."
-                  value={form.notes}
-                  onChange={e => setForm({ ...form, notes: e.target.value })}
-                />
-              </div>
-            </div>
-
+            <StockValidationPanel
+              applicationPlanId={applicationMode === "existing" ? form.application_plan_id : undefined}
+              protocolId={applicationMode === "new" ? form.new_plan_protocol_id : undefined}
+              excludeAppointmentId={appointment?.id}
+              onValidationChange={setIsStockSufficient}
+            />
           </div>
+        )}
 
-          <div className="modal-footer flex justify-end gap-3">
-            <button type="button" className="btn btn-secondary" onClick={onClose} disabled={isPending}>
-              Cancelar
-            </button>
-            <button type="submit" className="btn btn-primary" disabled={isPending}>
-              <Save size={16} />
-              {isPending ? "Salvando..." : "Salvar Agendamento"}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <FormField label="Data e Hora" required>
+            <Input
+              type="datetime-local"
+              value={form.appointment_date}
+              onChange={e => setForm({ ...form, appointment_date: e.target.value })}
+              required
+            />
+          </FormField>
+
+          <FormField label="Duração Estimada" required>
+            <Select
+              value={form.duration_minutes}
+              onChange={e => setForm({ ...form, duration_minutes: Number(e.target.value) })}
+            >
+              <option value="15">15 minutos</option>
+              <option value="30">30 minutos</option>
+              <option value="45">45 minutos</option>
+              <option value="60">1 hora</option>
+              <option value="90">1 hora e meia</option>
+              <option value="120">2 horas</option>
+            </Select>
+          </FormField>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <FormField label="Status" required>
+            <Select
+              value={form.status}
+              onChange={e => setForm({ ...form, status: e.target.value as any })}
+            >
+              <option value="scheduled">Agendado</option>
+              <option value="confirmed">Confirmado</option>
+              <option value="done">Realizado</option>
+              <option value="missed">Faltou</option>
+              <option value="canceled">Cancelado</option>
+            </Select>
+          </FormField>
+
+          <FormField label="Observações Clínicas / Administrativas" optional>
+            <Textarea
+              rows={2}
+              placeholder="Orientações de preparo, notas de recepção..."
+              value={form.notes}
+              onChange={e => setForm({ ...form, notes: e.target.value })}
+            />
+          </FormField>
+        </div>
+      </form>
+    </Modal>
   );
 }

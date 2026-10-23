@@ -17,15 +17,17 @@ import { ProcedureCorrectionModal } from "@/features/procedures/components/Proce
 import { PatientRecordReportPanel } from "../components/PatientRecordReportPanel";
 import { PatientMonthlyCostPanel } from "@/features/monthly-summary/components/PatientMonthlyCostPanel";
 import { ContractPreparationAndSignatureModal } from "@/components/contracts/ContractPreparationAndSignatureModal";
+import { PatientDocumentsTab } from "../components/PatientDocumentsTab";
 
 // FIX: Removida tab "Relatórios" redundante — botão já existe no PatientHeader
-type Tab = "overview" | "applications" | "history" | "evolutions" | "medications" | "lots" | "areas";
+type Tab = "overview" | "applications" | "history" | "evolutions" | "documents" | "medications" | "lots" | "areas";
 
 const tabs: { id: Tab; label: string }[] = [
   { id: "overview", label: "Visão Geral" },
   { id: "applications", label: "Aplicações" },
   { id: "history", label: "Histórico" },
   { id: "evolutions", label: "Evoluções" },
+  { id: "documents", label: "Documentos e Contratos" },
   { id: "medications", label: "Medicamentos e Materiais" },
   { id: "lots", label: "Lotes Utilizados" },
   { id: "areas", label: "Áreas Corporais" },
@@ -206,6 +208,15 @@ export default function PatientRecordPage() {
         />
       )}
       {activeTab === "evolutions" && <EvolutionsTab procedures={finalizedProcedures} />}
+      {activeTab === "documents" && (
+        <PatientDocumentsTab
+          patientId={record.id}
+          patientName={record.full_name}
+          patientCpf={record.document || undefined}
+          patientPhone={record.phone || undefined}
+          onNewContract={() => setIsContractModalOpen(true)}
+        />
+      )}
       {activeTab === "medications" && <PatientUsedItemsTab patientId={record.id} />}
       {activeTab === "lots" && <PatientUsedBatchesTab patientId={record.id} />}
       {activeTab === "areas" && <AreasTab procedures={finalizedProcedures} />}

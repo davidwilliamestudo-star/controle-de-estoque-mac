@@ -1,6 +1,3 @@
-// src/features/signatures/pages/PatientPublicSignPage.tsx
-'use client';
-
 import React, { useState, useEffect, useRef } from 'react';
 import * as pdfjsLib from 'pdfjs-dist';
 import {
@@ -27,6 +24,13 @@ import {
   Eye,
   AlertCircle,
 } from 'lucide-react';
+import {
+  Button,
+  Badge,
+  Card,
+  SignaturePad,
+  SignatureAuditStamp,
+} from '@/components/ui';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`;
 
@@ -82,7 +86,8 @@ export default function PatientPublicSignPage({ token: propToken }: PatientPubli
 
   // Dados Coletados do Paciente
   const [acceptedTerms, setAcceptedTerms] = useState<boolean>(false);
-  const [hasDrawnSignature, setHasDrawnSignature] = useState<boolean>(false);
+  const [signatureDataUrl, setSignatureDataUrl] = useState<string | null>(null);
+  const hasDrawnSignature = Boolean(signatureDataUrl);
   const [selfieDataUrl, setSelfieDataUrl] = useState<string | null>(null);
   const [cameraActive, setCameraActive] = useState<boolean>(false);
   const [geoCoords, setGeoCoords] = useState<{ lat: number; lng: number } | null>(null);
@@ -91,11 +96,9 @@ export default function PatientPublicSignPage({ token: propToken }: PatientPubli
   const [driveUrl, setDriveUrl] = useState<string | null>(null);
   const [copiedCode, setCopiedCode] = useState<boolean>(false);
 
-  // Refs para PDF, Canvas de Assinatura e Vídeo da Câmera
+  // Refs para PDF e Vídeo da Câmera
   const pdfContainerRef = useRef<HTMLDivElement | null>(null);
-  const signatureCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
-  const isDrawingRef = useRef<boolean>(false);
 
   // 1. Carrega os dados da sessão pelo Token único
   useEffect(() => {
@@ -237,62 +240,7 @@ export default function PatientPublicSignPage({ token: propToken }: PatientPubli
     }
   }, [step]);
 
-  // 4. Funções do Canvas Touch-Friendly de Assinatura
-  const initCanvasCtx = () => {
-    const canvas = signatureCanvasRef.current;
-    if (!canvas) return null;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return null;
-    ctx.strokeStyle = '#0f172a';
-    ctx.lineWidth = 3.2;
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
-    return ctx;
-  };
-
-  const handlePointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
-    e.currentTarget.setPointerCapture(e.pointerId);
-    const canvas = signatureCanvasRef.current;
-    const ctx = initCanvasCtx();
-    if (!canvas || !ctx) return;
-
-    const rect = canvas.getBoundingClientRect();
-    const scaleX = canvas.width / rect.width;
-    const scaleY = canvas.height / rect.height;
-
-    isDrawingRef.current = true;
-    setHasDrawnSignature(true);
-    ctx.beginPath();
-    ctx.moveTo((e.clientX - rect.left) * scaleX, (e.clientY - rect.top) * scaleY);
-  };
-
-  const handlePointerMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
-    if (!isDrawingRef.current || !signatureCanvasRef.current) return;
-    const canvas = signatureCanvasRef.current;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    const rect = canvas.getBoundingClientRect();
-    const scaleX = canvas.width / rect.width;
-    const scaleY = canvas.height / rect.height;
-
-    ctx.lineTo((e.clientX - rect.left) * scaleX, (e.clientY - rect.top) * scaleY);
-    ctx.stroke();
-  };
-
-  const handlePointerUp = () => {
-    isDrawingRef.current = false;
-  };
-
-  const clearSignaturePad = () => {
-    const canvas = signatureCanvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    ctx?.clearRect(0, 0, canvas.width, canvas.height);
-    setHasDrawnSignature(false);
-  };
-
-  // 5. Captura de Selfie Biométrica Opcional (Câmera Frontal)
+  // 4. Captura de Selfie Biométrica Opcional (Câmera Frontal)
   const startCamera = async () => {
     try {
       setCameraActive(true);
@@ -324,21 +272,19 @@ export default function PatientPublicSignPage({ token: propToken }: PatientPubli
     setCameraActive(false);
   };
 
-  // 6. Submissão Final da Assinatura
+  // 5. Submissão Final da Assinatura
   const handleFinalizeSignature = async () => {
-    if (!session || !signatureCanvasRef.current || !hasDrawnSignature || !acceptedTerms) {
+    if (!session || !signatureDataUrl || !acceptedTerms) {
       return;
     }
 
     try {
       setSubmitting(true);
-      const signaturePngBase64 = signatureCanvasRef.current.toDataURL('image/png');
-
       const res = await fetch(`/api/assinar/${encodeURIComponent(token)}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          signature_png_base64: signaturePngBase64,
+          signature_png_base64: signatureDataUrl,
           selfie_photo_base64: selfieDataUrl,
           lat: geoCoords?.lat ?? null,
           lng: geoCoords?.lng ?? null,
@@ -648,18 +594,20 @@ export default function PatientPublicSignPage({ token: propToken }: PatientPubli
               </p>
             </div>
 
-            <button
+            <Button
               type="button"
+              variant="primary"
+              size="lg"
+              className="w-full sm:w-auto"
               onClick={() => {
                 setStep('capture_signature');
                 window.scrollTo({ top: 0, behavior: 'smooth' });
               }}
-              className="w-full sm:w-auto py-3.5 px-8 rounded-xl bg-gradient-to-r from-emerald-700 to-emerald-800 hover:from-emerald-800 hover:to-emerald-900 active:scale-[0.98] text-white font-extrabold text-sm flex items-center justify-center gap-2.5 shadow-md shadow-emerald-800/20 hover:shadow-lg transition-all cursor-pointer"
+              leftIcon={<PenTool className="w-4 h-4" />}
+              rightIcon={<ArrowRight className="w-4 h-4" />}
             >
-              <PenTool className="w-4 h-4" />
-              <span>Prosseguir para Assinatura Eletrônica</span>
-              <ArrowRight className="w-4 h-4" />
-            </button>
+              Prosseguir para Assinatura Eletrônica
+            </Button>
           </div>
         </div>
       </div>
@@ -669,15 +617,13 @@ export default function PatientPublicSignPage({ token: propToken }: PatientPubli
       {/* ==================================================================== */}
       {step === 'capture_signature' && (
         <main className="flex-1 p-4 sm:p-8 max-w-2xl w-full mx-auto space-y-6 pb-16">
-          
           <div className="bg-white border border-slate-200/90 rounded-3xl p-6 sm:p-8 space-y-6 shadow-xl">
-            
             {/* CABEÇALHO DO FORMULÁRIO */}
             <div>
               <div className="flex items-center gap-2">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-800 bg-emerald-50 px-2.5 py-0.5 rounded-md border border-emerald-200">
+                <Badge variant="emerald" size="sm">
                   Etapa 2 de 3
-                </span>
+                </Badge>
                 <span className="text-xs text-slate-500 font-semibold">• Coleta de Consentimento</span>
               </div>
               <h2 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight mt-1.5">
@@ -688,50 +634,14 @@ export default function PatientPublicSignPage({ token: propToken }: PatientPubli
               </p>
             </div>
 
-            {/* QUADRO DO CANVAS TOUCH-FRIENDLY */}
+            {/* PADRONIZADO: SIGNATURE PAD */}
             <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-bold text-slate-800">
-                    Área de Desenho da Assinatura:
-                  </span>
-                  {hasDrawnSignature && (
-                    <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
-                      <Check className="w-3.5 h-3.5 stroke-[3]" /> Assinatura Capturada
-                    </span>
-                  )}
-                </div>
-
-                <button
-                  type="button"
-                  onClick={clearSignaturePad}
-                  className="px-3 py-1.5 rounded-lg border border-slate-300 hover:bg-slate-50 active:scale-95 text-xs font-bold text-slate-700 flex items-center gap-1.5 transition cursor-pointer shadow-2xs"
-                >
-                  <Eraser className="w-3.5 h-3.5 text-slate-500" />
-                  Limpar Traço
-                </button>
-              </div>
-
-              <div className="bg-white rounded-2xl overflow-hidden border-2 border-emerald-600/80 shadow-md relative group">
-                <canvas
-                  ref={signatureCanvasRef}
-                  width={640}
-                  height={220}
-                  onPointerDown={handlePointerDown}
-                  onPointerMove={handlePointerMove}
-                  onPointerUp={handlePointerUp}
-                  onPointerCancel={handlePointerUp}
-                  className="w-full h-48 touch-none cursor-crosshair block bg-slate-50/20"
-                />
-
-                {/* Linha guia suave de assinatura */}
-                <div className="absolute bottom-8 inset-x-8 border-b-2 border-dashed border-slate-300/80 pointer-events-none flex items-center justify-between">
-                  <span className="text-[10px] text-slate-400 font-sans tracking-wide">
-                    Assine sobre a linha
-                  </span>
-                  <span className="text-[10px] text-slate-400 font-sans">✕</span>
-                </div>
-              </div>
+              <SignaturePad
+                signerName={session.signer.full_name}
+                signerCpf={session.signer.cpf}
+                height={220}
+                onChange={setSignatureDataUrl}
+              />
             </div>
 
             {/* VALIDAÇÃO BIOMÉTRICA FACIAL (SELFIE OPCIONAL PARA AUDITORIA) */}
@@ -752,14 +662,15 @@ export default function PatientPublicSignPage({ token: propToken }: PatientPubli
                 </div>
 
                 {!cameraActive && !selfieDataUrl && (
-                  <button
+                  <Button
                     type="button"
+                    variant="secondary"
+                    size="sm"
                     onClick={startCamera}
-                    className="px-3.5 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 active:scale-95 text-white text-xs font-bold flex items-center gap-1.5 transition shadow-xs cursor-pointer"
+                    leftIcon={<Camera className="w-3.5 h-3.5" />}
                   >
-                    <Camera className="w-3.5 h-3.5" />
                     Abrir Câmera
-                  </button>
+                  </Button>
                 )}
               </div>
 
@@ -773,24 +684,27 @@ export default function PatientPublicSignPage({ token: propToken }: PatientPubli
                     className="w-44 h-44 object-cover rounded-2xl mx-auto border-2 border-sky-500 shadow-md"
                   />
                   <div className="flex justify-center gap-2">
-                    <button
+                    <Button
                       type="button"
+                      variant="primary"
+                      size="sm"
                       onClick={takeSelfieSnapshot}
-                      className="px-5 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 active:scale-95 text-white text-xs font-bold flex items-center gap-1.5 shadow-sm transition cursor-pointer"
+                      leftIcon={<Camera className="w-4 h-4" />}
                     >
-                      <Camera className="w-4 h-4" /> Capturar Foto Agora
-                    </button>
-                    <button
+                      Capturar Foto Agora
+                    </Button>
+                    <Button
                       type="button"
+                      variant="ghost"
+                      size="sm"
                       onClick={() => {
                         const stream = videoRef.current?.srcObject as MediaStream | null;
                         stream?.getTracks().forEach((t) => t.stop());
                         setCameraActive(false);
                       }}
-                      className="px-3 py-2 rounded-xl border border-slate-300 text-xs text-slate-600 hover:bg-slate-50 font-bold transition cursor-pointer"
                     >
                       Cancelar
-                    </button>
+                    </Button>
                   </div>
                 </div>
               )}
@@ -813,16 +727,18 @@ export default function PatientPublicSignPage({ token: propToken }: PatientPubli
                       </p>
                     </div>
                   </div>
-                  <button
+                  <Button
                     type="button"
+                    variant="secondary"
+                    size="xs"
                     onClick={() => {
                       setSelfieDataUrl(null);
                       startCamera();
                     }}
-                    className="text-xs text-slate-600 hover:text-slate-900 font-bold flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 transition cursor-pointer"
+                    leftIcon={<RefreshCw className="w-3.5 h-3.5" />}
                   >
-                    <RefreshCw className="w-3.5 h-3.5" /> Refazer
-                  </button>
+                    Refazer
+                  </Button>
                 </div>
               )}
             </div>
@@ -853,38 +769,32 @@ export default function PatientPublicSignPage({ token: propToken }: PatientPubli
 
             {/* BOTÕES DE AÇÃO COM ESTILOS DE CONTRASTE E FEEDBACK */}
             <div className="flex flex-col sm:flex-row gap-3 pt-2">
-              <button
+              <Button
                 type="button"
+                variant="secondary"
+                size="md"
                 onClick={() => {
                   setStep('read_pdf');
                   window.scrollTo({ top: 0, behavior: 'smooth' });
                 }}
-                className="py-3 px-5 rounded-xl border border-slate-300 hover:bg-slate-50 active:scale-95 text-xs font-bold text-slate-700 flex items-center justify-center gap-2 transition cursor-pointer"
+                leftIcon={<ArrowLeft className="w-4 h-4" />}
               >
-                <ArrowLeft className="w-4 h-4" />
                 Voltar e Reler Contrato
-              </button>
+              </Button>
 
-              <button
+              <Button
                 type="button"
+                variant="primary"
+                size="md"
+                className="flex-1"
                 disabled={!hasDrawnSignature || !acceptedTerms || submitting}
+                isLoading={submitting}
                 onClick={handleFinalizeSignature}
-                className="flex-1 py-3.5 px-6 rounded-xl bg-gradient-to-r from-emerald-700 to-emerald-800 hover:from-emerald-800 hover:to-emerald-900 disabled:opacity-40 disabled:cursor-not-allowed text-white font-extrabold text-sm flex items-center justify-center gap-2.5 shadow-md shadow-emerald-800/20 hover:shadow-lg transition-all cursor-pointer active:scale-[0.98]"
+                leftIcon={<CheckCircle2 className="w-5 h-5" />}
               >
-                {submitting ? (
-                  <>
-                    <Loader2 className="w-5 h-5 animate-spin" />
-                    <span>Autenticando e Selando Documento...</span>
-                  </>
-                ) : (
-                  <>
-                    <CheckCircle2 className="w-5 h-5" />
-                    <span>Finalizar e Assinar com Selo Digital</span>
-                  </>
-                )}
-              </button>
+                {submitting ? 'Autenticando e Selando Documento...' : 'Finalizar e Assinar com Selo Digital'}
+              </Button>
             </div>
-
           </div>
         </main>
       )}
@@ -895,15 +805,14 @@ export default function PatientPublicSignPage({ token: propToken }: PatientPubli
       {step === 'completed' && (
         <main className="flex-1 flex items-center justify-center p-4 sm:p-8">
           <div className="max-w-xl w-full bg-white border border-slate-200/90 rounded-3xl p-8 sm:p-10 text-center space-y-6 shadow-2xl">
-            
-            <div className="w-20 h-20 rounded-full bg-emerald-100 border-2 border-emerald-300 text-emerald-800 flex items-center justify-center mx-auto shadow-md">
-              <CheckCircle2 className="w-12 h-12" />
+            <div className="w-18 h-18 rounded-full bg-emerald-100 border-2 border-emerald-300 text-emerald-800 flex items-center justify-center mx-auto shadow-md">
+              <CheckCircle2 className="w-10 h-10" />
             </div>
 
             <div className="space-y-2">
-              <span className="inline-block text-[11px] font-extrabold uppercase tracking-wider text-emerald-800 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-200">
+              <Badge variant="emerald" size="sm">
                 Documento Oficial Selado
-              </span>
+              </Badge>
               <h2 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
                 Assinatura Registrada com Sucesso!
               </h2>
@@ -913,32 +822,14 @@ export default function PatientPublicSignPage({ token: propToken }: PatientPubli
               </p>
             </div>
 
-            {/* CARD DO CÓDIGO DE VERIFICAÇÃO PÚBLICA */}
-            <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 flex flex-col sm:flex-row items-center justify-between gap-3 text-left">
-              <div>
-                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">
-                  Código de Autenticação Pública:
-                </span>
-                <span className="font-mono font-black text-base text-emerald-950">
-                  {session.verification_code}
-                </span>
-              </div>
-              <button
-                type="button"
-                onClick={copyVerificationCode}
-                className="w-full sm:w-auto px-4 py-2 rounded-xl bg-white border border-slate-300 hover:bg-slate-50 active:scale-95 text-xs font-bold text-slate-800 flex items-center justify-center gap-1.5 transition shadow-2xs cursor-pointer"
-              >
-                {copiedCode ? (
-                  <>
-                    <Check className="w-4 h-4 text-emerald-600 stroke-[3]" /> Copiado!
-                  </>
-                ) : (
-                  <>
-                    <Copy className="w-4 h-4" /> Copiar Código
-                  </>
-                )}
-              </button>
-            </div>
+            {/* SELO DE AUDITORIA PADRONIZADO */}
+            <SignatureAuditStamp
+              verificationCode={session.verification_code}
+              signerName={session.signer.full_name}
+              signerRole={session.signer.role}
+              hasPadesIcpBrasil={true}
+              sha256Hash={session.original_pdf_sha256}
+            />
 
             {/* BOTÕES DE DOWNLOAD E VISUALIZAÇÃO */}
             <div className="space-y-3 pt-2">
@@ -946,10 +837,17 @@ export default function PatientPublicSignPage({ token: propToken }: PatientPubli
                 <a
                   href={`data:application/pdf;base64,${finalPdfBase64}`}
                   download={`${session.document_title.replace(/\s+/g, '_')}_ASSINADO.pdf`}
-                  className="w-full py-3.5 px-6 rounded-xl bg-gradient-to-r from-emerald-700 to-emerald-800 hover:from-emerald-800 hover:to-emerald-900 active:scale-95 text-white font-extrabold text-sm flex items-center justify-center gap-2 shadow-md hover:shadow-lg transition cursor-pointer"
+                  className="w-full inline-block"
                 >
-                  <Download className="w-4 h-4" />
-                  Baixar Contrato em PDF com Manifesto
+                  <Button
+                    type="button"
+                    variant="primary"
+                    size="lg"
+                    className="w-full"
+                    leftIcon={<Download className="w-4 h-4" />}
+                  >
+                    Baixar Contrato em PDF com Manifesto
+                  </Button>
                 </a>
               )}
 
@@ -958,11 +856,18 @@ export default function PatientPublicSignPage({ token: propToken }: PatientPubli
                   href={driveUrl}
                   target="_blank"
                   rel="noreferrer"
-                  className="w-full py-3 px-5 rounded-xl bg-white hover:bg-slate-50 active:scale-95 border border-slate-300 text-slate-700 hover:text-slate-900 font-bold text-xs flex items-center justify-center gap-2 transition shadow-xs cursor-pointer"
+                  className="w-full inline-block"
                 >
-                  <FileText className="w-4 h-4 text-sky-600" />
-                  Visualizar Cópia Arquivada no Google Drive
-                  <ExternalLink className="w-3.5 h-3.5 text-slate-400" />
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="md"
+                    className="w-full"
+                    leftIcon={<FileText className="w-4 h-4 text-sky-600" />}
+                    rightIcon={<ExternalLink className="w-3.5 h-3.5 text-slate-400" />}
+                  >
+                    Visualizar Cópia Arquivada no Google Drive
+                  </Button>
                 </a>
               )}
             </div>
@@ -971,7 +876,6 @@ export default function PatientPublicSignPage({ token: propToken }: PatientPubli
             <p className="text-[11px] text-slate-500 pt-2 border-t border-slate-100">
               Uma via assinada também está salva com segurança no seu prontuário clínico junto à Dra. Ana Carla Morong.
             </p>
-
           </div>
         </main>
       )}

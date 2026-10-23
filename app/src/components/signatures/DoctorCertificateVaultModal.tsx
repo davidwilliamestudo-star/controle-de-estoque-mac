@@ -1,18 +1,27 @@
 // src/components/signatures/DoctorCertificateVaultModal.tsx
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   ShieldCheck,
   KeyRound,
   Upload,
   CheckCircle2,
   AlertTriangle,
-  PenTool,
-  Eraser,
   Zap,
-  X,
   Lock,
   RefreshCw,
+  FileCheck,
+  Calendar,
+  Building,
 } from 'lucide-react';
+import {
+  Modal,
+  FormField,
+  Input,
+  Select,
+  Button,
+  Badge,
+  SignaturePad,
+} from '@/components/ui';
 
 interface VaultStatusResponse {
   configured: boolean;
@@ -52,9 +61,7 @@ export const DoctorCertificateVaultModal: React.FC<
   const [autoSignTrigger, setAutoSignTrigger] = useState<
     'ON_PATIENT_SIGNED' | 'ON_DOCUMENT_CREATED'
   >('ON_PATIENT_SIGNED');
-
-  const rubricCanvasRef = useRef<HTMLCanvasElement | null>(null);
-  const isDrawingRef = useRef<boolean>(false);
+  const [rubricDataUrl, setRubricDataUrl] = useState<string | null>(null);
 
   const getAuthHeaders = (): Record<string, string> => {
     const token =
@@ -96,8 +103,6 @@ export const DoctorCertificateVaultModal: React.FC<
     }
   }, [isOpen]);
 
-  if (!isOpen) return null;
-
   const handlePfxUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -112,46 +117,6 @@ export const DoctorCertificateVaultModal: React.FC<
     reader.readAsDataURL(file);
   };
 
-  const handleStartDraw = (e: React.PointerEvent<HTMLCanvasElement>) => {
-    e.currentTarget.setPointerCapture(e.pointerId);
-    const canvas = rubricCanvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-    ctx.strokeStyle = '#0f172a';
-    ctx.lineWidth = 2.8;
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
-    const rect = canvas.getBoundingClientRect();
-    const scaleX = canvas.width / rect.width;
-    const scaleY = canvas.height / rect.height;
-    isDrawingRef.current = true;
-    ctx.beginPath();
-    ctx.moveTo((e.clientX - rect.left) * scaleX, (e.clientY - rect.top) * scaleY);
-  };
-
-  const handleMoveDraw = (e: React.PointerEvent<HTMLCanvasElement>) => {
-    if (!isDrawingRef.current || !rubricCanvasRef.current) return;
-    const canvas = rubricCanvasRef.current;
-    const rect = canvas.getBoundingClientRect();
-    const scaleX = canvas.width / rect.width;
-    const scaleY = canvas.height / rect.height;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-    ctx.lineTo((e.clientX - rect.left) * scaleX, (e.clientY - rect.top) * scaleY);
-    ctx.stroke();
-  };
-
-  const handleEndDraw = () => {
-    isDrawingRef.current = false;
-  };
-
-  const clearRubricCanvas = () => {
-    const canvas = rubricCanvasRef.current;
-    if (!canvas) return;
-    canvas.getContext('2d')?.clearRect(0, 0, canvas.width, canvas.height);
-  };
-
   const handleSaveCertificate = async () => {
     if (!pfxBase64 || !password) {
       setErrorMsg('Envie o arquivo .pfx/.p12 e digite a senha do certificado.');
@@ -163,10 +128,6 @@ export const DoctorCertificateVaultModal: React.FC<
       setErrorMsg(null);
       setSuccessMsg(null);
 
-      const rubricPng = rubricCanvasRef.current
-        ? rubricCanvasRef.current.toDataURL('image/png')
-        : undefined;
-
       const res = await fetch('/api/signatures/vault', {
         method: 'POST',
         headers: getAuthHeaders(),
@@ -176,7 +137,7 @@ export const DoctorCertificateVaultModal: React.FC<
           crm_register: crmRegister,
           auto_sign_enabled: autoSignEnabled,
           auto_sign_trigger: autoSignTrigger,
-          default_rubric_png_base64: rubricPng,
+          default_rubric_png_base64: rubricDataUrl || undefined,
         }),
       });
 
@@ -198,240 +159,246 @@ export const DoctorCertificateVaultModal: React.FC<
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-4 sm:p-6">
-      <div className="bg-slate-900 border border-slate-800 rounded-3xl max-w-5xl w-full p-6 sm:p-8 text-slate-100 shadow-2xl space-y-6 max-h-[92vh] overflow-y-auto">
-        <div className="flex items-center justify-between border-b border-slate-800 pb-4">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
-              <ShieldCheck className="w-6 h-6" />
-            </div>
-            <div>
-              <h2 className="text-base font-bold text-white">
-                Cofre de Assinatura Automática ICP-Brasil (PAdES)
-              </h2>
-              <p className="text-xs text-slate-400">
-                Dra. Ana Carla Morong • CNPJ: 54.811.772/0001-32
-              </p>
-            </div>
-          </div>
-          <button
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      maxWidth="4xl"
+      icon={<ShieldCheck className="w-5 h-5" />}
+      title="Cofre de Assinatura Automática ICP-Brasil (PAdES)"
+      subtitle="Dra. Ana Carla Morong • CNPJ: 54.811.772/0001-32 • Certificação Digital Inviolável"
+      footer={
+        <div className="flex items-center justify-end gap-3 w-full">
+          <Button type="button" variant="secondary" onClick={onClose}>
+            Fechar
+          </Button>
+          <Button
             type="button"
-            onClick={onClose}
-            className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition"
+            variant="primary"
+            disabled={saving}
+            isLoading={saving}
+            onClick={handleSaveCertificate}
+            leftIcon={<Lock className="w-4 h-4" />}
           >
-            <X className="w-4 h-4" />
-          </button>
+            {saving ? 'Validando Cadeia ICP-Brasil...' : 'Validar e Salvar no Cofre'}
+          </Button>
         </div>
+      }
+    >
+      {loading ? (
+        <div className="py-12 text-center text-xs text-slate-500 flex flex-col items-center gap-3">
+          <RefreshCw className="w-6 h-6 animate-spin text-emerald-600" />
+          <span className="font-semibold text-slate-700">
+            Consultando integridade do Cofre Criptográfico...
+          </span>
+        </div>
+      ) : (
+        <div className="space-y-6">
+          {/* MENSAGENS DE SUCESSO / ERRO */}
+          {successMsg && (
+            <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs flex items-center gap-2.5 shadow-2xs">
+              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+              <span className="font-semibold">{successMsg}</span>
+            </div>
+          )}
 
-        {loading ? (
-          <div className="py-8 text-center text-xs text-slate-400 flex flex-col items-center gap-2">
-            <RefreshCw className="w-5 h-5 animate-spin text-emerald-500" />
-            Verificando integridade do Cofre Criptográfico...
-          </div>
-        ) : (
-          <>
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-            {/* COLUNA ESQUERDA: status do certificado e regras de automação */}
-            <div className="lg:col-span-5 space-y-6">
-            {/* Card de Certificado Ativo */}
-            {status?.configured && (
-              <div className="bg-emerald-950/40 border border-emerald-500/40 rounded-xl p-4 space-y-1.5 text-xs">
-                <div className="flex items-center justify-between">
-                  <span className="font-bold text-emerald-400 flex items-center gap-1.5">
-                    <CheckCircle2 className="w-4 h-4" />
-                    Certificado ICP-Brasil Configurado e Criptografado (AES-256-GCM)
-                  </span>
-                  <span className="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-mono text-[10px]">
-                    {status.daysRemaining} dias restantes
-                  </span>
-                </div>
-                <p className="text-white font-semibold">
-                  Titular (CN): {status.certSubjectCn}
-                </p>
-                <p className="text-slate-300">
-                  Autoridade Certificadora: {status.certIssuerCn}
-                </p>
-                <p className="text-slate-400 font-mono text-[11px]">
-                  Série: {status.certSerialHex} | Expira em:{' '}
-                  {status.certNotAfter ? new Date(status.certNotAfter).toLocaleDateString('pt-BR') : '—'}
-                </p>
-              </div>
-            )}
+          {errorMsg && (
+            <div className="p-4 rounded-2xl bg-rose-50 border border-rose-200 text-rose-900 text-xs flex items-center gap-2.5 shadow-2xs">
+              <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
+              <span className="font-semibold">{errorMsg}</span>
+            </div>
+          )}
 
-            {/* Interruptor de Assinatura Automática */}
-            <div className="bg-slate-950 border border-slate-800 rounded-xl p-4 space-y-4">
-              <label className="flex items-center justify-between cursor-pointer">
-                <div className="flex items-center gap-3">
-                  <Zap className="w-5 h-5 text-amber-400 shrink-0" />
+          {/* STATUS ATUAL DO CERTIFICADO */}
+          {status?.configured ? (
+            <div className="bg-gradient-to-r from-emerald-50/80 via-white to-emerald-50/60 border border-emerald-200 rounded-2xl p-5 shadow-2xs space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-emerald-100">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0">
+                    <FileCheck className="w-4 h-4" />
+                  </div>
                   <div>
-                    <p className="text-sm font-bold text-white">
-                      Assinar Automaticamente pela Dra. Ana Carla Morong
-                    </p>
-                    <p className="text-xs text-slate-400">
-                      Quando o paciente assina o documento, o servidor aplica
-                      instantaneamente a chancela visual e a assinatura PAdES da Dra. Ana.
-                    </p>
+                    <span className="text-xs font-bold text-emerald-950 block">
+                      Certificado ICP-Brasil Ativo & Criptografado (AES-256-GCM)
+                    </span>
+                    <span className="text-[11px] text-slate-600">
+                      Titular: <strong>{status.certSubjectCn}</strong>
+                    </span>
                   </div>
                 </div>
-                <input
-                  type="checkbox"
-                  checked={autoSignEnabled}
-                  onChange={(e) => setAutoSignEnabled(e.target.checked)}
-                  className="w-5 h-5 rounded border-slate-700 text-emerald-500 focus:ring-emerald-500 cursor-pointer"
-                />
-              </label>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-3 border-t border-slate-800">
+                <Badge
+                  variant={status.isExpired ? 'rose' : (status.daysRemaining ?? 0) < 30 ? 'amber' : 'emerald'}
+                  size="md"
+                  dot
+                >
+                  {status.daysRemaining} dias restantes
+                </Badge>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs text-slate-600 pt-1">
                 <div>
-                  <label className="block text-[11px] text-slate-400 mb-1">
-                    Gatilho de Execução Automática
-                  </label>
-                  <select
-                    value={autoSignTrigger}
-                    onChange={(e) =>
-                      setAutoSignTrigger(
-                        e.target.value as 'ON_PATIENT_SIGNED' | 'ON_DOCUMENT_CREATED'
-                      )
-                    }
-                    className="w-full h-11 bg-slate-900 border border-slate-700 rounded-xl px-3.5 text-sm text-white"
-                  >
-                    <option value="ON_PATIENT_SIGNED">
-                      Contra-assinar assim que o Paciente assinar
-                    </option>
-                    <option value="ON_DOCUMENT_CREATED">
-                      Assinar imediatamente ao gerar o documento
-                    </option>
-                  </select>
+                  <span className="text-slate-400 block text-[10px] uppercase font-bold">
+                    Autoridade Certificadora
+                  </span>
+                  <span className="font-medium text-slate-800">{status.certIssuerCn}</span>
                 </div>
-
                 <div>
-                  <label className="block text-[11px] text-slate-400 mb-1">
-                    Registro no Conselho (Exibido na Chancela)
-                  </label>
+                  <span className="text-slate-400 block text-[10px] uppercase font-bold">
+                    Validade Até
+                  </span>
+                  <span className="font-medium text-slate-800">
+                    {status.certNotAfter
+                      ? new Date(status.certNotAfter).toLocaleDateString('pt-BR')
+                      : '—'}
+                  </span>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="bg-amber-50/80 border border-amber-200 rounded-2xl p-5 flex items-start gap-3 text-xs text-amber-900 shadow-2xs">
+              <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+              <div>
+                <h4 className="font-bold text-amber-950">Nenhum certificado ICP-Brasil ativo</h4>
+                <p className="mt-0.5 text-amber-800 leading-relaxed">
+                  Faça o upload do seu certificado digital modelo A1 (.pfx/.p12) abaixo para habilitar assinaturas PAdES automáticas com validade jurídica perante o CFM e MP 2.200-2/2001.
+                </p>
+              </div>
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* CARD 1: Configuração da Assinatura Automática */}
+            <section className="form-section-card space-y-4">
+              <div className="form-section-header">
+                <span className="form-section-title">
+                  <Zap className="w-4 h-4 text-emerald-700" />
+                  Regras de Automação
+                </span>
+              </div>
+
+              <div className="bg-white border border-slate-200 rounded-xl p-4 space-y-3">
+                <label className="flex items-start gap-3 cursor-pointer">
                   <input
-                    type="text"
-                    value={crmRegister}
-                    onChange={(e) => setCrmRegister(e.target.value)}
-                    placeholder="Ex: CRM/SC 12345"
-                    className="w-full h-11 bg-slate-900 border border-slate-700 rounded-xl px-3.5 text-sm text-white"
+                    type="checkbox"
+                    checked={autoSignEnabled}
+                    onChange={(e) => setAutoSignEnabled(e.target.checked)}
+                    className="w-4 h-4 mt-0.5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-600 cursor-pointer"
                   />
-                </div>
-              </div>
-            </div>
-            </div>
-
-            {/* COLUNA DIREITA: upload do .pfx, senha e rubrica */}
-            <div className="lg:col-span-7 space-y-6">
-            {/* Upload de Arquivo .PFX e Senha */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="bg-slate-950 border border-slate-800 rounded-xl p-4 space-y-2">
-                <label className="text-xs font-bold text-slate-200 flex items-center gap-1.5">
-                  <Upload className="w-4 h-4 text-emerald-400" />
-                  Arquivo Certificado A1 (.pfx / .p12)
+                  <div>
+                    <span className="text-xs font-bold text-slate-900 block">
+                      Assinar Automaticamente pela Dra. Ana Carla Morong
+                    </span>
+                    <span className="text-[11px] text-slate-500 leading-relaxed block mt-0.5">
+                      Aplica instantaneamente a chancela visual e a assinatura digital PAdES com carimbo do tempo.
+                    </span>
+                  </div>
                 </label>
-                <input
-                  type="file"
-                  accept=".pfx,.p12"
-                  onChange={handlePfxUpload}
-                  className="block w-full text-xs text-slate-300 file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-emerald-600 file:text-white hover:file:bg-emerald-500 cursor-pointer"
+              </div>
+
+              <FormField
+                label="Gatilho de Execução"
+                helperText="Momento em que a assinatura da médica é aplicada ao documento."
+              >
+                <Select
+                  value={autoSignTrigger}
+                  onChange={(e) =>
+                    setAutoSignTrigger(
+                      e.target.value as 'ON_PATIENT_SIGNED' | 'ON_DOCUMENT_CREATED'
+                    )
+                  }
+                >
+                  <option value="ON_PATIENT_SIGNED">
+                    Contra-assinar assim que o Paciente assinar
+                  </option>
+                  <option value="ON_DOCUMENT_CREATED">
+                    Assinar imediatamente ao gerar o contrato
+                  </option>
+                </Select>
+              </FormField>
+
+              <FormField
+                label="Registro no Conselho Profissional"
+                helperText="Aparecerá estampado na chancela visual do documento."
+              >
+                <Input
+                  value={crmRegister}
+                  onChange={(e) => setCrmRegister(e.target.value)}
+                  placeholder="Ex: CRM/SC 28412"
+                  mono
                 />
-                {pfxFileName && (
-                  <p className="text-[11px] text-emerald-400 truncate">
-                    Arquivo: {pfxFileName}
-                  </p>
-                )}
+              </FormField>
+            </section>
+
+            {/* CARD 2: Upload de Certificado e Senha */}
+            <section className="form-section-card space-y-4">
+              <div className="form-section-header">
+                <span className="form-section-title">
+                  <KeyRound className="w-4 h-4 text-emerald-700" />
+                  Upload do Certificado A1 (.pfx)
+                </span>
               </div>
 
-              <div className="bg-slate-950 border border-slate-800 rounded-xl p-4 space-y-2">
-                <label className="text-xs font-bold text-slate-200 flex items-center gap-1.5">
-                  <KeyRound className="w-4 h-4 text-amber-400" />
-                  Senha de Desbloqueio do .PFX
-                </label>
-                <input
+              <FormField
+                label="Arquivo Certificado A1"
+                required
+                helperText="O arquivo é cifrado em repouso no cofre D1 com chave mestra AES-256."
+              >
+                <div className="border border-dashed border-slate-300 rounded-xl p-4 bg-white hover:bg-slate-50 transition-colors text-center cursor-pointer relative">
+                  <input
+                    type="file"
+                    accept=".pfx,.p12"
+                    onChange={handlePfxUpload}
+                    className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                  />
+                  <div className="flex flex-col items-center justify-center gap-1.5">
+                    <Upload className="w-6 h-6 text-emerald-700" />
+                    <span className="text-xs font-bold text-slate-800">
+                      {pfxFileName ? pfxFileName : 'Clique para selecionar o arquivo .pfx / .p12'}
+                    </span>
+                    <span className="text-[10px] text-slate-400">
+                      Tamanho máximo suportado: 5MB
+                    </span>
+                  </div>
+                </div>
+              </FormField>
+
+              <FormField
+                label="Senha de Desbloqueio do Certificado"
+                required
+                helperText="A senha é verificada pontualmente para carregar a chave privada."
+              >
+                <Input
                   type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="Digite a senha do certificado A1"
-                  className="w-full h-11 bg-slate-900 border border-slate-700 rounded-xl px-3.5 text-sm text-white focus:border-emerald-500 outline-none"
+                  leftIcon={<Lock className="w-4 h-4" />}
                 />
-                <p className="text-[10px] text-slate-400 flex items-center gap-1">
-                  <Lock className="w-3 h-3 text-emerald-400" />
-                  Protegida por criptografia autenticada AES-256-GCM.
-                </p>
-              </div>
+              </FormField>
+            </section>
+          </div>
+
+          {/* CARD 3: Rubrica Caligráfica Padrão */}
+          <section className="form-section-card">
+            <div className="form-section-header">
+              <span className="form-section-title">
+                <ShieldCheck className="w-4 h-4 text-emerald-700" />
+                Rubrica Caligráfica Padrão da Médica
+              </span>
+              <span className="text-[11px] text-slate-500">
+                Usada nas chancelas visuais sobre o carimbo PAdES
+              </span>
             </div>
 
-            {/* Rubrica Caligráfica Padrão da Médica */}
-            <div className="bg-slate-950 border border-slate-800 rounded-xl p-4 space-y-2">
-              <div className="flex items-center justify-between">
-                <label className="text-xs font-bold text-slate-200 flex items-center gap-1.5">
-                  <PenTool className="w-4 h-4 text-sky-400" />
-                  Rubrica / Assinatura Caligráfica Padrão da Dra. Ana (Opcional)
-                </label>
-                <button
-                  type="button"
-                  onClick={clearRubricCanvas}
-                  className="text-xs text-slate-400 hover:text-white flex items-center gap-1"
-                >
-                  <Eraser className="w-3.5 h-3.5" /> Limpar
-                </button>
-              </div>
-              <div className="bg-white rounded-lg overflow-hidden border border-slate-700">
-                <canvas
-                  ref={rubricCanvasRef}
-                  width={600}
-                  height={140}
-                  onPointerDown={handleStartDraw}
-                  onPointerMove={handleMoveDraw}
-                  onPointerUp={handleEndDraw}
-                  className="w-full h-36 touch-none cursor-crosshair block"
-                />
-              </div>
-            </div>
-            </div>
-            </div>
-
-            {successMsg && (
-              <div className="p-3 rounded-xl bg-emerald-950/60 border border-emerald-500/40 text-emerald-200 text-xs flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-                <span>{successMsg}</span>
-              </div>
-            )}
-
-            {errorMsg && (
-              <div className="p-3 rounded-xl bg-rose-950/60 border border-rose-500/40 text-rose-200 text-xs flex items-center gap-2">
-                <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
-                <span>{errorMsg}</span>
-              </div>
-            )}
-
-            <div className="flex justify-end gap-3 pt-2">
-              <button
-                type="button"
-                onClick={onClose}
-                className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-semibold transition"
-              >
-                Fechar
-              </button>
-              <button
-                type="button"
-                disabled={saving}
-                onClick={handleSaveCertificate}
-                className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 text-white text-xs font-bold flex items-center gap-2 shadow-lg transition"
-              >
-                {saving ? (
-                  <>
-                    <RefreshCw className="w-4 h-4 animate-spin" />
-                    Validando Cadeia ICP-Brasil...
-                  </>
-                ) : (
-                  'Validar e Salvar no Cofre Criptográfico'
-                )}
-              </button>
-            </div>
-          </>
-        )}
-      </div>
-    </div>
+            <SignaturePad
+              signerName="Dra. Ana Carla Morong"
+              signerCpf="CRM/SC 28412"
+              height={160}
+              onChange={(dataUrl) => setRubricDataUrl(dataUrl)}
+            />
+          </section>
+        </div>
+      )}
+    </Modal>
   );
 };

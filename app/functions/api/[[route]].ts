@@ -158,10 +158,137 @@ app.use("*", cors({
   maxAge: 86400,
 }));
 
+let d1CompatChecked = false;
+async function ensureD1Compatibility(db?: D1Database) {
+  if (d1CompatChecked || !db) return;
+  try {
+    const tableInfo = await db.prepare("PRAGMA table_info(patients)").all();
+    const cols = (tableInfo.results || []).map((r: any) => r.name);
+    if (cols.length > 0 && !cols.includes("document")) {
+      await db.prepare("ALTER TABLE patients ADD COLUMN document TEXT").run();
+    }
+    await db.prepare(`
+      CREATE TABLE IF NOT EXISTS login_rate_limits (
+        rate_key TEXT PRIMARY KEY,
+        failed_attempts INTEGER NOT NULL DEFAULT 1,
+        last_attempt_at TEXT NOT NULL DEFAULT (datetime('now')),
+        locked_until TEXT
+      )
+    `).run();
+    d1CompatChecked = true;
+  } catch (e) {
+    console.error("Falha ao verificar compatibilidade D1:", e);
+  }
+}
+
+// Garante recuperação segura de segredos sem fallbacks estáticos em produção
+function getJwtSecret(c: any): string {
+  const secret = c.env.JWT_SECRET;
+  if (secret && typeof secret === "string" && secret.trim().length >= 16) {
+    return secret.trim();
+  }
+  const host = new URL(c.req.url).hostname;
+  const isLocalhost = host === "localhost" || host === "127.0.0.1";
+  if (isLocalhost) {
+    console.warn("[SEGURANÇA DEV] Utilizando JWT_SECRET temporário para localhost.");
+    return "dev-local-jwt-secret-not-for-production-only-testing-2026";
+  }
+  throw new Error(
+    "[SEGURANÇA CRÍTICA] JWT_SECRET ausente ou muito curto. Configure a variável secreta no Cloudflare Pages: npx wrangler secret put JWT_SECRET"
+  );
+}
+
+function getVaultMasterKey(c: any): string {
+  const masterKey = c.env.VAULT_MASTER_KEY;
+  if (masterKey && typeof masterKey === "string" && masterKey.trim().length >= 32) {
+    return masterKey.trim();
+  }
+  const host = new URL(c.req.url).hostname;
+  const isLocalhost = host === "localhost" || host === "127.0.0.1";
+  if (isLocalhost) {
+    console.warn("[SEGURANÇA DEV] Utilizando VAULT_MASTER_KEY temporário para localhost.");
+    return "dev-local-vault-master-key-must-be-at-least-32-chars-long!";
+  }
+  throw new Error(
+    "[SEGURANÇA CRÍTICA] VAULT_MASTER_KEY ausente ou menor que 32 caracteres. Para proteger o cofre ICP-Brasil em produção, execute: npx wrangler secret put VAULT_MASTER_KEY"
+  );
+}
+
+// Rate Limiting distribuído no D1 contra ataques de força bruta
+const MAX_LOGIN_ATTEMPTS = 5;
+const LOCKOUT_MINUTES = 15;
+
+async function checkLoginRateLimit(db: D1Database, key: string): Promise<{ locked: boolean; remaining: number }> {
+  try {
+    const row = await db.prepare(
+      `SELECT failed_attempts, locked_until FROM login_rate_limits WHERE rate_key = ? LIMIT 1`
+    ).bind(key).first<{ failed_attempts: number; locked_until: string | null }>();
+
+    if (!row) {
+      return { locked: false, remaining: MAX_LOGIN_ATTEMPTS };
+    }
+
+    if (row.locked_until) {
+      const lockTime = new Date(row.locked_until).getTime();
+      if (Date.now() < lockTime) {
+        return { locked: true, remaining: 0 };
+      }
+    }
+
+    const remaining = Math.max(0, MAX_LOGIN_ATTEMPTS - (row.failed_attempts || 0));
+    return { locked: false, remaining };
+  } catch {
+    return { locked: false, remaining: MAX_LOGIN_ATTEMPTS };
+  }
+}
+
+async function recordFailedLogin(db: D1Database, key: string): Promise<{ locked: boolean; remaining: number }> {
+  try {
+    const row = await db.prepare(
+      `SELECT failed_attempts FROM login_rate_limits WHERE rate_key = ? LIMIT 1`
+    ).bind(key).first<{ failed_attempts: number }>();
+
+    const attempts = (row?.failed_attempts || 0) + 1;
+    let locked = false;
+    let lockedUntil: string | null = null;
+
+    if (attempts >= MAX_LOGIN_ATTEMPTS) {
+      locked = true;
+      const until = new Date(Date.now() + LOCKOUT_MINUTES * 60 * 1000);
+      lockedUntil = until.toISOString();
+    }
+
+    await db.prepare(
+      `INSERT INTO login_rate_limits (rate_key, failed_attempts, last_attempt_at, locked_until)
+       VALUES (?, ?, datetime('now'), ?)
+       ON CONFLICT(rate_key) DO UPDATE SET
+         failed_attempts = ?,
+         last_attempt_at = datetime('now'),
+         locked_until = ?`
+    ).bind(key, attempts, lockedUntil, attempts, lockedUntil).run();
+
+    return { locked, remaining: Math.max(0, MAX_LOGIN_ATTEMPTS - attempts) };
+  } catch (err) {
+    console.error("Erro ao registrar tentativa de login:", err);
+    return { locked: false, remaining: 0 };
+  }
+}
+
+async function clearLoginRateLimit(db: D1Database, key: string): Promise<void> {
+  try {
+    await db.prepare(`DELETE FROM login_rate_limits WHERE rate_key = ?`).bind(key).run();
+  } catch {
+    // Silencioso
+  }
+}
+
 // Garante compatibilidade de binding com DB ou dra_ana_estoque_db
 app.use("*", async (c, next) => {
   if (!c.env.DB && (c.env as any).dra_ana_estoque_db) {
     c.env.DB = (c.env as any).dra_ana_estoque_db;
+  }
+  if (c.env.DB) {
+    await ensureD1Compatibility(c.env.DB);
   }
   await next();
 });
@@ -171,7 +298,7 @@ app.get("/health", (c) => {
   return c.json({ status: "healthy", service: "Dra Ana Morong Clinic API", timestamp: new Date().toISOString() });
 });
 
-// LOGIN
+// LOGIN COM PROTEÇÃO CONTRA FORÇA BRUTA (RATE LIMITING)
 app.post("/auth/login", async (c) => {
   try {
     const { email, password } = await c.req.json<{ email?: string; password?: string }>();
@@ -180,6 +307,15 @@ app.post("/auth/login", async (c) => {
     }
 
     const normalizedEmail = email.trim().toLowerCase();
+    const clientIp = c.req.header("cf-connecting-ip") || c.req.header("x-forwarded-for") || "unknown-ip";
+    const rateLimitKey = `${clientIp}:${normalizedEmail}`;
+
+    const limitStatus = await checkLoginRateLimit(c.env.DB, rateLimitKey);
+    if (limitStatus.locked) {
+      return c.json({
+        error: `Muitas tentativas inválidas consecutivas. Por segurança, o acesso para esta conta/IP foi bloqueado temporariamente por ${LOCKOUT_MINUTES} minutos.`
+      }, 429);
+    }
     
     // Consulta no Cloudflare D1
     const user = await c.env.DB.prepare(
@@ -190,19 +326,41 @@ app.post("/auth/login", async (c) => {
     ).bind(normalizedEmail).first<any>();
 
     if (!user || user.is_active !== 1) {
-      return c.json({ error: "E-mail ou senha inválidos." }, 401);
+      const failStatus = await recordFailedLogin(c.env.DB, rateLimitKey);
+      if (failStatus.locked) {
+        return c.json({ error: `Limite de tentativas excedido. O acesso foi bloqueado por ${LOCKOUT_MINUTES} minutos.` }, 429);
+      }
+      return c.json({ error: `E-mail ou senha inválidos. (${failStatus.remaining} tentativa(s) restante(s)).` }, 401);
     }
 
     const isValidPassword = await verifyPassword(password, user.password_hash);
     if (!isValidPassword) {
-      return c.json({ error: "E-mail ou senha inválidos." }, 401);
+      const failStatus = await recordFailedLogin(c.env.DB, rateLimitKey);
+      if (failStatus.locked) {
+        try {
+          await c.env.DB.prepare(
+            `INSERT INTO audit_logs (id, clinic_id, user_id, action, entity_type, description, created_at)
+             VALUES (?, 'ana-morong-clinic', ?, 'auth_brute_force_blocked', 'auth', ?, datetime('now'))`
+          ).bind(
+            crypto.randomUUID(),
+            user.id,
+            `Bloqueio temporário de 15 minutos acionado após 5 tentativas consecutivas de senha incorreta para ${normalizedEmail} (IP: ${clientIp}).`
+          ).run();
+        } catch {}
+        return c.json({ error: `Limite de tentativas excedido. O acesso foi bloqueado por ${LOCKOUT_MINUTES} minutos.` }, 429);
+      }
+      return c.json({ error: `E-mail ou senha inválidos. (${failStatus.remaining} tentativa(s) restante(s)).` }, 401);
     }
+
+    // Login com sucesso: reseta limitador de tentativas
+    await clearLoginRateLimit(c.env.DB, rateLimitKey);
 
     // Atualiza last_login_at
     await c.env.DB.prepare(
       "UPDATE users SET last_login_at = datetime('now'), updated_at = datetime('now') WHERE id = ?"
     ).bind(user.id).run();
 
+    const jwtSecret = getJwtSecret(c);
     const exp = Date.now() + 1000 * 60 * 60 * 24 * 7; // 7 dias
     const token = await generateSessionToken(
       {
@@ -213,7 +371,7 @@ app.post("/auth/login", async (c) => {
         role: user.role,
         exp,
       },
-      c.env.JWT_SECRET || "dra-ana-secret-key-2026"
+      jwtSecret
     );
 
     return c.json({
@@ -242,7 +400,13 @@ const authMiddleware = async (c: any, next: any) => {
     return c.json({ error: "Não autorizado. Token de sessão ausente." }, 401);
   }
   const token = authHeader.substring(7);
-  const payload = await verifySessionToken(token, c.env.JWT_SECRET || "dra-ana-secret-key-2026");
+  let jwtSecret: string;
+  try {
+    jwtSecret = getJwtSecret(c);
+  } catch (secErr: any) {
+    return c.json({ error: secErr.message }, 500);
+  }
+  const payload = await verifySessionToken(token, jwtSecret);
   if (!payload) {
     return c.json({ error: "Sessão expirada ou inválida. Por favor, faça login novamente." }, 401);
   }
@@ -268,6 +432,11 @@ const isForbiddenUserModification = (query: string, role?: string) => {
   return /\b(INSERT\s+INTO|UPDATE|DELETE\s+FROM|DROP|ALTER)\s+users\b/i.test(query);
 };
 
+// Trava de segurança: impede execução de comandos DDL destrutivos e comandos estruturais perigosos
+const isForbiddenDestructiveQuery = (query: string) => {
+  return /\b(DROP\s+TABLE|DROP\s+VIEW|DROP\s+INDEX|TRUNCATE|ALTER\s+TABLE|ATTACH\s+DATABASE|DETACH\s+DATABASE|PRAGMA)\b/i.test(query);
+};
+
 // QUERY (SELECT)
 app.post("/db/query", authMiddleware, async (c) => {
   try {
@@ -283,10 +452,17 @@ app.post("/db/query", authMiddleware, async (c) => {
     const stmt = c.env.DB.prepare(sql).bind(...args);
     const result = await stmt.all();
 
-    // LGPD & Segurança: nunca expor hashes de senha de usuários através do gateway genérico
+    // LGPD & Segurança: nunca expor hashes de senha ou segredos criptográficos via gateway genérico
     const sanitizedRows = (result.results || []).map((row: any) => {
-      if (row && typeof row === "object" && "password_hash" in row) {
-        const { password_hash, ...rest } = row;
+      if (row && typeof row === "object") {
+        const {
+          password_hash,
+          password,
+          encrypted_pfx_base64,
+          encrypted_password_base64,
+          encryption_iv_hex,
+          ...rest
+        } = row;
         return rest;
       }
       return row;
@@ -317,6 +493,10 @@ app.post("/db/execute", authMiddleware, async (c) => {
 
     if (isForbiddenUserModification(sql, user?.role)) {
       return c.json({ error: "Acesso negado: alterações na tabela de usuários requerem perfil administrador." }, 403);
+    }
+
+    if (isForbiddenDestructiveQuery(sql)) {
+      return c.json({ error: "Acesso bloqueado: instruções DDL estruturais (DROP, TRUNCATE, ALTER, PRAGMA) não são permitidas via API." }, 403);
     }
 
     const stmt = c.env.DB.prepare(sql).bind(...args);
@@ -354,6 +534,9 @@ app.post("/db/transaction", authMiddleware, async (c) => {
       if (isForbiddenUserModification(q.sql, user?.role)) {
         return c.json({ error: "Acesso negado: transações que modificam a tabela de usuários requerem perfil administrador." }, 403);
       }
+      if (isForbiddenDestructiveQuery(q.sql)) {
+        return c.json({ error: "Acesso bloqueado: transações não podem conter instruções DDL estruturais (DROP, TRUNCATE, ALTER, PRAGMA)." }, 403);
+      }
     }
 
     const statements = queries.map((q) => {
@@ -373,9 +556,25 @@ app.post("/db/transaction", authMiddleware, async (c) => {
   }
 });
 
-// BACKUP EXPORT
-app.get("/backup/export", authMiddleware, async (c) => {
+// BACKUP EXPORT (Apenas Admin com Registro de Auditoria)
+app.get("/backup/export", authMiddleware, adminOnlyMiddleware, async (c) => {
   try {
+    const user = c.get("user");
+
+    // Registro de auditoria obrigatório para conformidade com a LGPD
+    try {
+      await c.env.DB.prepare(
+        `INSERT INTO audit_logs (id, clinic_id, user_id, action, entity_type, description, created_at)
+         VALUES (?, 'ana-morong-clinic', ?, 'backup_exported', 'backup', ?, datetime('now'))`
+      ).bind(
+        crypto.randomUUID(),
+        user?.userId || null,
+        `Backup completo do banco de dados Cloudflare D1 exportado pelo administrador ${user?.name || user?.email} (ID: ${user?.userId}).`
+      ).run();
+    } catch (auditError) {
+      console.error("Falha ao registrar auditoria de exportação:", auditError);
+    }
+
     const tables = ["users", "patients", "inventory_items", "inventory_batches", "stock_movements", "procedures", "procedure_items", "financial_transactions"];
     let dump = `-- Backup Cloudflare D1 Clínica Dra. Ana Morong - Gerado em ${new Date().toISOString()}\n\n`;
 
@@ -451,7 +650,7 @@ app.get("/signatures/vault", authMiddleware, async (c) => {
 app.post("/signatures/vault", authMiddleware, adminOnlyMiddleware, async (c) => {
   try {
     const body = await c.req.json<any>();
-    const masterKey = c.env.VAULT_MASTER_KEY || "dra-ana-vault-master-key-2026-safe";
+    const masterKey = getVaultMasterKey(c);
 
     if (!body.pfx_base64 || !body.password) {
       return c.json({ error: "Envie o arquivo .pfx/.p12 e a respectiva senha." }, 400);
@@ -756,6 +955,116 @@ app.post("/signatures/documents", authMiddleware, async (c) => {
   }
 });
 
+// 0.1 GET /api/signatures/documents/patient/:patientId — Lista contratos e termos do paciente
+app.get("/signatures/documents/patient/:patientId", authMiddleware, async (c) => {
+  try {
+    const patientId = c.req.param("patientId");
+    if (!patientId) {
+      return c.json({ error: "patientId é obrigatório." }, 400);
+    }
+
+    // Busca paciente para permitir busca por ID e também por CPF
+    const patient = await c.env.DB.prepare(
+      `SELECT id, document FROM patients WHERE id = ? LIMIT 1`
+    ).bind(patientId).first<any>();
+
+    const patientCpf = patient?.document;
+
+    let query = `SELECT id, verification_code, patient_id, patient_name, patient_cpf,
+                        patient_email, patient_phone, title, category, signing_mode,
+                        status, original_pdf_sha256, signed_pdf_sha256,
+                        pades_pkcs7_hex, drive_file_id, drive_file_url, drive_folder_url,
+                        gas_sync_status, created_at, completed_at, updated_at
+                 FROM documents
+                 WHERE patient_id = ?`;
+    const params: any[] = [patientId];
+
+    if (patientCpf && patientCpf.trim()) {
+      query += ` OR patient_cpf = ?`;
+      params.push(patientCpf.trim());
+    }
+
+    query += ` ORDER BY created_at DESC`;
+
+    const docsRes = await c.env.DB.prepare(query).bind(...params).all<any>();
+    const docs = docsRes.results || [];
+
+    if (docs.length === 0) {
+      return c.json({ success: true, documents: [] });
+    }
+
+    const docIds = docs.map((d: any) => d.id);
+    const origin = (c.env.PUBLIC_APP_URL || new URL(c.req.url).origin).replace(/\/$/, "");
+
+    // Busca signatários para esses documentos
+    const placeholders = docIds.map(() => "?").join(",");
+    const signersRes = await c.env.DB.prepare(
+      `SELECT id, document_id, role, full_name, cpf, email, phone_whatsapp,
+              council_id, auth_type, legal_standard, status, signed_at,
+              remote_access_token, icp_subject_cn, icp_serial_hex
+       FROM document_signers
+       WHERE document_id IN (${placeholders})
+       ORDER BY signing_order ASC`
+    ).bind(...docIds).all<any>();
+
+    const signersByDocId = new Map<string, any[]>();
+    for (const s of signersRes.results || []) {
+      const list = signersByDocId.get(s.document_id) || [];
+      list.push({
+        ...s,
+        sign_url: s.remote_access_token ? `${origin}/assinar/${s.remote_access_token}` : null,
+      });
+      signersByDocId.set(s.document_id, list);
+    }
+
+    const documentsWithSigners = docs.map((d: any) => ({
+      ...d,
+      has_pades: Boolean(d.pades_pkcs7_hex),
+      signers: signersByDocId.get(d.id) || [],
+    }));
+
+    return c.json({
+      success: true,
+      documents: documentsWithSigners,
+    });
+  } catch (error: any) {
+    console.error("Erro ao listar documentos do paciente:", error);
+    return c.json({ error: error.message || "Erro ao consultar documentos." }, 500);
+  }
+});
+
+// 0.2 GET /api/signatures/documents/:id/pdf — Obtém base64 e dados do PDF para visualização/download
+app.get("/signatures/documents/:id/pdf", authMiddleware, async (c) => {
+  try {
+    const docId = c.req.param("id");
+    const doc = await c.env.DB.prepare(
+      `SELECT id, title, verification_code, status, original_pdf_url, signed_pdf_base64, drive_file_url
+       FROM documents WHERE id = ? LIMIT 1`
+    ).bind(docId).first<any>();
+
+    if (!doc) {
+      return c.json({ error: "Documento não encontrado." }, 404);
+    }
+
+    const pdfBase64 = doc.signed_pdf_base64 || doc.original_pdf_url;
+    if (!pdfBase64) {
+      return c.json({ error: "Arquivo PDF não disponível no registro." }, 404);
+    }
+
+    return c.json({
+      success: true,
+      id: doc.id,
+      title: doc.title,
+      verification_code: doc.verification_code,
+      status: doc.status,
+      pdf_base64: pdfBase64,
+      drive_file_url: doc.drive_file_url,
+    });
+  } catch (error: any) {
+    return c.json({ error: error.message || "Erro ao obter PDF." }, 500);
+  }
+});
+
 // 1. GET /api/assinar/:token — Carrega sessão de assinatura para o paciente
 app.get("/assinar/:token", async (c) => {
   try {
@@ -904,7 +1213,7 @@ app.post("/assinar/:token", async (c) => {
     let decryptedCertCredentials: { pfxBase64: string; password: string } | null = null;
 
     if (doctorSigner && doctorSigner.status === 'pending' && vault) {
-      const masterSecret = c.env.VAULT_MASTER_KEY || "dra-ana-vault-master-key-2026-safe";
+      const masterSecret = getVaultMasterKey(c);
       try {
         decryptedCertCredentials = await DoctorAutoSignVaultService.decryptPfxAndPassword({
           encryptedPfxBase64: String(vault.encrypted_pfx_base64),

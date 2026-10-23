@@ -31,6 +31,51 @@ export interface CreateSignatureDocumentResponse {
   signers: CreatedDocumentSignerResult[];
 }
 
+export interface PatientDocumentSigner {
+  id: string;
+  document_id: string;
+  role: 'DRA_ANA' | 'PACIENTE' | 'TESTEMUNHA' | 'RESPONSAVEL_LEGAL' | string;
+  full_name: string;
+  cpf?: string;
+  email?: string;
+  phone_whatsapp?: string;
+  council_id?: string;
+  auth_type?: string;
+  legal_standard?: string;
+  status: 'pending' | 'signed' | 'rejected' | string;
+  signed_at?: string;
+  remote_access_token?: string;
+  sign_url?: string;
+  icp_subject_cn?: string;
+  icp_serial_hex?: string;
+}
+
+export interface PatientDocument {
+  id: string;
+  verification_code: string;
+  patient_id: string;
+  patient_name: string;
+  patient_cpf: string;
+  patient_email?: string;
+  patient_phone?: string;
+  title: string;
+  category: string;
+  signing_mode: 'in_person' | 'remote' | 'hybrid';
+  status: 'draft' | 'pending' | 'partially_signed' | 'completed' | 'rejected';
+  original_pdf_sha256?: string;
+  signed_pdf_sha256?: string;
+  pades_pkcs7_hex?: string;
+  has_pades: boolean;
+  drive_file_id?: string;
+  drive_file_url?: string;
+  drive_folder_url?: string;
+  gas_sync_status?: string;
+  created_at: string;
+  completed_at?: string;
+  updated_at?: string;
+  signers: PatientDocumentSigner[];
+}
+
 export class SignatureDocumentsService {
   private static getAuthToken(): string | null {
     if (typeof window === 'undefined') return null;
@@ -97,5 +142,77 @@ export class SignatureDocumentsService {
     }
 
     return await response.json();
+  }
+
+  /**
+   * Busca todos os documentos vinculados a um paciente
+   */
+  public static async getDocumentsByPatient(patientId: string): Promise<PatientDocument[]> {
+    const token = this.getAuthToken();
+    const headers: Record<string, string> = {};
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+
+    const response = await fetch(`/api/signatures/documents/patient/${encodeURIComponent(patientId)}`, {
+      method: 'GET',
+      headers,
+    });
+
+    if (!response.ok) {
+      const errData = await response.json().catch(() => ({ error: 'Erro de comunicação.' }));
+      throw new Error(errData.error || `Erro ao carregar documentos (${response.status})`);
+    }
+
+    const data = await response.json();
+    return data.documents || [];
+  }
+
+  /**
+   * Obtém o conteúdo Base64 do PDF (assinado ou original) para download ou visualização
+   */
+  public static async getDocumentPdf(documentId: string): Promise<{
+    id: string;
+    title: string;
+    verification_code: string;
+    status: string;
+    pdf_base64: string;
+    drive_file_url?: string;
+  }> {
+    const token = this.getAuthToken();
+    const headers: Record<string, string> = {};
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+
+    const response = await fetch(`/api/signatures/documents/${encodeURIComponent(documentId)}/pdf`, {
+      method: 'GET',
+      headers,
+    });
+
+    if (!response.ok) {
+      const errData = await response.json().catch(() => ({ error: 'Erro ao obter PDF.' }));
+      throw new Error(errData.error || `Erro ao obter PDF (${response.status})`);
+    }
+
+    return await response.json();
+  }
+
+  /**
+   * Helper para disparar download direto do PDF no navegador
+   */
+  public static downloadPdf(base64: string, filename: string): void {
+    const cleanBase64 = base64.replace(/^data:application\/pdf;base64,/, '');
+    const byteCharacters = atob(cleanBase64);
+    const byteNumbers = new Array(byteCharacters.length);
+    for (let i = 0; i < byteCharacters.length; i++) {
+      byteNumbers[i] = byteCharacters.charCodeAt(i);
+    }
+    const byteArray = new Uint8Array(byteNumbers);
+    const blob = new Blob([byteArray], { type: 'application/pdf' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename.endsWith('.pdf') ? filename : `${filename}.pdf`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
   }
 }

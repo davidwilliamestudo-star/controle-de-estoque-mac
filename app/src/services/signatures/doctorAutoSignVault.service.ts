@@ -69,9 +69,9 @@ export class DoctorAutoSignVaultService {
    * Deriva uma chave AES-256-GCM de 256 bits a partir da variável de ambiente VAULT_MASTER_KEY
    */
   private static async deriveMasterAesKey(masterSecret: string): Promise<CryptoKey> {
-    if (!masterSecret || masterSecret.trim().length < 16) {
+    if (!masterSecret || masterSecret.trim().length < 32) {
       throw new Error(
-        'VAULT_MASTER_KEY ausente ou muito curta. Configure uma chave secreta forte no ambiente com pelo menos 16 caracteres.'
+        'VAULT_MASTER_KEY inválida: a chave mestra de criptografia do cofre deve ter no mínimo 32 caracteres (256 bits de entropia).'
       );
     }
     const rawHash = await crypto.subtle.digest(

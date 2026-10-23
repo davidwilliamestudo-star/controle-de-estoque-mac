@@ -7,3 +7,5 @@ mac-install-kit/
 *.zip
 .env
 .DS_Store
+.~lock.*
+*Untitled*

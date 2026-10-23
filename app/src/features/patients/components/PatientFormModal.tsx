@@ -1,12 +1,11 @@
 /**
  * PatientFormModal.tsx — Modal de criação/edição de paciente
- * Design visual amplo, respirável e card-based alinhado à identidade da clínica.
+ * Padronizado com o Design System Oficial da Clínica Dra. Ana Morong.
  */
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
-  X,
   AlertTriangle,
   User,
   Phone,
@@ -17,7 +16,6 @@ import {
   UserPlus,
   UserCheck,
   Check,
-  Loader2,
   Sparkles,
   Contact,
   ShieldAlert,
@@ -29,6 +27,14 @@ import {
   type PatientFormInput,
 } from "../schemas/patient.schema";
 import { useCreatePatient, useUpdatePatient } from "../hooks/usePatients";
+import {
+  Modal,
+  FormField,
+  Input,
+  Textarea,
+  Button,
+  Badge,
+} from "@/components/ui";
 
 interface PatientFormModalProps {
   patient: Patient | null;
@@ -57,28 +63,11 @@ function formatPhone(value: string): string {
     .replace(/(\d{5})(\d)/, "$1-$2");
 }
 
-const fieldShell =
-  "flex items-center gap-3.5 h-12 px-4 rounded-xl border bg-white transition-all " +
-  "border-[#E5DEC9] hover:border-[#D4AF37]/70 " +
-  "focus-within:border-[#1A5347] focus-within:ring-4 focus-within:ring-[#1A5347]/10 " +
-  "focus-within:shadow-xs";
-
-const fieldShellError =
-  "flex items-center gap-3.5 h-12 px-4 rounded-xl border bg-white transition-all " +
-  "border-red-300 hover:border-red-400 " +
-  "focus-within:border-red-500 focus-within:ring-4 focus-within:ring-red-500/10";
-
-const inputClass =
-  "flex-1 min-w-0 h-full bg-transparent border-0 outline-none text-sm text-[#111827] " +
-  "placeholder:text-[#B8A083] font-medium";
-
-const labelClass =
-  "block text-xs font-bold uppercase tracking-wider text-[#5C4033] mb-2.5 flex items-center gap-1.5";
-
 export function PatientFormModal({ patient, onClose }: PatientFormModalProps) {
   const isEditing = !!patient;
   const createPatient = useCreatePatient();
   const updatePatient = useUpdatePatient();
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const {
     register,
@@ -101,6 +90,7 @@ export function PatientFormModal({ patient, onClose }: PatientFormModalProps) {
   });
 
   useEffect(() => {
+    setErrorMessage(null);
     if (patient) {
       reset({
         full_name: patient.full_name,
@@ -126,7 +116,10 @@ export function PatientFormModal({ patient, onClose }: PatientFormModalProps) {
     }
   }, [patient, reset]);
 
+  const isSaving = isSubmitting || createPatient.isPending || updatePatient.isPending;
+
   async function onSubmit(data: PatientFormData) {
+    setErrorMessage(null);
     try {
       if (isEditing && patient) {
         await updatePatient.mutateAsync({ id: patient.id, data });
@@ -136,300 +129,218 @@ export function PatientFormModal({ patient, onClose }: PatientFormModalProps) {
       onClose();
     } catch (err) {
       console.error("Erro ao salvar paciente:", err);
+      const msg = err instanceof Error ? err.message : "Erro ao salvar paciente. Tente novamente.";
+      setErrorMessage(msg);
     }
   }
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 lg:p-8 bg-slate-900/65 backdrop-blur-xs animate-in fade-in duration-200"
-      onClick={(e) => e.target === e.currentTarget && onClose()}
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="patient-form-title"
-    >
-      <div
-        className="w-full max-w-3xl bg-white rounded-3xl border border-[#E8E0D2] shadow-2xl flex flex-col max-h-[calc(100vh-4rem)] overflow-hidden transition-all transform duration-200"
-      >
-        {/* ── Header Espaçoso ──────────────────────────────── */}
-        <div
-          className="relative px-8 py-7 shrink-0 overflow-hidden"
-          style={{
-            background:
-              "linear-gradient(135deg, #F7F4EE 0%, #FFFFFF 60%, #F0EBE0 100%)",
-            borderBottom: "1px solid #E8E0D2",
-          }}
-        >
-          {/* decoração de brilho sutil */}
-          <div
-            className="pointer-events-none absolute -top-10 -right-10 w-44 h-44 rounded-full opacity-35"
-            style={{ background: "radial-gradient(circle, #D4AF37 0%, transparent 70%)" }}
-          />
-
-          <div className="relative flex items-center justify-between gap-5">
-            <div className="flex items-center gap-4 min-w-0">
-              <div
-                className="w-13 h-13 rounded-2xl flex items-center justify-center shrink-0 border shadow-xs"
-                style={{
-                  backgroundColor: "#1A5347",
-                  borderColor: "#164539",
-                  color: "#F7F4EE",
-                }}
-              >
-                {isEditing ? <UserCheck size={24} strokeWidth={2} /> : <UserPlus size={24} strokeWidth={2} />}
-              </div>
-              <div className="min-w-0">
-                <div className="flex items-center gap-2.5 mb-1">
-                  <h2
-                    id="patient-form-title"
-                    className="text-2xl font-bold tracking-tight truncate text-[#111827]"
-                  >
-                    {isEditing ? "Editar Paciente" : "Novo Paciente"}
-                  </h2>
-                  {!isEditing && (
-                    <span
-                      className="hidden sm:inline-flex items-center gap-1 text-[11px] font-bold uppercase tracking-wide px-3 py-1 rounded-full"
-                      style={{ backgroundColor: "#1A5347", color: "#F7F4EE" }}
-                    >
-                      <Sparkles size={11} /> Cadastro Clínico
-                    </span>
-                  )}
-                </div>
-                <p className="text-sm leading-relaxed text-[#5C4033]">
-                  {isEditing
-                    ? "Atualize as informações cadastrais e clínicas do paciente."
-                    : "Preencha as informações necessárias para cadastrar o paciente no sistema."}
-                </p>
-              </div>
-            </div>
-
-            <button
-              type="button"
-              onClick={onClose}
-              className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 transition-all border text-gray-500 hover:text-gray-900 hover:bg-gray-100"
-              style={{
-                backgroundColor: "#FFFFFF",
-                borderColor: "#E5DEC9",
-              }}
-              title="Fechar (Esc)"
-              aria-label="Fechar"
-            >
-              <X size={20} />
-            </button>
-          </div>
-        </div>
-
-        {/* ── Formulário Arejado & Card-Based ─────────────── */}
-        <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col flex-1 min-h-0">
-          <div className="p-8 space-y-7 flex-1 min-h-0 overflow-y-auto custom-scrollbar">
-
-            {/* CARD 1: Dados de Identificação */}
-            <div className="bg-[#FAF8F4] p-6 rounded-2xl border border-[#E8E0D2]/80 space-y-6">
-              <div className="flex items-center gap-2 pb-3 border-b border-[#E8E0D2]">
-                <User size={18} className="text-[#1A5347]" />
-                <h3 className="text-xs font-bold uppercase tracking-wider text-[#5C4033]">Dados de Identificação</h3>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                {/* Nome Completo (span 2) */}
-                <div className="sm:col-span-2">
-                  <label className={labelClass}>
-                    <span>Nome completo</span>
-                    <span className="text-red-500 font-bold">*</span>
-                  </label>
-                  <div className={errors.full_name ? fieldShellError : fieldShell}>
-                    <User size={18} className="shrink-0 text-[#B8A083]" />
-                    <input
-                      {...register("full_name")}
-                      placeholder="Ex: Maria Aparecida da Silva"
-                      className={inputClass}
-                      autoFocus={!isEditing}
-                    />
-                  </div>
-                  {errors.full_name && (
-                    <p className="text-xs mt-2 text-red-500 font-medium">{errors.full_name.message}</p>
-                  )}
-                </div>
-
-                {/* CPF / Documento */}
-                <div>
-                  <label className={labelClass}>
-                    <IdCard size={15} className="text-[#B8A083]" />
-                    <span>CPF / Documento</span>
-                  </label>
-                  <div className={errors.document ? fieldShellError : fieldShell}>
-                    <IdCard size={18} className="shrink-0 text-[#B8A083]" />
-                    <Controller
-                      name="document"
-                      control={control}
-                      render={({ field }) => (
-                        <input
-                          {...field}
-                          value={field.value ?? ""}
-                          onChange={(e) => field.onChange(formatCpf(e.target.value))}
-                          placeholder="000.000.000-00"
-                          inputMode="numeric"
-                          autoComplete="off"
-                          className={inputClass}
-                        />
-                      )}
-                    />
-                  </div>
-                  {errors.document && (
-                    <p className="text-xs mt-2 text-red-500 font-medium">{errors.document.message}</p>
-                  )}
-                </div>
-
-                {/* Data de Nascimento */}
-                <div>
-                  <label className={labelClass}>
-                    <CalendarDays size={15} className="text-[#B8A083]" />
-                    <span>Data de nascimento</span>
-                  </label>
-                  <div className={fieldShell}>
-                    <CalendarDays size={18} className="shrink-0 text-[#B8A083]" />
-                    <input
-                      {...register("birth_date")}
-                      type="date"
-                      className={`${inputClass} [color-scheme:light]`}
-                    />
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* CARD 2: Canais de Contato */}
-            <div className="bg-[#FAF8F4] p-6 rounded-2xl border border-[#E8E0D2]/80 space-y-6">
-              <div className="flex items-center gap-2 pb-3 border-b border-[#E8E0D2]">
-                <Contact size={18} className="text-[#1A5347]" />
-                <h3 className="text-xs font-bold uppercase tracking-wider text-[#5C4033]">Canais de Contato</h3>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                {/* Telefone */}
-                <div>
-                  <label className={labelClass}>
-                    <Phone size={15} className="text-[#B8A083]" />
-                    <span>Telefone / WhatsApp</span>
-                  </label>
-                  <div className={fieldShell}>
-                    <Phone size={18} className="shrink-0 text-[#B8A083]" />
-                    <Controller
-                      name="phone"
-                      control={control}
-                      render={({ field }) => (
-                        <input
-                          {...field}
-                          value={field.value ?? ""}
-                          onChange={(e) => field.onChange(formatPhone(e.target.value))}
-                          placeholder="(11) 99999-9999"
-                          inputMode="tel"
-                          className={inputClass}
-                        />
-                      )}
-                    />
-                  </div>
-                </div>
-
-                {/* E-mail */}
-                <div>
-                  <label className={labelClass}>
-                    <Mail size={15} className="text-[#B8A083]" />
-                    <span>E-mail</span>
-                  </label>
-                  <div className={errors.email ? fieldShellError : fieldShell}>
-                    <Mail size={18} className="shrink-0 text-[#B8A083]" />
-                    <input
-                      {...register("email")}
-                      type="email"
-                      placeholder="paciente@exemplo.com"
-                      className={inputClass}
-                    />
-                  </div>
-                  {errors.email && (
-                    <p className="text-xs mt-2 text-red-500 font-medium">{errors.email.message}</p>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            {/* CARD 3: Observações & Alertas Clínicos */}
-            <div className="bg-[#FAF8F4] p-6 rounded-2xl border border-[#E8E0D2]/80 space-y-6">
-              <div className="flex items-center gap-2 pb-3 border-b border-[#E8E0D2]">
-                <FileText size={18} className="text-[#1A5347]" />
-                <h3 className="text-xs font-bold uppercase tracking-wider text-[#5C4033]">Prontuário & Observações</h3>
-              </div>
-
-              {/* Observações Gerais */}
-              <div>
-                <label className={labelClass}>
-                  <FileText size={15} className="text-[#B8A083]" />
-                  <span>Observações clínicas</span>
-                </label>
-                <textarea
-                  {...register("notes")}
-                  rows={3}
-                  placeholder="Preferências do paciente, histórico relevante, observações gerais de atendimento..."
-                  className="w-full min-h-[105px] p-4 rounded-xl border text-sm font-medium resize-y outline-none transition-all placeholder:text-[#B8A083] border-[#E5DEC9] text-[#111827] bg-white focus:border-[#1A5347] focus:ring-4 focus:ring-[#1A5347]/10"
-                />
-              </div>
-
-              {/* Observações de Alerta / Alergias */}
-              <div className="rounded-2xl p-5 border border-amber-300/80 bg-amber-50/90 shadow-xs space-y-2">
-                <label className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-amber-900 mb-2">
-                  <ShieldAlert size={17} className="text-amber-600 shrink-0" />
-                  <span>Observações de alerta / Alergias</span>
-                </label>
-                <textarea
-                  {...register("alert_notes")}
-                  rows={3}
-                  placeholder="Alergias a medicamentos, contraindicações importantes, restrições clínicas..."
-                  className="w-full min-h-[105px] p-4 rounded-xl border text-sm font-medium resize-y outline-none transition-all border-amber-300 text-amber-950 bg-white placeholder:text-amber-400 focus:border-amber-500 focus:ring-4 focus:ring-amber-500/20"
-                />
-                <p className="text-[11px] font-semibold text-amber-800 flex items-center gap-1.5 pt-1">
-                  <AlertTriangle size={13} className="text-amber-600" />
-                  Alertas cadastrados ficam em evidência nos prontuários de aplicação da clínica.
-                </p>
-              </div>
-            </div>
-
-          </div>
-
-          {/* ── Footer Espaçoso ─────────────────────────────── */}
-          <div
-            className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-4 px-8 py-6 shrink-0"
-            style={{
-              borderTop: "1px solid #E8E0D2",
-              background: "linear-gradient(180deg, #FAF8F4 0%, #F7F4EE 100%)",
-            }}
+    <Modal
+      isOpen={true}
+      onClose={onClose}
+      maxWidth="2xl"
+      icon={isEditing ? <UserCheck className="w-5 h-5" /> : <UserPlus className="w-5 h-5" />}
+      title={isEditing ? "Editar Paciente" : "Novo Paciente"}
+      subtitle={
+        isEditing
+          ? "Atualize as informações cadastrais e clínicas do paciente."
+          : "Preencha as informações necessárias para cadastrar o paciente no sistema."
+      }
+      headerRight={
+        !isEditing && (
+          <Badge variant="emerald" size="sm" icon={<Sparkles className="w-3 h-3" />}>
+            Cadastro Clínico
+          </Badge>
+        )
+      }
+      footer={
+        <div className="flex items-center justify-end gap-3 w-full">
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={onClose}
+            disabled={isSaving}
           >
-            <button
-              type="button"
-              onClick={onClose}
-              className="h-13 sm:min-w-[140px] px-7 text-sm font-semibold rounded-xl border transition-all active:scale-[0.98] text-[#4A3328] bg-white border-[#D7CBB5] hover:bg-[#F7F4EE] shadow-xs"
-            >
-              Cancelar
-            </button>
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              className="h-13 sm:min-w-[230px] px-9 text-sm font-bold rounded-xl transition-all active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-white bg-[#1A5347] hover:bg-[#236a5b] shadow-lg shadow-[#1A5347]/30"
-            >
-              {isSubmitting ? (
-                <>
-                  <Loader2 size={19} className="animate-spin" />
-                  <span>Salvando...</span>
-                </>
-              ) : (
-                <>
-                  <Check size={19} strokeWidth={2.5} />
-                  <span>{isEditing ? "Salvar Alterações" : "Cadastrar Paciente"}</span>
-                </>
-              )}
-            </button>
+            Cancelar
+          </Button>
+          <Button
+            type="submit"
+            form="patient-form"
+            variant="primary"
+            isLoading={isSaving}
+            leftIcon={<Check className="w-4 h-4 stroke-[2.5]" />}
+          >
+            {isEditing ? "Salvar Alterações" : "Cadastrar Paciente"}
+          </Button>
+        </div>
+      }
+    >
+      <form id="patient-form" onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+        {errorMessage && (
+          <div className="flex items-start gap-3 p-4 rounded-2xl border border-rose-200 bg-rose-50/90 text-rose-800 shadow-2xs">
+            <AlertTriangle className="w-5 h-5 shrink-0 text-rose-600 mt-0.5" />
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-bold uppercase tracking-wider text-rose-900 mb-0.5">
+                Falha ao salvar
+              </p>
+              <p className="text-xs leading-relaxed text-rose-700">{errorMessage}</p>
+            </div>
           </div>
-        </form>
-      </div>
-    </div>
+        )}
+
+        {/* SEÇÃO 1: Dados de Identificação */}
+        <section className="form-section-card">
+          <div className="form-section-header">
+            <span className="form-section-title">
+              <User className="w-4 h-4 text-emerald-700" />
+              Dados de Identificação
+            </span>
+          </div>
+
+          <div className="space-y-4">
+            {/* Nome Completo */}
+            <FormField
+              label="Nome Completo"
+              required
+              error={errors.full_name?.message}
+            >
+              <Input
+                {...register("full_name")}
+                leftIcon={<User className="w-4 h-4" />}
+                placeholder="Ex: Maria Aparecida da Silva"
+                hasError={Boolean(errors.full_name)}
+                autoFocus={!isEditing}
+              />
+            </FormField>
+
+            <div className="form-grid-2">
+              {/* CPF / Documento */}
+              <FormField
+                label="CPF / Documento"
+                error={errors.document?.message}
+              >
+                <Controller
+                  name="document"
+                  control={control}
+                  render={({ field }) => (
+                    <Input
+                      {...field}
+                      value={field.value ?? ""}
+                      onChange={(e) => field.onChange(formatCpf(e.target.value))}
+                      leftIcon={<IdCard className="w-4 h-4" />}
+                      placeholder="000.000.000-00"
+                      mono
+                      hasError={Boolean(errors.document)}
+                    />
+                  )}
+                />
+              </FormField>
+
+              {/* Data de Nascimento */}
+              <FormField
+                label="Data de Nascimento"
+                error={errors.birth_date?.message}
+              >
+                <Input
+                  {...register("birth_date")}
+                  type="date"
+                  leftIcon={<CalendarDays className="w-4 h-4" />}
+                  hasError={Boolean(errors.birth_date)}
+                />
+              </FormField>
+            </div>
+          </div>
+        </section>
+
+        {/* SEÇÃO 2: Canais de Contato */}
+        <section className="form-section-card">
+          <div className="form-section-header">
+            <span className="form-section-title">
+              <Contact className="w-4 h-4 text-emerald-700" />
+              Canais de Contato
+            </span>
+          </div>
+
+          <div className="form-grid-2">
+            {/* Telefone */}
+            <FormField
+              label="Telefone / WhatsApp"
+              error={errors.phone?.message}
+            >
+              <Controller
+                name="phone"
+                control={control}
+                render={({ field }) => (
+                  <Input
+                    {...field}
+                    value={field.value ?? ""}
+                    onChange={(e) => field.onChange(formatPhone(e.target.value))}
+                    leftIcon={<Phone className="w-4 h-4" />}
+                    placeholder="(11) 99999-9999"
+                    hasError={Boolean(errors.phone)}
+                  />
+                )}
+              />
+            </FormField>
+
+            {/* E-mail */}
+            <FormField
+              label="E-mail"
+              error={errors.email?.message}
+            >
+              <Input
+                {...register("email")}
+                type="email"
+                leftIcon={<Mail className="w-4 h-4" />}
+                placeholder="paciente@exemplo.com"
+                hasError={Boolean(errors.email)}
+              />
+            </FormField>
+          </div>
+        </section>
+
+        {/* SEÇÃO 3: Prontuário & Observações Clínicas */}
+        <section className="form-section-card">
+          <div className="form-section-header">
+            <span className="form-section-title">
+              <FileText className="w-4 h-4 text-emerald-700" />
+              Prontuário & Observações
+            </span>
+          </div>
+
+          <div className="space-y-4">
+            {/* Observações Gerais */}
+            <FormField
+              label="Observações Clínicas Gerais"
+              helperText="Preferências do paciente, histórico relevante, observações gerais de atendimento."
+            >
+              <Textarea
+                {...register("notes")}
+                rows={3}
+                placeholder="Observações do histórico do paciente..."
+              />
+            </FormField>
+
+            {/* Observações de Alerta / Alergias */}
+            <div className="rounded-2xl p-4.5 border border-amber-300/80 bg-amber-50/80 shadow-2xs space-y-2">
+              <label className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-amber-900">
+                <ShieldAlert className="w-4 h-4 text-amber-600 shrink-0" />
+                <span>Observações de Alerta / Alergias</span>
+              </label>
+              <Textarea
+                {...register("alert_notes")}
+                rows={2}
+                placeholder="Alergias a medicamentos, contraindicações importantes, restrições clínicas..."
+                className="bg-white border-amber-300 text-amber-950 focus-within:border-amber-600 focus-within:ring-amber-600/15"
+              />
+              <p className="text-[11px] font-semibold text-amber-800 flex items-center gap-1.5 pt-0.5">
+                <AlertTriangle className="w-3.5 h-3.5 text-amber-600" />
+                Alertas cadastrados ficam em evidência nos prontuários e contratos da clínica.
+              </p>
+            </div>
+          </div>
+        </section>
+      </form>
+    </Modal>
   );
 }
-

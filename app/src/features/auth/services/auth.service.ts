@@ -5,8 +5,8 @@ import { createSessionPayload, clearStoredAuthSession, getStoredAuthSession, ref
 import type { AuthSession } from "../types";
 import { hashPassword, verifyPassword } from "../password";
 
-const DEFAULT_DEV_EMAIL = "ana@morong.med.br";
-const DEFAULT_DEV_PASSWORD = "Ana2026!";
+const DEFAULT_DEV_EMAIL = import.meta.env.DEV ? "ana@morong.med.br" : "";
+const DEFAULT_DEV_PASSWORD = import.meta.env.DEV ? "Ana2026!" : "";
 
 export interface LoginResult {
   session: AuthSession;
@@ -59,7 +59,13 @@ export const authService = {
 
     let isValid = await verifyPassword(password, user.password_hash);
 
-    if (!isValid && user.email.toLowerCase() === DEFAULT_DEV_EMAIL && password === DEFAULT_DEV_PASSWORD) {
+    if (
+      import.meta.env.DEV &&
+      Boolean(DEFAULT_DEV_PASSWORD) &&
+      !isValid &&
+      user.email.toLowerCase() === DEFAULT_DEV_EMAIL &&
+      password === DEFAULT_DEV_PASSWORD
+    ) {
       const upgradedHash = await hashPassword(password);
       await authRepository.updatePasswordHash(user.id, upgradedHash);
       isValid = true;

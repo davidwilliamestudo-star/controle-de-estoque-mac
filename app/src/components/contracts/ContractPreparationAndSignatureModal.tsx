@@ -60,6 +60,14 @@ import {
   SignatureDocumentsService,
   CreatedDocumentSignerResult,
 } from '@/services/contracts/signatureDocuments.service';
+import {
+  Button,
+  Badge,
+  FormField,
+  Input,
+  Select,
+  SegmentedControl,
+} from '@/components/ui';
 
 export interface PatientRecordInput {
   id: string;
@@ -733,73 +741,37 @@ export const ContractPreparationAndSignatureModal: React.FC<
             >
               {/* SUB-ABAS MODERNAS (ESTILO SEGMENTED CONTROL) */}
               <div className="px-6 sm:px-8 pt-4 pb-3 border-b border-slate-200 bg-slate-50/80 flex flex-wrap items-center justify-between gap-3 shrink-0">
-                <div className="inline-flex bg-slate-200/80 p-1.5 rounded-2xl gap-1">
-                  <button
-                    type="button"
-                    onClick={() => setActiveTab('programs')}
-                    className={`px-3.5 sm:px-4 py-2 rounded-xl text-xs font-bold transition-all duration-200 flex items-center gap-2 cursor-pointer ${
-                      activeTab === 'programs'
-                        ? 'bg-white text-emerald-950 shadow-sm'
-                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/60'
-                    }`}
-                  >
-                    <Sparkles className="w-4 h-4 text-emerald-600" />
-                    <span>1. Programa 360®</span>
-                    <span className="text-[10px] bg-emerald-50 text-emerald-800 font-extrabold px-2 py-0.5 rounded-md border border-emerald-200/70">
-                      {currentPlanMeta.name.split(' ')[0]}
-                    </span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setActiveTab('financial')}
-                    className={`px-3.5 sm:px-4 py-2 rounded-xl text-xs font-bold transition-all duration-200 flex items-center gap-2 cursor-pointer ${
-                      activeTab === 'financial'
-                        ? 'bg-white text-emerald-950 shadow-sm'
-                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/60'
-                    }`}
-                  >
-                    <DollarSign className="w-4 h-4 text-emerald-600" />
-                    <span>2. Escada & Valores</span>
-                    <span className="text-[10px] bg-slate-100 text-slate-700 font-mono font-bold px-2 py-0.5 rounded-md border border-slate-200">
-                      R$ {tags.valor_plano}
-                    </span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setActiveTab('patient')}
-                    className={`px-3.5 sm:px-4 py-2 rounded-xl text-xs font-bold transition-all duration-200 flex items-center gap-2 cursor-pointer ${
-                      activeTab === 'patient'
-                        ? 'bg-white text-emerald-950 shadow-sm'
-                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/60'
-                    }`}
-                  >
-                    <User className="w-4 h-4 text-slate-500" />
-                    <span>3. Paciente & Médica</span>
-                    {!tags.cpf || !tags.nome ? (
-                      <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" title="Dados pendentes" />
-                    ) : (
-                      <Check className="w-3.5 h-3.5 text-emerald-600 stroke-[3]" />
-                    )}
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setActiveTab('raw_tags')}
-                    className={`px-3.5 sm:px-4 py-2 rounded-xl text-xs font-bold transition-all duration-200 flex items-center gap-2 cursor-pointer ${
-                      activeTab === 'raw_tags'
-                        ? 'bg-white text-emerald-950 shadow-sm'
-                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/60'
-                    }`}
-                  >
-                    <SlidersHorizontal className="w-4 h-4 text-slate-500" />
-                    <span>4. Tags</span>
-                    <span className="text-[10px] bg-slate-100 text-slate-600 font-bold px-2 py-0.5 rounded-md">
-                      33
-                    </span>
-                  </button>
-                </div>
+                <SegmentedControl
+                  activeId={activeTab}
+                  onChange={(tab) => setActiveTab(tab as any)}
+                  size="md"
+                  items={[
+                    {
+                      id: 'programs',
+                      label: '1. Programa 360®',
+                      icon: <Sparkles className="w-4 h-4 text-emerald-600" />,
+                      badge: currentPlanMeta.name.split(' ')[0],
+                    },
+                    {
+                      id: 'financial',
+                      label: '2. Escada & Valores',
+                      icon: <DollarSign className="w-4 h-4 text-emerald-600" />,
+                      badge: `R$ ${tags.valor_plano}`,
+                    },
+                    {
+                      id: 'patient',
+                      label: '3. Paciente & Médica',
+                      icon: <User className="w-4 h-4 text-slate-500" />,
+                      badge: !tags.cpf || !tags.nome ? 'Pendente' : '✓',
+                    },
+                    {
+                      id: 'raw_tags',
+                      label: '4. Tags',
+                      icon: <SlidersHorizontal className="w-4 h-4 text-slate-500" />,
+                      badge: '33',
+                    },
+                  ]}
+                />
               </div>
 
               {/* CONTEÚDO ROLÁVEL COM ESPAÇAMENTO RESPIRÁVEL */}
@@ -1065,31 +1037,24 @@ export const ContractPreparationAndSignatureModal: React.FC<
                       )}
 
                       {/* AJUSTE MANUAL DE VALORES E MODALIDADES */}
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2">
-                        <div>
-                          <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                            Forma de Pagamento
-                          </label>
-                          <select
+                      <div className="form-grid-3 pt-2">
+                        <FormField label="Forma de Pagamento">
+                          <Select
                             value={paymentModality}
                             onChange={(e) =>
                               handleManualFinancialChange({
                                 modality: e.target.value as PaymentModality,
                               })
                             }
-                            className="w-full h-11 bg-white border border-slate-300 rounded-xl px-3.5 text-xs text-slate-900 font-semibold outline-none focus:border-emerald-600 focus:ring-4 focus:ring-emerald-600/10 transition"
                           >
                             <option value="AVISTA">À Vista (PIX / Transferência)</option>
                             <option value="CARTAO">Cartão de Crédito Parcelado</option>
                             <option value="PIX_PARCELADO">PIX Parcelado / Recorrência</option>
-                          </select>
-                        </div>
+                          </Select>
+                        </FormField>
 
-                        <div>
-                          <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                            Valor Total do Contrato (R$)
-                          </label>
-                          <input
+                        <FormField label="Valor Total do Contrato" badge="R$">
+                          <Input
                             type="number"
                             step="0.01"
                             value={totalNumericValue}
@@ -1098,17 +1063,14 @@ export const ContractPreparationAndSignatureModal: React.FC<
                                 total: parseFloat(e.target.value) || 0,
                               })
                             }
-                            className="w-full h-11 bg-white border border-slate-300 rounded-xl px-3.5 text-xs text-slate-900 font-bold font-mono outline-none focus:border-emerald-600 focus:ring-4 focus:ring-emerald-600/10 transition"
+                            mono
                           />
-                        </div>
+                        </FormField>
 
                         {paymentModality !== 'AVISTA' && (
                           <div className="grid grid-cols-2 gap-2.5">
-                            <div>
-                              <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                                Parcelas
-                              </label>
-                              <input
+                            <FormField label="Parcelas">
+                              <Input
                                 type="number"
                                 min={1}
                                 max={24}
@@ -1118,14 +1080,10 @@ export const ContractPreparationAndSignatureModal: React.FC<
                                     count: parseInt(e.target.value, 10) || 1,
                                   })
                                 }
-                                className="w-full h-11 bg-white border border-slate-300 rounded-xl px-3 text-xs text-slate-900 font-bold outline-none focus:border-emerald-600 focus:ring-4 focus:ring-emerald-600/10 transition"
                               />
-                            </div>
-                            <div>
-                              <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                                Valor Parcela
-                              </label>
-                              <input
+                            </FormField>
+                            <FormField label="Valor Parcela">
+                              <Input
                                 type="number"
                                 step="0.01"
                                 value={installmentNumericValue}
@@ -1134,45 +1092,41 @@ export const ContractPreparationAndSignatureModal: React.FC<
                                     installment: parseFloat(e.target.value) || 0,
                                   })
                                 }
-                                className="w-full h-11 bg-white border border-slate-300 rounded-xl px-3 text-xs text-slate-900 font-bold font-mono outline-none focus:border-emerald-600 focus:ring-4 focus:ring-emerald-600/10 transition"
+                                mono
                               />
-                            </div>
+                            </FormField>
                           </div>
                         )}
                       </div>
 
                       {paymentModality === 'PIX_PARCELADO' && (
-                        <div>
-                          <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                            Dia de Vencimento Mensal (Tag {'{{dia_vencimento_pix}}'})
-                          </label>
-                          <input
-                            type="number"
-                            min={1}
-                            max={31}
-                            value={pixDueDay}
-                            onChange={(e) =>
-                              handleManualFinancialChange({
-                                dueDay: parseInt(e.target.value, 10) || 10,
-                              })
-                            }
-                            className="w-36 h-11 bg-white border border-slate-300 rounded-xl px-3.5 text-xs text-slate-900 font-bold outline-none focus:border-emerald-600 focus:ring-4 focus:ring-emerald-600/10 transition"
-                          />
+                        <div className="w-56">
+                          <FormField label="Dia de Vencimento Mensal" badge="{{dia_vencimento_pix}}">
+                            <Input
+                              type="number"
+                              min={1}
+                              max={31}
+                              value={pixDueDay}
+                              onChange={(e) =>
+                                handleManualFinancialChange({
+                                  dueDay: parseInt(e.target.value, 10) || 10,
+                                })
+                              }
+                            />
+                          </FormField>
                         </div>
                       )}
 
                       <div>
-                        <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                          Valor por Extenso Automático ({'{{valor_plano_extenso}}'})
-                        </label>
-                        <input
-                          type="text"
-                          value={tags.valor_plano_extenso}
-                          onChange={(e) =>
-                            handleDirectTagEdit('valor_plano_extenso', e.target.value)
-                          }
-                          className="w-full h-11 bg-slate-50 border border-slate-300 rounded-xl px-3.5 text-xs text-slate-800 font-medium outline-none focus:border-emerald-600 focus:bg-white focus:ring-4 focus:ring-emerald-600/10 transition"
-                        />
+                        <FormField label="Valor por Extenso Automático" badge="{{valor_plano_extenso}}">
+                          <Input
+                            type="text"
+                            value={tags.valor_plano_extenso}
+                            onChange={(e) =>
+                              handleDirectTagEdit('valor_plano_extenso', e.target.value)
+                            }
+                          />
+                        </FormField>
                       </div>
                     </section>
                   </>
@@ -1206,12 +1160,13 @@ export const ContractPreparationAndSignatureModal: React.FC<
                         <label className="text-xs font-bold text-slate-700 whitespace-nowrap">
                           CRM/SC:
                         </label>
-                        <input
-                          type="text"
+                        <Input
                           value={crmDra}
                           onChange={(e) => handleCrmChange(e.target.value)}
                           placeholder="Ex: 28412"
-                          className="w-28 bg-emerald-50/50 border border-emerald-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-700/20 rounded-lg px-2.5 py-1 text-xs text-slate-900 font-bold font-mono outline-none transition"
+                          mono
+                          inputSize="sm"
+                          className="w-28"
                         />
                       </div>
                     </div>
@@ -1222,113 +1177,84 @@ export const ContractPreparationAndSignatureModal: React.FC<
                         <User className="w-4 h-4 text-emerald-700" />
                         Dados Pessoais do Contratante (Paciente)
                       </h4>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div>
-                          <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                            Nome Completo ({'{{nome}}'})
-                          </label>
-                          <input
+                      <div className="form-grid-2">
+                        <FormField label="Nome Completo" badge="{{nome}}" required>
+                          <Input
                             type="text"
                             value={tags.nome}
                             onChange={(e) => handleDirectTagEdit('nome', e.target.value)}
-                            className="w-full h-11 bg-white border border-slate-300 rounded-xl px-3.5 text-xs text-slate-900 font-bold outline-none focus:border-emerald-600 focus:ring-4 focus:ring-emerald-600/10 transition"
                           />
-                        </div>
+                        </FormField>
+
                         <div className="grid grid-cols-2 gap-3">
-                          <div>
-                            <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                              CPF ({'{{cpf}}'})
-                            </label>
-                            <input
+                          <FormField label="CPF" badge="{{cpf}}" required>
+                            <Input
                               type="text"
                               value={tags.cpf}
                               onChange={(e) => handleDirectTagEdit('cpf', e.target.value)}
                               placeholder="000.000.000-00"
-                              className="w-full h-11 bg-white border border-slate-300 rounded-xl px-3.5 text-xs text-slate-900 font-mono font-medium outline-none focus:border-emerald-600 focus:ring-4 focus:ring-emerald-600/10 transition"
+                              mono
                             />
-                          </div>
-                          <div>
-                            <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                              Nascimento ({'{{data_nascimento}}'})
-                            </label>
-                            <input
+                          </FormField>
+                          <FormField label="Nascimento" badge="{{data_nascimento}}">
+                            <Input
                               type="text"
                               value={tags.data_nascimento}
-                              onChange={(e) =>
-                                handleDirectTagEdit('data_nascimento', e.target.value)
-                              }
+                              onChange={(e) => handleDirectTagEdit('data_nascimento', e.target.value)}
                               placeholder="DD/MM/AAAA"
-                              className="w-full h-11 bg-white border border-slate-300 rounded-xl px-3.5 text-xs text-slate-900 outline-none focus:border-emerald-600 focus:ring-4 focus:ring-emerald-600/10 transition"
                             />
-                          </div>
+                          </FormField>
                         </div>
 
-                        <div>
-                          <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                            Endereço Residencial ({'{{endereco}}'})
-                          </label>
-                          <input
+                        <FormField label="Endereço Residencial" badge="{{endereco}}">
+                          <Input
                             type="text"
                             value={tags.endereco}
                             onChange={(e) => handleDirectTagEdit('endereco', e.target.value)}
                             placeholder="Rua, número e complemento"
-                            className="w-full h-11 bg-white border border-slate-300 rounded-xl px-3.5 text-xs text-slate-900 outline-none focus:border-emerald-600 focus:ring-4 focus:ring-emerald-600/10 transition"
                           />
-                        </div>
+                        </FormField>
 
                         <div className="grid grid-cols-3 gap-2.5">
                           <div className="col-span-2">
-                            <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                              Bairro / Cidade / UF ({'{{bairro_cidade_uf}}'})
-                            </label>
-                            <input
-                              type="text"
-                              value={tags.bairro_cidade_uf}
-                              onChange={(e) =>
-                                handleDirectTagEdit('bairro_cidade_uf', e.target.value)
-                              }
-                              className="w-full h-11 bg-white border border-slate-300 rounded-xl px-3.5 text-xs text-slate-900 outline-none focus:border-emerald-600 focus:ring-4 focus:ring-emerald-600/10 transition"
-                            />
+                            <FormField label="Bairro / Cidade / UF" badge="{{bairro_cidade_uf}}">
+                              <Input
+                                type="text"
+                                value={tags.bairro_cidade_uf}
+                                onChange={(e) => handleDirectTagEdit('bairro_cidade_uf', e.target.value)}
+                              />
+                            </FormField>
                           </div>
                           <div>
-                            <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                              CEP ({'{{cep}}'})
-                            </label>
-                            <input
-                              type="text"
-                              value={tags.cep}
-                              onChange={(e) => handleDirectTagEdit('cep', e.target.value)}
-                              placeholder="88000-000"
-                              className="w-full h-11 bg-white border border-slate-300 rounded-xl px-3 text-xs text-slate-900 font-mono outline-none focus:border-emerald-600 focus:ring-4 focus:ring-emerald-600/10 transition"
-                            />
+                            <FormField label="CEP" badge="{{cep}}">
+                              <Input
+                                type="text"
+                                value={tags.cep}
+                                onChange={(e) => handleDirectTagEdit('cep', e.target.value)}
+                                placeholder="88000-000"
+                                mono
+                              />
+                            </FormField>
                           </div>
                         </div>
 
-                        <div>
-                          <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                            Telefone / WhatsApp ({'{{telefone}}'})
-                          </label>
-                          <input
+                        <FormField label="Telefone / WhatsApp" badge="{{telefone}}">
+                          <Input
                             type="text"
                             value={tags.telefone}
                             onChange={(e) => handleDirectTagEdit('telefone', e.target.value)}
                             placeholder="(48) 99999-9999"
-                            className="w-full h-11 bg-white border border-slate-300 rounded-xl px-3.5 text-xs text-slate-900 outline-none focus:border-emerald-600 focus:ring-4 focus:ring-emerald-600/10 transition"
                           />
-                        </div>
+                        </FormField>
 
-                        <div>
-                          <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                            E-mail ({'{{email}}'})
-                          </label>
-                          <input
+                        <FormField label="E-mail" badge="{{email}}">
+                          <Input
                             type="email"
                             value={tags.email}
                             onChange={(e) => handleDirectTagEdit('email', e.target.value)}
                             placeholder="paciente@exemplo.com.br"
-                            className="w-full h-11 bg-white border border-slate-300 rounded-xl px-3.5 text-xs text-slate-900 outline-none focus:border-emerald-600 focus:ring-4 focus:ring-emerald-600/10 transition"
                           />
-                        </div>
+                        </FormField>
                       </div>
                     </section>
                   </>
@@ -1360,25 +1286,14 @@ export const ContractPreparationAndSignatureModal: React.FC<
                     </div>
 
                     {/* BARRA DE PESQUISA DAS TAGS */}
-                    <div className="relative">
-                      <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-                      <input
-                        type="text"
-                        value={tagSearch}
-                        onChange={(e) => setTagSearch(e.target.value)}
-                        placeholder="Filtrar por nome da tag ou valor (ex: nome, valor, cpf, crm, cartao)..."
-                        className="w-full h-11 bg-white border border-slate-300 rounded-xl pl-10 pr-10 text-xs text-slate-900 font-medium outline-none focus:border-emerald-600 focus:ring-4 focus:ring-emerald-600/10 transition shadow-2xs"
-                      />
-                      {tagSearch && (
-                        <button
-                          type="button"
-                          onClick={() => setTagSearch('')}
-                          className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs font-bold"
-                        >
-                          Limpar
-                        </button>
-                      )}
-                    </div>
+                    <Input
+                      leftIcon={<Search className="w-4 h-4" />}
+                      value={tagSearch}
+                      onChange={(e) => setTagSearch(e.target.value)}
+                      placeholder="Filtrar por nome da tag ou valor (ex: nome, valor, cpf, crm, cartao)..."
+                      clearable
+                      onClear={() => setTagSearch('')}
+                    />
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                       {(Object.keys(tags) as Array<keyof OfficialContractTagMap>)
@@ -1400,11 +1315,10 @@ export const ContractPreparationAndSignatureModal: React.FC<
                                 {`{{${tagKey}}}`}
                               </span>
                             </div>
-                            <input
-                              type="text"
+                            <Input
                               value={tags[tagKey]}
                               onChange={(e) => handleDirectTagEdit(tagKey, e.target.value)}
-                              className="w-full h-10 bg-slate-50/70 border border-slate-300 rounded-xl px-3 text-xs text-slate-900 outline-none focus:bg-white focus:border-emerald-600 focus:ring-4 focus:ring-emerald-600/10 transition"
+                              inputSize="sm"
                             />
                           </div>
                         ))}
@@ -1432,16 +1346,18 @@ export const ContractPreparationAndSignatureModal: React.FC<
 
                 <div className="flex items-center gap-3">
                   {/* BOTÃO PARA BAIXAR O ARQUIVO WORD ORIGINAL (.DOCX) PREENCHIDO */}
-                  <button
+                  <Button
                     type="button"
+                    variant="outline"
+                    size="sm"
                     disabled={isDownloadingDocx}
                     onClick={handleDownloadDocx}
-                    className="hidden sm:flex items-center gap-2 px-4 py-3 rounded-xl border border-emerald-300 hover:border-emerald-500 bg-emerald-50/70 hover:bg-emerald-100/70 active:scale-95 text-emerald-900 font-bold text-xs transition cursor-pointer shadow-2xs"
+                    leftIcon={<FileDown className="w-4 h-4 text-emerald-700" />}
                     title="Baixar arquivo oficial em Word (.docx) com papel timbrado e todas as tags preenchidas"
+                    className="hidden sm:inline-flex"
                   >
-                    <FileDown className="w-4 h-4 text-emerald-700" />
                     {isDownloadingDocx ? 'Gerando Word...' : 'Baixar .DOCX Oficial'}
-                  </button>
+                  </Button>
 
                   {(!tags.cpf || !tags.nome) && (
                     <div className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-xs font-semibold">
@@ -1451,60 +1367,62 @@ export const ContractPreparationAndSignatureModal: React.FC<
                   )}
 
                   {activeTab === 'programs' && (
-                    <button
+                    <Button
                       type="button"
+                      variant="primary"
+                      size="md"
                       onClick={() => setActiveTab('financial')}
-                      className="py-3 px-6 rounded-xl bg-emerald-700 hover:bg-emerald-800 active:scale-95 text-white font-bold text-xs flex items-center gap-2 shadow-sm transition cursor-pointer"
+                      rightIcon={<ArrowRight className="w-4 h-4" />}
                     >
                       Avançar para Valores
-                      <ArrowRight className="w-4 h-4" />
-                    </button>
+                    </Button>
                   )}
 
                   {activeTab === 'financial' && (
                     <>
-                      <button
+                      <Button
                         type="button"
+                        variant="secondary"
+                        size="md"
                         onClick={() => setActiveTab('programs')}
-                        className="px-4 py-3 rounded-xl border border-slate-300 hover:bg-slate-50 active:scale-95 text-slate-700 font-bold text-xs transition cursor-pointer"
                       >
                         ← Voltar
-                      </button>
-                      <button
+                      </Button>
+                      <Button
                         type="button"
+                        variant="primary"
+                        size="md"
                         onClick={() => setActiveTab('patient')}
-                        className="py-3 px-6 rounded-xl bg-emerald-700 hover:bg-emerald-800 active:scale-95 text-white font-bold text-xs flex items-center gap-2 shadow-sm transition cursor-pointer"
+                        rightIcon={<ArrowRight className="w-4 h-4" />}
                       >
                         Avançar para Paciente
-                        <ArrowRight className="w-4 h-4" />
-                      </button>
+                      </Button>
                     </>
                   )}
 
                   {(activeTab === 'patient' || activeTab === 'raw_tags') && (
                     <>
-                      <button
+                      <Button
                         type="button"
+                        variant="secondary"
+                        size="md"
                         onClick={() => setActiveTab(activeTab === 'patient' ? 'financial' : 'patient')}
-                        className="px-4 py-3 rounded-xl border border-slate-300 hover:bg-slate-50 active:scale-95 text-slate-700 font-bold text-xs transition cursor-pointer"
                       >
                         ← Voltar
-                      </button>
-                      <button
+                      </Button>
+                      <Button
                         type="button"
+                        variant="primary"
+                        size="md"
                         disabled={isGeneratingPdf}
+                        isLoading={isGeneratingPdf}
                         onClick={handleProceedToSignaturePositioner}
-                        className="py-3.5 px-7 rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800 active:scale-95 text-white font-bold text-sm flex items-center gap-2.5 shadow-md shadow-emerald-700/20 hover:shadow-lg hover:shadow-emerald-700/30 transition-all cursor-pointer"
+                        rightIcon={<ArrowRight className="w-4 h-4" />}
                       >
-                        {isGeneratingPdf ? (
-                          'Gerando PDF do Contrato...'
-                        ) : (
-                          <>
-                            Confirmar Dados e Posicionar Assinaturas
-                            <ArrowRight className="w-4 h-4" />
-                          </>
-                        )}
-                      </button>
+                        {isGeneratingPdf
+                          ? 'Gerando PDF do Contrato...'
+                          : 'Confirmar Dados e Posicionar Assinaturas'}
+                      </Button>
                     </>
                   )}
                 </div>
@@ -1608,21 +1526,21 @@ export const ContractPreparationAndSignatureModal: React.FC<
         {/* PASSO 3: SUCESSO E DISPARO DE LINKS DE ASSINATURA */}
         {/* ==================================================================== */}
         {modalStep === 'links_generated' && createdDocInfo && (
-          <div className="flex-1 overflow-y-auto p-10 flex flex-col items-center justify-center max-w-3xl mx-auto text-center space-y-7">
+          <div className="flex-1 overflow-y-auto p-8 sm:p-10 flex flex-col items-center justify-center max-w-3xl mx-auto text-center space-y-7">
             <div className="w-18 h-18 rounded-full bg-emerald-100 border-2 border-emerald-300 flex items-center justify-center text-emerald-800 shadow-md">
               <CheckCircle2 className="w-10 h-10" />
             </div>
 
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               <h3 className="text-2xl font-extrabold text-slate-900 tracking-tight">
                 Contrato Criado e Pronto para Assinatura!
               </h3>
-              <p className="text-xs text-slate-600">
-                Código de Autenticação Pública:{' '}
-                <strong className="text-emerald-800 font-mono font-bold text-sm bg-emerald-50 px-2.5 py-1 rounded-md border border-emerald-200">
+              <div className="flex items-center justify-center gap-2">
+                <span className="text-xs text-slate-500">Código de Autenticação Pública:</span>
+                <Badge variant="emerald" size="md">
                   {createdDocInfo.verificationCode}
-                </strong>
-              </p>
+                </Badge>
+              </div>
             </div>
 
             {/* CARDS DOS SIGNATÁRIOS */}
@@ -1632,41 +1550,44 @@ export const ContractPreparationAndSignatureModal: React.FC<
                 return (
                   <div
                     key={signer.id}
-                    className="bg-white border border-slate-200/90 rounded-2xl p-5 shadow-sm space-y-3.5 hover:border-slate-300 transition"
+                    className="bg-white border border-slate-200/90 rounded-2xl p-5 shadow-xs space-y-3.5 hover:border-slate-300 transition"
                   >
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-3">
                         <div
-                          className={`w-4 h-4 rounded-full ${
+                          className={`w-3.5 h-3.5 rounded-full ${
                             isPatient ? 'bg-sky-500' : 'bg-emerald-600'
                           }`}
                         />
                         <span className="text-sm font-bold text-slate-900">
-                          {signer.fullName} ({signer.role})
+                          {signer.fullName}
                         </span>
+                        <Badge variant={isPatient ? 'sky' : 'emerald'} size="sm">
+                          {signer.role}
+                        </Badge>
                       </div>
-                      <span className="text-xs px-3 py-1 rounded-full bg-slate-100 text-slate-700 font-semibold border border-slate-200">
+                      <Badge variant="amber" size="sm" dot>
                         Aguardando Assinatura
-                      </span>
+                      </Badge>
                     </div>
 
                     <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 flex items-center justify-between text-xs font-mono text-slate-700">
                       <span className="truncate pr-3 font-medium">{signer.signUrl}</span>
-                      <button
+                      <Button
                         type="button"
+                        variant="secondary"
+                        size="xs"
                         onClick={() => copyToClipboard(signer.signUrl, signer.id)}
-                        className="px-3 py-1.5 rounded-lg bg-white border border-slate-300 hover:bg-slate-50 active:scale-[0.97] text-slate-800 font-sans font-bold text-xs shrink-0 flex items-center gap-1.5 transition shadow-xs cursor-pointer"
+                        leftIcon={
+                          copiedToken === signer.id ? (
+                            <Check className="w-3.5 h-3.5 text-emerald-600 stroke-[3]" />
+                          ) : (
+                            <Copy className="w-3.5 h-3.5" />
+                          )
+                        }
                       >
-                        {copiedToken === signer.id ? (
-                          <>
-                            <Check className="w-4 h-4 text-emerald-600 stroke-[3]" /> Copiado!
-                          </>
-                        ) : (
-                          <>
-                            <Copy className="w-4 h-4" /> Copiar Link
-                          </>
-                        )}
-                      </button>
+                        {copiedToken === signer.id ? 'Copiado!' : 'Copiar Link'}
+                      </Button>
                     </div>
 
                     <div className="flex flex-wrap gap-3 pt-1">
@@ -1674,16 +1595,18 @@ export const ContractPreparationAndSignatureModal: React.FC<
                         href={signer.signUrl}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className={`py-2.5 px-5 rounded-xl font-bold text-xs flex items-center gap-2 transition shadow-md active:scale-[0.98] ${
-                          isPatient
-                            ? 'bg-sky-600 hover:bg-sky-700 text-white shadow-sky-900/10'
-                            : 'bg-emerald-700 hover:bg-emerald-800 text-white shadow-emerald-900/15'
-                        }`}
+                        className="inline-block"
                       >
-                        <TabletSmartphone className="w-4 h-4" />
-                        {isPatient
-                          ? 'Assinar no Tablet / Consultório Agora'
-                          : 'Assinar como Médica Agora'}
+                        <Button
+                          type="button"
+                          variant={isPatient ? 'primary' : 'success'}
+                          size="sm"
+                          leftIcon={<TabletSmartphone className="w-4 h-4" />}
+                        >
+                          {isPatient
+                            ? 'Assinar no Tablet / Consultório Agora'
+                            : 'Assinar como Médica Agora'}
+                        </Button>
                       </a>
 
                       {isPatient && tags.telefone && (
@@ -1693,9 +1616,16 @@ export const ContractPreparationAndSignatureModal: React.FC<
                           )}`}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="py-2.5 px-5 rounded-xl bg-emerald-50 border border-emerald-300 hover:bg-emerald-100 active:scale-[0.98] text-emerald-800 font-bold text-xs flex items-center gap-2 transition"
+                          className="inline-block"
                         >
-                          <Send className="w-4 h-4 text-emerald-600" /> Enviar para WhatsApp do Paciente
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            leftIcon={<Send className="w-4 h-4 text-emerald-600" />}
+                          >
+                            Enviar para WhatsApp do Paciente
+                          </Button>
                         </a>
                       )}
                     </div>
@@ -1705,13 +1635,14 @@ export const ContractPreparationAndSignatureModal: React.FC<
             </div>
 
             <div className="pt-3">
-              <button
+              <Button
                 type="button"
+                variant="secondary"
+                size="md"
                 onClick={onClose}
-                className="py-3 px-8 rounded-xl bg-slate-100 hover:bg-slate-200 active:scale-[0.98] text-slate-800 font-bold text-xs transition cursor-pointer shadow-xs"
               >
                 Concluir e Retornar ao Prontuário
-              </button>
+              </Button>
             </div>
           </div>
         )}
