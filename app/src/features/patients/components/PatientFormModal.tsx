@@ -16,7 +16,6 @@ import {
   UserPlus,
   UserCheck,
   Check,
-  Sparkles,
   Contact,
   ShieldAlert,
 } from "lucide-react";
@@ -33,7 +32,6 @@ import {
   Input,
   Textarea,
   Button,
-  Badge,
 } from "@/components/ui";
 
 interface PatientFormModalProps {
@@ -141,18 +139,6 @@ export function PatientFormModal({ patient, onClose }: PatientFormModalProps) {
       maxWidth="2xl"
       icon={isEditing ? <UserCheck className="w-5 h-5" /> : <UserPlus className="w-5 h-5" />}
       title={isEditing ? "Editar Paciente" : "Novo Paciente"}
-      subtitle={
-        isEditing
-          ? "Atualize as informações cadastrais e clínicas do paciente."
-          : "Preencha as informações necessárias para cadastrar o paciente no sistema."
-      }
-      headerRight={
-        !isEditing && (
-          <Badge variant="emerald" size="sm" icon={<Sparkles className="w-3 h-3" />}>
-            Cadastro Clínico
-          </Badge>
-        )
-      }
       footer={
         <div className="flex items-center justify-end gap-3 w-full">
           <Button
@@ -310,10 +296,7 @@ export function PatientFormModal({ patient, onClose }: PatientFormModalProps) {
 
           <div className="space-y-4">
             {/* Observações Gerais */}
-            <FormField
-              label="Observações Clínicas Gerais"
-              helperText="Preferências do paciente, histórico relevante, observações gerais de atendimento."
-            >
+            <FormField label="Observações Clínicas Gerais">
               <Textarea
                 {...register("notes")}
                 rows={3}
@@ -333,10 +316,6 @@ export function PatientFormModal({ patient, onClose }: PatientFormModalProps) {
                 placeholder="Alergias a medicamentos, contraindicações importantes, restrições clínicas..."
                 className="bg-white border-amber-300 text-amber-950 focus-within:border-amber-600 focus-within:ring-amber-600/15"
               />
-              <p className="text-[11px] font-semibold text-amber-800 flex items-center gap-1.5 pt-0.5">
-                <AlertTriangle className="w-3.5 h-3.5 text-amber-600" />
-                Alertas cadastrados ficam em evidência nos prontuários e contratos da clínica.
-              </p>
             </div>
           </div>
         </section>
