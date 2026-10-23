@@ -184,7 +184,7 @@ async function ensureD1Compatibility(db?: D1Database) {
 // Garante recuperação segura de segredos com suporte a fallback resiliente
 function getJwtSecret(c: any): string {
   const secret = c.env?.JWT_SECRET;
-  if (secret && typeof secret === "string" && secret.trim().length >= 16) {
+  if (secret && typeof secret === "string" && secret.trim().length >= 8) {
     return secret.trim();
   }
   let host = "localhost";
@@ -211,7 +211,7 @@ function getJwtSecret(c: any): string {
 
 function getVaultMasterKey(c: any): string {
   const masterKey = c.env?.VAULT_MASTER_KEY;
-  if (masterKey && typeof masterKey === "string" && masterKey.trim().length >= 32) {
+  if (masterKey && typeof masterKey === "string" && masterKey.trim().length >= 12) {
     return masterKey.trim();
   }
   let host = "localhost";
