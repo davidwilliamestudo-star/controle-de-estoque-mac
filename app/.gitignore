@@ -31,6 +31,8 @@ dist-ssr
 *.pem
 tauri-private.key
 anamorong.key
+.bot-auth-token.json
+*-auth-token.json
 
 # Bancos locais / backups de desenvolvimento
 *.db
