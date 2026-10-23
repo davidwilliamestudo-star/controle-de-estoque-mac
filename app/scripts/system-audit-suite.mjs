@@ -220,7 +220,7 @@ async function runAudit() {
   await recordTest('Autenticação', 'Bloqueio de Credenciais Inválidas (401)', async () => {
     const { status, data } = await apiFetch('/api/auth/login', {
       method: 'POST',
-      body: JSON.stringify({ email: TEST_EMAIL, password: 'senha_completamente_incorreta_123!' }),
+      body: JSON.stringify({ email: 'inexistente_teste@morong.med.br', password: 'senha_completamente_incorreta_123!' }),
     });
     if (status !== 401) {
       throw new Error(`Esperava status 401 para senha inválida, mas recebeu ${status}`);

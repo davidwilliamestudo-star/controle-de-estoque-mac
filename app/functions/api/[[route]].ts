@@ -42,7 +42,7 @@ function constantTimeEqual(a: string, b: string): boolean {
   return result === 0;
 }
 
-async function verifyPassword(password: string, storedHash: string): Promise<boolean> {
+function verifyPassword(password: string, storedHash: string): boolean {
   const [algorithm, iterationsRaw, saltRaw, expectedHash] = storedHash.split("$");
   if (algorithm !== "pbkdf2_sha256" || !iterationsRaw || !saltRaw || !expectedHash) {
     return false;
@@ -53,31 +53,9 @@ async function verifyPassword(password: string, storedHash: string): Promise<boo
     return false;
   }
 
-  try {
-    const salt = fromBase64(saltRaw);
-    const enc = new TextEncoder();
-    const key = await crypto.subtle.importKey(
-      "raw",
-      enc.encode(password),
-      { name: "PBKDF2" },
-      false,
-      ["deriveBits"]
-    );
-    const derivedBits = await crypto.subtle.deriveBits(
-      {
-        name: "PBKDF2",
-        salt,
-        iterations,
-        hash: "SHA-256",
-      },
-      key,
-      256
-    );
-    return constantTimeEqual(toBase64(derivedBits), expectedHash);
-  } catch (err) {
-    console.error("Erro na verificação WebCrypto PBKDF2:", err);
-    return false;
-  }
+  const salt = fromBase64(saltRaw);
+  const derived = pbkdf2(sha256, password, salt, { c: iterations, dkLen: 32 });
+  return constantTimeEqual(toBase64(derived), expectedHash);
 }
 
 // Mascaramento de CPF/CNPJ para conformidade com a LGPD (Lei 13.709/2018)
