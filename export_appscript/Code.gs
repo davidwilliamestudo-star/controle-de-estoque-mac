@@ -401,6 +401,13 @@ var Validator = {
         if (!payload.scheduled_for) return this.fail("INVALID_PAYLOAD", "scheduled_for obrigatório.");
         return this.ok();
 
+      case "get_modified_calendar_events":
+        return this.ok();
+
+      case "save_signed_document_to_drive":
+      case "saveSignedDocumentToDrive":
+        return this.ok();
+
       default:
         return this.fail("INVALID_ACTION", "Ação inválida.");
     }

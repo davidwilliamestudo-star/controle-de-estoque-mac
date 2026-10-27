@@ -254,15 +254,29 @@ export class SignatureDocumentsService {
         headers,
       });
 
-      const data = await res.json();
+      let data: any = null;
+      try {
+        data = await res.json();
+      } catch {
+        // Ignora erro de parse caso corpo esteja vazio
+      }
+
       if (!res.ok) {
-        throw new Error(data.error || "Falha ao sincronizar com Google Drive.");
+        let msg = data?.error || `Erro ${res.status} ao sincronizar com Google Drive.`;
+        if (msg.includes("Ação inválida")) {
+          msg = "O Google Apps Script precisa ser atualizado no painel do Google (Ação inválida: saveSignedDocumentToDrive). Salve e crie uma Nova Versão da Implantação no Google Apps Script com o arquivo CodigoCompletoUnificado.gs.";
+        }
+        throw new Error(msg);
       }
 
       return data;
     } catch (err: any) {
-      console.warn("Falha via API, tentando fallback direto com Apps Script:", err);
-      // Fallback local via documentsRepository
+      // Se já é um erro de negócio retornado pelo servidor, lança sem fallback indevido
+      if (err?.message && !err.message.includes("Failed to fetch") && !err.message.includes("NetworkError")) {
+        throw err;
+      }
+      console.warn("Falha de rede via API, tentando fallback direto com Apps Script:", err);
+      // Fallback local via documentsRepository se estiver offline ou rota inexistente
       return documentsRepository.syncDocumentToDrive(documentId);
     }
   }

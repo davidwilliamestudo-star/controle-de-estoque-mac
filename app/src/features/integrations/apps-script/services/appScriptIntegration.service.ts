@@ -96,7 +96,20 @@ export const appScriptIntegrationService = {
         throw new Error(`HTTP Error: ${response.status} - ${response.statusText}`);
       }
 
-      const data: AppsScriptResponse = await response.json();
+      const rawText = await response.text();
+      let data: AppsScriptResponse;
+      try {
+        data = JSON.parse(rawText);
+      } catch (parseErr) {
+        if (rawText.includes("<!DOCTYPE") || rawText.includes("<html") || rawText.includes("Google Accounts")) {
+          throw new Error(
+            "O Google Apps Script retornou uma página HTML em vez de JSON. " +
+            "Verifique se a implantação web está configurada para acesso 'Qualquer pessoa' (Anyone) e sem bloqueio de login do Google."
+          );
+        }
+        throw new Error(`Resposta inválida do Apps Script: ${rawText.slice(0, 150)}`);
+      }
+
       if (!data.ok) {
         throw new Error(data.message || data.error || data.error_code || "A API do Apps Script retornou um erro.");
       }
