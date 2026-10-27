@@ -650,6 +650,129 @@ import { PdfStampingEngine } from "../../src/services/signatures/pdfStampingEngi
 import { DoctorAutoSignVaultService } from "../../src/services/signatures/doctorAutoSignVault.service";
 import { PdfStampingEngineService } from "../../src/services/signatures/pdfStampingEngine.service";
 
+// Helper para obter configuração ativa do Apps Script (via env ou tabela settings)
+async function getGasConfig(env: any): Promise<{ url: string | null; apiKey: string | null }> {
+  let url = (env.GAS_WEBAPP_URL as string) || null;
+  let apiKey = (env.GAS_INTERNAL_SECRET as string) || null;
+
+  if ((!url || !apiKey) && env.DB) {
+    try {
+      const rows = await env.DB.prepare(
+        "SELECT key, value FROM settings WHERE key IN ('appscript_api_url', 'appscript_api_key')"
+      ).all<any>();
+      for (const row of rows?.results || []) {
+        if (row.key === "appscript_api_url" && !url) {
+          url = row.value;
+        }
+        if (row.key === "appscript_api_key" && !apiKey) {
+          apiKey = row.value;
+        }
+      }
+    } catch (e) {
+      console.error("Erro ao ler settings do Apps Script:", e);
+    }
+  }
+
+  if (url) {
+    url = url.trim();
+    if (url.endsWith("/edit")) {
+      url = url.replace(/\/edit$/, "/exec");
+    }
+  }
+
+  return { url, apiKey };
+}
+
+// Helper universal para arquivar documento assinado no Google Drive e disparar e-mail ao paciente
+async function dispatchSaveSignedDocumentToDrive(
+  env: any,
+  payload: {
+    requestId: string;
+    documentId: string;
+    verificationCode: string;
+    documentTitle: string;
+    category: string;
+    patientName: string;
+    patientCpf: string;
+    patientEmail?: string | null;
+    originalSha256?: string | null;
+    signedSha256?: string | null;
+    signedPdfBase64?: string | null;
+    signedFileUrl?: string | null;
+    completedAtBrt?: string | null;
+  }
+): Promise<{
+  ok: boolean;
+  file_id: string | null;
+  file_url: string | null;
+  folder_url: string | null;
+  email_status: string | null;
+  error?: string;
+}> {
+  const { url, apiKey } = await getGasConfig(env);
+  if (!url) {
+    return {
+      ok: false,
+      file_id: null,
+      file_url: null,
+      folder_url: null,
+      email_status: "NO_GAS_URL",
+      error: "URL do Apps Script não configurada nas variáveis nem nas configurações da clínica.",
+    };
+  }
+
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain" },
+      body: JSON.stringify({
+        action: "saveSignedDocumentToDrive",
+        secret: apiKey,
+        api_key: apiKey,
+        clinic_id: "ana-morong-clinic",
+        request_id: payload.requestId,
+        payload: {
+          document_id: payload.documentId,
+          verification_code: payload.verificationCode,
+          document_title: payload.documentTitle,
+          category: payload.category || "CONTRATO",
+          patient_name: payload.patientName,
+          patient_cpf: payload.patientCpf,
+          patient_email: payload.patientEmail || "",
+          original_sha256: payload.originalSha256 || "",
+          signed_sha256: payload.signedSha256 || payload.originalSha256 || "",
+          signed_pdf_base64: payload.signedPdfBase64 || null,
+          signed_file_url: payload.signedFileUrl || null,
+          completed_at_brt:
+            payload.completedAtBrt ||
+            new Date().toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" }),
+        },
+      }),
+    });
+
+    const json = (await res.json()) as any;
+    const ok = Boolean(json?.ok || json?.success);
+    return {
+      ok,
+      file_id: json?.file_id || json?.data?.file_id || null,
+      file_url: json?.file_url || json?.data?.file_url || null,
+      folder_url: json?.folder_url || json?.data?.folder_url || null,
+      email_status: json?.email_status || json?.data?.email_status || null,
+      error: json?.error || json?.message,
+    };
+  } catch (err: any) {
+    console.error("Erro na comunicação com Apps Script:", err);
+    return {
+      ok: false,
+      file_id: null,
+      file_url: null,
+      folder_url: null,
+      email_status: "NETWORK_ERROR",
+      error: err?.message || String(err),
+    };
+  }
+}
+
 // -1. GET /api/signatures/vault — Retorna status do Cofre ICP-Brasil da Dra. Ana
 app.get("/signatures/vault", authMiddleware, async (c) => {
   try {
@@ -1108,6 +1231,78 @@ app.get("/signatures/documents/:id/pdf", authMiddleware, async (c) => {
   }
 });
 
+// 0.3 POST /api/signatures/documents/:id/sync-drive — Sincroniza documento assinado com Google Drive e envia por e-mail
+app.post("/signatures/documents/:id/sync-drive", authMiddleware, async (c) => {
+  try {
+    const docId = c.req.param("id");
+    const doc = await c.env.DB.prepare(
+      `SELECT * FROM documents WHERE id = ? LIMIT 1`
+    ).bind(docId).first<any>();
+
+    if (!doc) {
+      return c.json({ error: "Documento não encontrado." }, 404);
+    }
+
+    const pdfBase64 = doc.signed_pdf_base64 || doc.original_pdf_url;
+    if (!pdfBase64) {
+      return c.json({ error: "Documento ainda não possui PDF gerado para sincronizar." }, 400);
+    }
+
+    const nowBrt = new Date().toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" });
+    const gasResult = await dispatchSaveSignedDocumentToDrive(c.env, {
+      requestId: `sync_${doc.id}_${Date.now()}`,
+      documentId: doc.id,
+      verificationCode: doc.verification_code,
+      documentTitle: doc.title,
+      category: doc.category,
+      patientName: doc.patient_name,
+      patientCpf: doc.patient_cpf,
+      patientEmail: doc.patient_email,
+      originalSha256: doc.original_pdf_sha256,
+      signedSha256: doc.signed_pdf_sha256 || doc.original_pdf_sha256,
+      signedPdfBase64: pdfBase64,
+      completedAtBrt: nowBrt,
+    });
+
+    if (!gasResult.ok) {
+      return c.json(
+        {
+          error: gasResult.error || "Falha na comunicação com o Google Drive/Apps Script.",
+          email_status: gasResult.email_status,
+        },
+        502
+      );
+    }
+
+    await c.env.DB.prepare(
+      `UPDATE documents
+       SET drive_file_id = COALESCE(?, drive_file_id),
+           drive_file_url = COALESCE(?, drive_file_url),
+           drive_folder_url = COALESCE(?, drive_folder_url),
+           gas_sync_status = 'synced',
+           updated_at = ?
+       WHERE id = ?`
+    ).bind(
+      gasResult.file_id,
+      gasResult.file_url,
+      gasResult.folder_url,
+      new Date().toISOString(),
+      doc.id
+    ).run();
+
+    return c.json({
+      success: true,
+      drive_file_id: gasResult.file_id,
+      drive_file_url: gasResult.file_url,
+      drive_folder_url: gasResult.folder_url,
+      email_status: gasResult.email_status,
+    });
+  } catch (error: any) {
+    console.error("Erro ao sincronizar com Google Drive:", error);
+    return c.json({ error: error.message || "Erro interno ao sincronizar com Drive." }, 500);
+  }
+});
+
 // 1. GET /api/assinar/:token — Carrega sessão de assinatura para o paciente
 app.get("/assinar/:token", async (c) => {
   try {
@@ -1447,41 +1642,34 @@ app.post("/assinar/:token", async (c) => {
     let driveFileId: string | null = null;
     let driveFileUrl: string | null = null;
     let driveFolderUrl: string | null = null;
-    const gasUrl = (c.env as any).GAS_WEBAPP_URL;
+    let emailStatus: string | null = null;
 
-    if (gasUrl) {
-      try {
-        const gasRes = await fetch(gasUrl, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            action: "saveSignedDocumentToDrive",
-            secret: (c.env as any).GAS_INTERNAL_SECRET,
-            request_id: patientTrailId,
-            payload: {
-              document_id: doc.id,
-              verification_code: doc.verification_code,
-              document_title: doc.title,
-              category: doc.category,
-              patient_name: doc.patient_name,
-              patient_cpf: doc.patient_cpf,
-              patient_email: doc.patient_email,
-              original_sha256: doc.original_pdf_sha256,
-              signed_sha256: finalSignedSha256,
-              signed_pdf_base64: finalSignedBase64,
-              completed_at_brt: nowBrt,
-            },
-          }),
-        });
-        const gasJson = (await gasRes.json()) as any;
-        if (gasJson?.success && gasJson?.data) {
-          driveFileId = gasJson.data.file_id;
-          driveFileUrl = gasJson.data.file_url;
-          driveFolderUrl = gasJson.data.folder_url;
-        }
-      } catch (gasErr) {
-        console.error("Erro no Apps Script:", gasErr);
+    try {
+      const gasResult = await dispatchSaveSignedDocumentToDrive(c.env, {
+        requestId: patientTrailId,
+        documentId: doc.id,
+        verificationCode: doc.verification_code,
+        documentTitle: doc.title,
+        category: doc.category,
+        patientName: doc.patient_name,
+        patientCpf: doc.patient_cpf,
+        patientEmail: doc.patient_email,
+        originalSha256: doc.original_pdf_sha256,
+        signedSha256: finalSignedSha256,
+        signedPdfBase64: finalSignedBase64,
+        completedAtBrt: nowBrt,
+      });
+
+      if (gasResult.ok) {
+        driveFileId = gasResult.file_id;
+        driveFileUrl = gasResult.file_url;
+        driveFolderUrl = gasResult.folder_url;
+        emailStatus = gasResult.email_status;
+      } else {
+        console.warn("[POST /assinar/:token] Falha ao enviar para Apps Script:", gasResult.error);
       }
+    } catch (gasErr) {
+      console.error("[POST /assinar/:token] Erro de rede ao conectar Apps Script:", gasErr);
     }
 
     // 8. Salva o PDF final selado no banco D1
@@ -1519,6 +1707,8 @@ app.post("/assinar/:token", async (c) => {
       signed_pdf_sha256: finalSignedSha256,
       signed_pdf_base64: finalSignedBase64,
       drive_file_url: driveFileUrl,
+      drive_folder_url: driveFolderUrl,
+      email_status: emailStatus,
       auto_signed_by_doctor_icp: Boolean(decryptedCertCredentials),
     });
   } catch (error: any) {
@@ -1748,57 +1938,46 @@ app.post("/webhooks/signatures", async (c) => {
           documentId
         ).run();
 
-        const gasUrl = c.env.GAS_WEBAPP_URL;
-        if (gasUrl) {
-          try {
-            const gasResponse = await fetch(gasUrl, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                action: "saveSignedDocumentToDrive",
-                secret: c.env.GAS_INTERNAL_SECRET,
-                request_id: trailId,
-                payload: {
-                  document_id: documentId,
-                  verification_code: docRecord.verification_code,
-                  document_title: docRecord.title,
-                  category: docRecord.category,
-                  patient_name: docRecord.patient_name,
-                  patient_cpf: docRecord.patient_cpf,
-                  patient_email: docRecord.patient_email,
-                  original_sha256: docRecord.original_pdf_sha256,
-                  signed_sha256: payload.signed_pdf_sha256 || docRecord.original_pdf_sha256,
-                  signed_pdf_base64: payload.signed_pdf_base64 || null,
-                  signed_file_url: payload.signed_file_url || docRecord.signed_pdf_url || null,
-                  completed_at_brt: nowBrt,
-                },
-              }),
-            });
-            const gasJson = (await gasResponse.json()) as any;
-            if (gasJson?.success && gasJson?.data) {
-              await c.env.DB.prepare(
-                `UPDATE documents
-                 SET drive_file_id = ?,
-                     drive_file_url = ?,
-                     drive_folder_url = ?,
-                     gas_sync_status = 'synced',
-                     updated_at = ?
-                 WHERE id = ?`
-              ).bind(
-                gasJson.data.file_id,
-                gasJson.data.file_url,
-                gasJson.data.folder_url,
-                new Date().toISOString(),
-                documentId
-              ).run();
-            } else {
-              await c.env.DB.prepare(
-                `UPDATE documents SET gas_sync_status = 'failed', updated_at = ? WHERE id = ?`
-              ).bind(new Date().toISOString(), documentId).run();
-            }
-          } catch (e) {
-            console.error("Erro no webhook GAS:", e);
+        try {
+          const gasResult = await dispatchSaveSignedDocumentToDrive(c.env, {
+            requestId: trailId,
+            documentId: documentId,
+            verificationCode: docRecord.verification_code,
+            documentTitle: docRecord.title,
+            category: docRecord.category,
+            patientName: docRecord.patient_name,
+            patientCpf: docRecord.patient_cpf,
+            patientEmail: docRecord.patient_email,
+            originalSha256: docRecord.original_pdf_sha256,
+            signedSha256: payload.signed_pdf_sha256 || docRecord.original_pdf_sha256,
+            signedPdfBase64: payload.signed_pdf_base64 || null,
+            signedFileUrl: payload.signed_file_url || docRecord.signed_pdf_url || null,
+            completedAtBrt: nowBrt,
+          });
+
+          if (gasResult.ok) {
+            await c.env.DB.prepare(
+              `UPDATE documents
+               SET drive_file_id = ?,
+                   drive_file_url = ?,
+                   drive_folder_url = ?,
+                   gas_sync_status = 'synced',
+                   updated_at = ?
+               WHERE id = ?`
+            ).bind(
+              gasResult.file_id,
+              gasResult.file_url,
+              gasResult.folder_url,
+              new Date().toISOString(),
+              documentId
+            ).run();
+          } else {
+            await c.env.DB.prepare(
+              `UPDATE documents SET gas_sync_status = 'failed', updated_at = ? WHERE id = ?`
+            ).bind(new Date().toISOString(), documentId).run();
           }
+        } catch (e) {
+          console.error("Erro no webhook GAS:", e);
         }
         break;
       }

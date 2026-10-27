@@ -16,6 +16,7 @@ import {
   Check,
   Eye,
   FileCheck,
+  HardDrive,
   X,
 } from "lucide-react";
 import { format } from "date-fns";
@@ -412,6 +413,25 @@ export function PatientDocumentsTab({
                         Validar
                       </Button>
                     </a>
+
+                    {/* Google Drive Link */}
+                    {doc.drive_file_url && (
+                      <a
+                        href={doc.drive_file_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-block"
+                      >
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          leftIcon={<HardDrive size={13} className="text-teal-700" />}
+                          title="Abrir no Google Drive"
+                        >
+                          Drive
+                        </Button>
+                      </a>
+                    )}
                   </div>
                 </div>
 

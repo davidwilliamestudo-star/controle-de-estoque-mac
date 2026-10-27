@@ -550,15 +550,21 @@ export const CONTRACT_PDF_LAYOUT = {
   pageWidth: 595.28,
   pageHeight: 841.89,
   marginX: 56.7,
-  page1: { top: 100, bottom: 150 },
-  otherPages: { top: 60, bottom: 146 },
-  noLetterhead: { top: 56, bottom: 146 },
-  // Faixa de rubricas (acima da mancha direita das páginas 2+, à direita da mancha esquerda da pág. 1)
-  rubric: { bottom: 112, height: 28, width: 66, gap: 6 },
-  // Espaço reservado acima das linhas de assinatura e altura do campo
-  signature: { spaceAbove: 26, boxHeight: 34, boxLift: 3 },
-  // Numeração (somente páginas 2+): entre o bloco QR/endereço e a mancha direita
-  pageNumber: { y: 28, centerX: 320 },
+  page1: { top: 110, bottom: 148 },
+  otherPages: { top: 72, bottom: 148 },
+  noLetterhead: { top: 60, bottom: 148 },
+  // Faixa de rubricas (lado direito, entre 95pt e 121pt da base, segura do rodapé timbrado e do texto)
+  rubric: { bottom: 95, height: 26, width: 64, gap: 8 },
+  // Espaço reservado acima das linhas de assinatura e dimensões exatas do campo
+  signature: {
+    spaceAbove: 66,
+    boxHeight: 56,
+    boxWidth: 260,
+    boxLift: 3,
+    interSignerGap: 34,
+  },
+  // Numeração em todas as páginas: centralizada na faixa livre entre os motivos gráficos
+  pageNumber: { y: 28, centerX: 310 },
 } as const;
 
 export interface ContractPdfAnchor {
@@ -741,20 +747,14 @@ export async function generateContractPdfBase64(
     return out;
   };
 
-  // Altura real do bloco de assinaturas (do "E, por estarem..." até o CPF)
-  const measureSignatureBlock = (from: number): number => {
-    let h = 0;
-    for (let i = from; i < lines.length; i++) {
-      const trimmed = lines[i].trim();
-      if (!trimmed) {
-        h += 6.5;
-        continue;
-      }
-      const st = classify(trimmed, true);
-      if (st.isUnderline) h += L.signature.spaceAbove;
-      h += wrap(trimmed, st).length * st.lineHeight;
-    }
-    return h;
+  // Altura garantida para o bloco atômico de assinaturas (do "E, por estarem..." até o CPF)
+  const measureSignatureBlock = (): number => {
+    // 1. Encerramento e data: ~50 pt
+    // 2. Contratada: spaceAbove (66) + linha + dados médica (42) = 110 pt
+    // 3. Gap entre signatários: 34 pt
+    // 4. Contratante: spaceAbove (66) + linha + dados paciente (42) = 110 pt
+    // Total garantido = 304 pt + 36 pt margem de resguardo = 340 pt
+    return 340;
   };
 
   const signatureAnchors: ContractPdfLayoutResult['signatureAnchors'] = {};
@@ -766,8 +766,8 @@ export async function generateContractPdfBase64(
 
     if (sigStartIdx >= 0 && i === sigStartIdx) {
       inSig = true;
-      // Mantém o bloco inteiro na mesma página: se não couber, vai tudo para a próxima
-      if (y - measureSignatureBlock(i) < bottomLimit()) {
+      // Mantém o bloco inteiro na mesma página: se não couber com folga total, quebra para nova página
+      if (y - measureSignatureBlock() < bottomLimit()) {
         addPageBreak();
       }
     }
@@ -786,7 +786,7 @@ export async function generateContractPdfBase64(
       if (y - st.lineHeight * 3 < bottomLimit()) addPageBreak();
     }
 
-    // Espaço reservado para a assinatura acima da linha
+    // Espaço reservado para a assinatura acima da linha e gap entre signatários
     if (st.isUnderline) {
       y -= L.signature.spaceAbove;
     }
@@ -795,34 +795,47 @@ export async function generateContractPdfBase64(
     for (const textLine of wrapped) {
       if (y < bottomLimit()) addPageBreak();
 
-      const lineW = widthOf(st.font, textLine, st.size);
-      const drawX = st.isCentered ? (pageWidth - lineW) / 2 : marginX + st.indent;
-      drawSafe(textLine, drawX, y, st.size, st.font);
-
       if (st.isUnderline) {
         underlineCount++;
+        const boxW = L.signature.boxWidth;
+        const boxH = L.signature.boxHeight;
+        const lineX = (pageWidth - boxW) / 2;
+
+        // Traço elegante e vetorial para a linha de assinatura
+        page.drawLine({
+          start: { x: lineX, y: y + 2 },
+          end: { x: lineX + boxW, y: y + 2 },
+          thickness: 0.8,
+          color: rgb(0.35, 0.42, 0.48),
+        });
+
         const anchor: ContractPdfAnchor = {
           page: pageIndex,
-          x_percent: Number(((drawX / pageWidth) * 100).toFixed(2)),
+          x_percent: Number(((lineX / pageWidth) * 100).toFixed(2)),
           y_percent: Number(
-            (((pageHeight - (y + L.signature.boxLift + L.signature.boxHeight)) / pageHeight) * 100).toFixed(2)
+            (((pageHeight - (y + L.signature.boxLift + boxH)) / pageHeight) * 100).toFixed(2)
           ),
-          width_percent: Number(((lineW / pageWidth) * 100).toFixed(2)),
-          height_percent: Number(((L.signature.boxHeight / pageHeight) * 100).toFixed(2)),
+          width_percent: Number(((boxW / pageWidth) * 100).toFixed(2)),
+          height_percent: Number(((boxH / pageHeight) * 100).toFixed(2)),
         };
+
         if (underlineCount === 1) signatureAnchors.dra = anchor;
         else if (underlineCount === 2) signatureAnchors.patient = anchor;
+      } else {
+        const lineW = widthOf(st.font, textLine, st.size);
+        const drawX = st.isCentered ? (pageWidth - lineW) / 2 : marginX + st.indent;
+        drawSafe(textLine, drawX, y, st.size, st.font);
       }
 
       y -= st.lineHeight;
     }
   }
 
-  // Rodapé oficial "Clínica Dra. Ana Morong | Página X de Y." — oculto na página 1 (o timbrado já
-  // traz a frase institucional nessa posição) e posicionado fora da arte nas demais páginas.
+  // Rodapé oficial "Clínica Dra. Ana Morong | Página X de Y." — impresso em TODAS as páginas
+  // do contrato (incluindo a página 1) posicionado na faixa livre e limpa do papel timbrado.
   const totalPages = pdfDoc.getPageCount();
   const allPages = pdfDoc.getPages();
-  for (let p = 1; p < totalPages; p++) {
+  for (let p = 0; p < totalPages; p++) {
     const footerText = `Clínica Dra. Ana Morong | Página ${p + 1} de ${totalPages}.`;
     const fSize = 8.5;
     const fWidth = widthOf(fontFooter, footerText, fSize);

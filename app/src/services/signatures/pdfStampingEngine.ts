@@ -152,102 +152,159 @@ export class PdfStampingEngine {
       const signer = req.signers.find((s) => s.id === field.signer_id);
       if (!signer) continue;
 
-      if (field.field_type === 'signature' || field.field_type === 'initials') {
-        // Moldura discreta estilo ZapSign ao redor da rubrica/assinatura
+      if (field.field_type === 'icp_seal' || signer.legal_standard === 'QUALIFIED_ICP' || signer.role === 'DRA_ANA') {
+        const docRubric = embeddedSignatures[signer.id];
+
+        if (field.field_type === 'initials') {
+          page.drawRectangle({
+            x: pdfX,
+            y: pdfY,
+            width: boxW,
+            height: boxH,
+            borderColor: rgb(0.04, 0.52, 0.38),
+            borderWidth: 0.8,
+            color: rgb(0.96, 0.99, 0.97),
+          });
+
+          if (docRubric) {
+            page.drawImage(docRubric, {
+              x: pdfX + 4,
+              y: pdfY + 8,
+              width: Math.max(12, boxW - 8),
+              height: Math.max(10, boxH - 11),
+            });
+          }
+          page.drawText(`Visto ICP: ${req.verificationCode.slice(0, 8)}`, {
+            x: pdfX + 3,
+            y: pdfY + 2,
+            size: 4.8,
+            font: fontBold,
+            color: rgb(0.02, 0.45, 0.32),
+          });
+        } else {
+          // CHANCELA OFICIAL QUALIFICADA ICP-BRASIL
+          page.drawRectangle({
+            x: pdfX,
+            y: pdfY,
+            width: boxW,
+            height: boxH,
+            borderColor: rgb(0.04, 0.52, 0.38),
+            borderWidth: 1.0,
+            color: rgb(0.96, 0.99, 0.97),
+          });
+
+          page.drawText('ASSINADO DIGITALMENTE — PADRÃO ICP-BRASIL', {
+            x: pdfX + 8,
+            y: pdfY + boxH - 12,
+            size: 6.2,
+            font: fontBold,
+            color: rgb(0.02, 0.45, 0.32),
+          });
+
+          page.drawText(
+            `${signer.icp_subject_cn || signer.full_name} (${signer.council_id || 'CRM/SC'})`,
+            {
+              x: pdfX + 8,
+              y: pdfY + boxH - 22,
+              size: 7.2,
+              font: fontBold,
+              color: rgb(0.06, 0.09, 0.15),
+            }
+          );
+
+          page.drawText(
+            `CNPJ: 54.811.772/0001-32 | AC: ${(signer.icp_issuer_ca || 'ICP-Brasil').slice(0, 28)}`,
+            {
+              x: pdfX + 8,
+              y: pdfY + boxH - 32,
+              size: 5.6,
+              font: fontRegular,
+              color: rgb(0.22, 0.28, 0.35),
+            }
+          );
+
+          page.drawText(
+            `Série: ${(signer.icp_serial_number || '').slice(0, 16)} | Data BRT: ${signer.signed_at_brt}`,
+            {
+              x: pdfX + 8,
+              y: pdfY + 6,
+              size: 5.2,
+              font: fontRegular,
+              color: rgb(0.25, 0.3, 0.38),
+            }
+          );
+
+          if (docRubric) {
+            page.drawImage(docRubric, {
+              x: pdfX + boxW - 68,
+              y: pdfY + 8,
+              width: 60,
+              height: Math.max(10, boxH - 16),
+            });
+          }
+        }
+      } else if (field.field_type === 'signature' || field.field_type === 'initials') {
         page.drawRectangle({
           x: pdfX,
           y: pdfY,
           width: boxW,
           height: boxH,
-          borderColor: rgb(0.75, 0.82, 0.88),
-          borderWidth: 0.6,
+          borderColor: rgb(0.72, 0.8, 0.88),
+          borderWidth: 0.8,
+          color: rgb(0.98, 0.99, 1.0),
         });
 
         const sigImage = embeddedSignatures[signer.id];
-        if (sigImage) {
-          const footerHeight = field.field_type === 'signature' ? 13 : 8;
-          page.drawImage(sigImage, {
-            x: pdfX + 3,
-            y: pdfY + footerHeight,
-            width: Math.max(10, boxW - 6),
-            height: Math.max(10, boxH - footerHeight - 2),
-          });
-        }
 
-        // Micro-carimbo jurídico na base da caixa
         if (field.field_type === 'signature') {
+          if (sigImage) {
+            const imgH = Math.max(12, boxH - 22);
+            const imgW = Math.max(20, boxW - 20);
+            page.drawImage(sigImage, {
+              x: pdfX + 10,
+              y: pdfY + 16,
+              width: imgW,
+              height: imgH,
+            });
+          }
+
           page.drawText(
-            `Assinado por: ${signer.full_name} (${this.formatCpfForStamp(signer.cpf)})`,
+            `${signer.full_name} — CPF: ${this.formatCpfForStamp(signer.cpf)}`,
             {
-              x: pdfX + 3,
-              y: pdfY + 6.5,
-              size: 5.5,
+              x: pdfX + 8,
+              y: pdfY + 8.5,
+              size: 5.8,
               font: fontBold,
-              color: rgb(0.12, 0.16, 0.23),
+              color: rgb(0.1, 0.15, 0.22),
             }
           );
           page.drawText(
-            `Em: ${signer.signed_at_brt} | Código: ${req.verificationCode}`,
+            `Assinado eletronicamente em: ${signer.signed_at_brt} | ID: ${req.verificationCode}`,
             {
-              x: pdfX + 3,
-              y: pdfY + 1.5,
-              size: 5,
+              x: pdfX + 8,
+              y: pdfY + 2.5,
+              size: 5.0,
               font: fontRegular,
               color: rgb(0.35, 0.4, 0.48),
             }
           );
         } else {
-          page.drawText(`Visto: ${req.verificationCode}`, {
-            x: pdfX + 2,
-            y: pdfY + 1.5,
+          if (sigImage) {
+            page.drawImage(sigImage, {
+              x: pdfX + 4,
+              y: pdfY + 8,
+              width: Math.max(10, boxW - 8),
+              height: Math.max(10, boxH - 11),
+            });
+          }
+          page.drawText(`Visto: ${req.verificationCode.slice(0, 8)}`, {
+            x: pdfX + 3,
+            y: pdfY + 2,
             size: 4.8,
             font: fontRegular,
             color: rgb(0.35, 0.4, 0.48),
           });
         }
-      } else if (field.field_type === 'icp_seal') {
-        // Chancela Qualificada ICP-Brasil da Dra. Ana Morong
-        page.drawRectangle({
-          x: pdfX,
-          y: pdfY,
-          width: boxW,
-          height: boxH,
-          borderColor: rgb(0.04, 0.52, 0.38),
-          borderWidth: 1,
-          color: rgb(0.95, 0.99, 0.97),
-        });
-
-        page.drawText('ASSINATURA QUALIFICADA ICP-BRASIL', {
-          x: pdfX + 5,
-          y: pdfY + boxH - 10,
-          size: 6.5,
-          font: fontBold,
-          color: rgb(0.02, 0.42, 0.3),
-        });
-
-        page.drawText(
-          `${signer.icp_subject_cn || signer.full_name} ${
-            signer.council_id ? `- ${signer.council_id}` : ''
-          }`,
-          {
-            x: pdfX + 5,
-            y: pdfY + boxH - 19,
-            size: 6.8,
-            font: fontBold,
-            color: rgb(0.08, 0.12, 0.18),
-          }
-        );
-
-        page.drawText(
-          `AC: ${signer.icp_issuer_ca || 'ICP-Brasil'} | Data: ${signer.signed_at_brt}`,
-          {
-            x: pdfX + 5,
-            y: pdfY + 4,
-            size: 5.5,
-            font: fontRegular,
-            color: rgb(0.25, 0.3, 0.36),
-          }
-        );
       } else if (field.field_type === 'date_stamp') {
         page.drawText(signer.signed_at_brt, {
           x: pdfX + 4,

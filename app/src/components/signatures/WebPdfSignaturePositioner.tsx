@@ -196,10 +196,18 @@ export const WebPdfSignaturePositioner: React.FC<WebPdfSignaturePositionerProps>
 
   // 4. Posicionamento Inteligente (Rubricas nas páginas 1..N-1 e Assinaturas na página N)
   const handleSmartTemplatePlacement = () => {
+    if (initialFields && initialFields.length > 0) {
+      setFields(initialFields.map((f) => ({ ...f, id: crypto.randomUUID() })));
+      const sigPage = initialFields.find((f) => f.field_type === 'signature')?.page ?? numPages;
+      setCurrentPage(sigPage);
+      return;
+    }
+
     const generated: SignatureFieldPosition[] = [];
     const paciente = signers.find((s) => s.role === 'PACIENTE');
     const draAna = signers.find((s) => s.role === 'DRA_ANA');
 
+    // Rubricas nas páginas anteriores posicionadas na zona segura de rodapé
     for (let p = 1; p < numPages; p++) {
       if (paciente) {
         generated.push({
@@ -207,10 +215,10 @@ export const WebPdfSignaturePositioner: React.FC<WebPdfSignaturePositionerProps>
           signer_id: paciente.id,
           field_type: 'initials',
           page: p,
-          x_percent: 68,
-          y_percent: 91,
-          width_percent: 13,
-          height_percent: 5,
+          x_percent: 74,
+          y_percent: 86,
+          width_percent: 11,
+          height_percent: 3.2,
         });
       }
       if (draAna) {
@@ -219,12 +227,26 @@ export const WebPdfSignaturePositioner: React.FC<WebPdfSignaturePositionerProps>
           signer_id: draAna.id,
           field_type: 'initials',
           page: p,
-          x_percent: 83,
-          y_percent: 91,
-          width_percent: 13,
-          height_percent: 5,
+          x_percent: 86,
+          y_percent: 86,
+          width_percent: 11,
+          height_percent: 3.2,
         });
       }
+    }
+
+    // Assinaturas verticais centralizadas na página final com distanciamento generoso e sem colisão
+    if (draAna) {
+      generated.push({
+        id: crypto.randomUUID(),
+        signer_id: draAna.id,
+        field_type: 'signature',
+        page: numPages,
+        x_percent: 28,
+        y_percent: 38,
+        width_percent: 44,
+        height_percent: 6.8,
+      });
     }
 
     if (paciente) {
@@ -233,23 +255,10 @@ export const WebPdfSignaturePositioner: React.FC<WebPdfSignaturePositionerProps>
         signer_id: paciente.id,
         field_type: 'signature',
         page: numPages,
-        x_percent: 10,
-        y_percent: 78,
-        width_percent: 36,
-        height_percent: 9,
-      });
-    }
-
-    if (draAna) {
-      generated.push({
-        id: crypto.randomUUID(),
-        signer_id: draAna.id,
-        field_type: 'icp_seal',
-        page: numPages,
-        x_percent: 54,
-        y_percent: 78,
-        width_percent: 36,
-        height_percent: 9,
+        x_percent: 28,
+        y_percent: 54,
+        width_percent: 44,
+        height_percent: 6.8,
       });
     }
 

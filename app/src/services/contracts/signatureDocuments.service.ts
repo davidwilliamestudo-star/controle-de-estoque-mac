@@ -230,6 +230,44 @@ export class SignatureDocumentsService {
   }
 
   /**
+   * Sincroniza o documento assinado com o Google Drive e dispara e-mail com a via em anexo
+   */
+  public static async syncDocumentToDrive(documentId: string): Promise<{
+    success: boolean;
+    drive_file_id?: string;
+    drive_file_url?: string;
+    drive_folder_url?: string;
+    email_status?: string;
+    error?: string;
+  }> {
+    if (isTauri()) {
+      return documentsRepository.syncDocumentToDrive(documentId);
+    }
+
+    try {
+      const token = this.getAuthToken();
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (token) headers["Authorization"] = `Bearer ${token}`;
+
+      const res = await fetch(`/api/signatures/documents/${encodeURIComponent(documentId)}/sync-drive`, {
+        method: "POST",
+        headers,
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || "Falha ao sincronizar com Google Drive.");
+      }
+
+      return data;
+    } catch (err: any) {
+      console.warn("Falha via API, tentando fallback direto com Apps Script:", err);
+      // Fallback local via documentsRepository
+      return documentsRepository.syncDocumentToDrive(documentId);
+    }
+  }
+
+  /**
    * Helper para disparar download direto do PDF no navegador
    */
   public static downloadPdf(base64: string, filename: string): void {

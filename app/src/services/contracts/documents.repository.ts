@@ -3,6 +3,7 @@
  * Acesso universal ao banco de dados SQLite / D1 para documentos clínicos e contratos.
  */
 import { dbSelect, dbExecute, dbTransaction } from "@/lib/db/sqlite";
+import { appScriptIntegrationService } from "@/features/integrations/apps-script/services/appScriptIntegration.service";
 import type {
   CreateSignatureDocumentPayload,
   CreateSignatureDocumentResponse,
@@ -267,6 +268,101 @@ export const documentsRepository = {
       status: doc.status,
       pdf_base64: pdfBase64,
       drive_file_url: doc.drive_file_url || undefined,
+    };
+  },
+
+  /**
+   * Atualiza as informações de sincronização do Google Drive de um documento
+   */
+  async updateDocumentDriveInfo(
+    documentId: string,
+    info: {
+      drive_file_id?: string | null;
+      drive_file_url?: string | null;
+      drive_folder_url?: string | null;
+      gas_sync_status?: string;
+    }
+  ): Promise<void> {
+    await dbExecute(
+      `UPDATE documents
+       SET drive_file_id = COALESCE(?, drive_file_id),
+           drive_file_url = COALESCE(?, drive_file_url),
+           drive_folder_url = COALESCE(?, drive_folder_url),
+           gas_sync_status = COALESCE(?, gas_sync_status),
+           updated_at = ?
+       WHERE id = ?`,
+      [
+        info.drive_file_id || null,
+        info.drive_file_url || null,
+        info.drive_folder_url || null,
+        info.gas_sync_status || 'synced',
+        new Date().toISOString(),
+        documentId,
+      ]
+    );
+  },
+
+  /**
+   * Sincroniza o documento com Google Apps Script (Drive + Email)
+   */
+  async syncDocumentToDrive(documentId: string): Promise<{
+    success: boolean;
+    drive_file_id?: string;
+    drive_file_url?: string;
+    drive_folder_url?: string;
+    email_status?: string;
+    error?: string;
+  }> {
+    const rows = await dbSelect<any>(
+      `SELECT * FROM documents WHERE id = ? LIMIT 1`,
+      [documentId]
+    );
+    if (rows.length === 0) {
+      throw new Error("Documento não encontrado.");
+    }
+    const doc = rows[0];
+    const pdfBase64 = doc.signed_pdf_url || doc.original_pdf_url;
+    if (!pdfBase64) {
+      throw new Error("Documento não possui PDF para upload.");
+    }
+
+    const nowBrt = new Date().toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" });
+    const gasRes = await appScriptIntegrationService.sendPayload({
+      action: "saveSignedDocumentToDrive",
+      request_id: `sync_${doc.id}_${Date.now()}`,
+      payload: {
+        document_id: doc.id,
+        verification_code: doc.verification_code,
+        document_title: doc.title,
+        category: doc.category || "CONTRATO",
+        patient_name: doc.patient_name,
+        patient_cpf: doc.patient_cpf,
+        patient_email: doc.patient_email || "",
+        original_sha256: doc.original_pdf_sha256 || "",
+        signed_sha256: doc.signed_pdf_sha256 || doc.original_pdf_sha256 || "",
+        signed_pdf_base64: pdfBase64,
+        completed_at_brt: nowBrt,
+      },
+    });
+
+    const fileId = gasRes.file_id || gasRes.data?.file_id;
+    const fileUrl = gasRes.file_url || gasRes.data?.file_url;
+    const folderUrl = gasRes.folder_url || gasRes.data?.folder_url;
+    const emailStatus = gasRes.email_status || gasRes.data?.email_status;
+
+    await this.updateDocumentDriveInfo(doc.id, {
+      drive_file_id: fileId,
+      drive_file_url: fileUrl,
+      drive_folder_url: folderUrl,
+      gas_sync_status: "synced",
+    });
+
+    return {
+      success: true,
+      drive_file_id: fileId,
+      drive_file_url: fileUrl,
+      drive_folder_url: folderUrl,
+      email_status: emailStatus,
     };
   },
 

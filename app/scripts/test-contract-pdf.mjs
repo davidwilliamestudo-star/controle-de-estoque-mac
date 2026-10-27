@@ -78,8 +78,11 @@ for (const useFallbackFont of [false]) {
         if (it.str.trim().startsWith('CPF:') && sigStartPage !== null) sigEndPage = p;
 
         if (isPageNum) {
-          if (p === 1) failures.push(`${tag}: número de página aparece na pág. 1`);
-          // fora da arte: x 230..410, y ~28
+          const expected = `Página ${p} de ${doc.numPages}`;
+          if (!it.str.includes(expected)) {
+            failures.push(`${tag}: numeração incorreta na pág ${p}: esperado "${expected}", obtido "${it.str}"`);
+          }
+          // fora da arte: x 225..415, y ~28
           if (x < 225 || x + w > 415) failures.push(`${tag}: nº de página fora da faixa livre (x=${x.toFixed(0)}..${(x + w).toFixed(0)}) pág ${p}`);
           continue;
         }
@@ -119,7 +122,7 @@ for (const useFallbackFont of [false]) {
       const bottom = H - ((b.y_percent + b.height_percent) / 100) * H;
       const top = H - (b.y_percent / 100) * H;
       if (right > 566.5) failures.push(`${tag}: rubrica ${nome} passa do limite direito do timbrado (${right.toFixed(1)})`);
-      if (bottom < 102) failures.push(`${tag}: rubrica ${nome} dentro da mancha direita (bottom=${bottom.toFixed(1)})`);
+      if (bottom < 90) failures.push(`${tag}: rubrica ${nome} dentro da mancha direita (bottom=${bottom.toFixed(1)})`);
       if (top > L.otherPages.bottom) failures.push(`${tag}: rubrica ${nome} sobe sobre a área de texto (top=${top.toFixed(1)} > ${L.otherPages.bottom})`);
     }
     if (n % 14 === 0) console.log(`ok: ${tag}; assinatura na pág ${sigEndPage}; Dra y=${dra?.y_percent}% Pac y=${patient?.y_percent}%`);

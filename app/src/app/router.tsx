@@ -3,48 +3,80 @@
  */
 import { createRouter, createRoute, createRootRoute, Outlet, redirect } from "@tanstack/react-router";
 import { lazy, Suspense } from "react";
+import type { ComponentType } from "react";
 
 // Layout
 import { AppShell } from "@/components/layout/AppShell";
 import { isAuthenticated } from "@/features/auth/session";
 
-// Pages (lazy loaded)
-const LoginPage       = lazy(() => import("@/features/auth/pages/LoginPage"));
-const DashboardPage   = lazy(() => import("@/features/dashboard/pages/DashboardPage"));
-const AgendaPage       = lazy(() => import("@/features/agenda/pages/AgendaPage"));
-const PatientsPage    = lazy(() => import("@/features/patients/pages/PatientsPage"));
-const PatientRecord   = lazy(() => import("@/features/patients/pages/PatientRecordPage"));
-const ProceduresPage  = lazy(() => import("@/features/procedures/pages/ProceduresPage"));
-const NewProcedurePage = lazy(() => import("@/features/procedures/pages/NewProcedurePage"));
-const ExecuteProcedurePage = lazy(() => import("@/features/procedures/pages/ExecuteProcedurePage"));
-const InventoryPage   = lazy(() => import("@/features/inventory/pages/InventoryPage"));
-const InventoryEntryPage = lazy(() => import("@/features/inventory/pages/InventoryEntryPage"));
-const InventoryItemFormPage = lazy(() => import("@/features/inventory/pages/InventoryItemFormPage"));
-const EquipmentPage = lazy(() => import("@/features/inventory/pages/EquipmentPage"));
-const SuppliersPage = lazy(() => import("@/features/inventory/pages/SuppliersPage"));
-const InventoryFinancialPage = lazy(() => import("@/features/inventory/pages/InventoryFinancialPage"));
-const InventoryLocationsPage = lazy(() => import("@/features/inventory/pages/InventoryLocationsPage"));
-const MedicationsPage = lazy(() => import("@/features/medications/pages/MedicationsPage"));
-const MaterialsPage   = lazy(() => import("@/features/materials/pages/MaterialsPage"));
-const LabelsPage      = lazy(() => import("@/features/labels/pages/LabelsPage"));
-const ProtocolsPage   = lazy(() => import("@/features/protocols/pages/ProtocolsPage"));
-const ReportsPage     = lazy(() => import("@/features/reports/pages/ReportsPage.tsx"));
-const PurchasePlanPage = lazy(() => import("@/features/reports/pages/PurchasePlanPage.tsx"));
-const MonthlySummaryPage = lazy(() => import("@/features/monthly-summary/pages/MonthlySummaryPage"));
-const AuditPage       = lazy(() => import("@/features/audit/pages/AuditPage"));
-const SettingsPage    = lazy(() => import("@/features/settings/pages/SettingsPage"));
-const ImportExportPage = lazy(() => import("@/features/import-export/pages/ImportExportPage"));
-const BackupPage      = lazy(() => import("@/features/backup/pages/BackupPage"));
-const DocumentsPage   = lazy(() => import("@/features/documents/pages/DocumentsPage"));
+/**
+ * safeLazy: Envolve lazy() com captura de erro de chunks desatualizados pós-deploy.
+ * Se o navegador tentar carregar um hash que não existe mais após um deploy recente,
+ * recarrega a página de forma transparente uma única vez para obter os assets novos.
+ */
+function safeLazy<T extends ComponentType<any>>(
+  importer: () => Promise<{ default: T }>
+) {
+  return lazy(async () => {
+    try {
+      return await importer();
+    } catch (err: any) {
+      const msg = err?.message || String(err || "");
+      if (
+        msg.includes("Failed to fetch dynamically imported module") ||
+        msg.includes("Importing a module script failed") ||
+        msg.includes("error loading dynamically imported module")
+      ) {
+        const reloadKey = "chunk_load_failed_retry";
+        const hasRetried = sessionStorage.getItem(reloadKey);
+        if (!hasRetried) {
+          sessionStorage.setItem(reloadKey, "true");
+          window.location.reload();
+          return new Promise<{ default: T }>(() => {});
+        }
+      }
+      throw err;
+    }
+  });
+}
 
-const FinancialDashboardPage = lazy(() => import("@/features/financial/pages/FinancialDashboardPage"));
-const ReceivablesPage = lazy(() => import("@/features/financial/pages/ReceivablesPage"));
-const PayablesPage = lazy(() => import("@/features/financial/pages/PayablesPage"));
-const CashFlowPage = lazy(() => import("@/features/financial/pages/CashFlowPage"));
-const FinancialCategoriesPage = lazy(() => import("@/features/financial/pages/FinancialCategoriesPage"));
-const FinancialReportsPage = lazy(() => import("@/features/financial/pages/FinancialReportsPage"));
-const PatientPublicSignPage = lazy(() => import("@/features/signatures/pages/PatientPublicSignPage"));
-const PublicVerifySignaturePage = lazy(() => import("@/features/signatures/pages/PublicVerifySignaturePage"));
+// Pages (lazy loaded com auto-recuperação)
+const LoginPage       = safeLazy(() => import("@/features/auth/pages/LoginPage"));
+const DashboardPage   = safeLazy(() => import("@/features/dashboard/pages/DashboardPage"));
+const AgendaPage       = safeLazy(() => import("@/features/agenda/pages/AgendaPage"));
+const PatientsPage    = safeLazy(() => import("@/features/patients/pages/PatientsPage"));
+const PatientRecord   = safeLazy(() => import("@/features/patients/pages/PatientRecordPage"));
+const ProceduresPage  = safeLazy(() => import("@/features/procedures/pages/ProceduresPage"));
+const NewProcedurePage = safeLazy(() => import("@/features/procedures/pages/NewProcedurePage"));
+const ExecuteProcedurePage = safeLazy(() => import("@/features/procedures/pages/ExecuteProcedurePage"));
+const InventoryPage   = safeLazy(() => import("@/features/inventory/pages/InventoryPage"));
+const InventoryEntryPage = safeLazy(() => import("@/features/inventory/pages/InventoryEntryPage"));
+const InventoryItemFormPage = safeLazy(() => import("@/features/inventory/pages/InventoryItemFormPage"));
+const EquipmentPage = safeLazy(() => import("@/features/inventory/pages/EquipmentPage"));
+const SuppliersPage = safeLazy(() => import("@/features/inventory/pages/SuppliersPage"));
+const InventoryFinancialPage = safeLazy(() => import("@/features/inventory/pages/InventoryFinancialPage"));
+const InventoryLocationsPage = safeLazy(() => import("@/features/inventory/pages/InventoryLocationsPage"));
+const MedicationsPage = safeLazy(() => import("@/features/medications/pages/MedicationsPage"));
+const MaterialsPage   = safeLazy(() => import("@/features/materials/pages/MaterialsPage"));
+const LabelsPage      = safeLazy(() => import("@/features/labels/pages/LabelsPage"));
+const ProtocolsPage   = safeLazy(() => import("@/features/protocols/pages/ProtocolsPage"));
+const ReportsPage     = safeLazy(() => import("@/features/reports/pages/ReportsPage.tsx"));
+const PurchasePlanPage = safeLazy(() => import("@/features/reports/pages/PurchasePlanPage.tsx"));
+const MonthlySummaryPage = safeLazy(() => import("@/features/monthly-summary/pages/MonthlySummaryPage"));
+const AuditPage       = safeLazy(() => import("@/features/audit/pages/AuditPage"));
+const SettingsPage    = safeLazy(() => import("@/features/settings/pages/SettingsPage"));
+const ImportExportPage = safeLazy(() => import("@/features/import-export/pages/ImportExportPage"));
+const BackupPage      = safeLazy(() => import("@/features/backup/pages/BackupPage"));
+const DocumentsPage   = safeLazy(() => import("@/features/documents/pages/DocumentsPage"));
+
+const FinancialDashboardPage = safeLazy(() => import("@/features/financial/pages/FinancialDashboardPage"));
+const ReceivablesPage = safeLazy(() => import("@/features/financial/pages/ReceivablesPage"));
+const PayablesPage = safeLazy(() => import("@/features/financial/pages/PayablesPage"));
+const CashFlowPage = safeLazy(() => import("@/features/financial/pages/CashFlowPage"));
+const FinancialCategoriesPage = safeLazy(() => import("@/features/financial/pages/FinancialCategoriesPage"));
+const FinancialReportsPage = safeLazy(() => import("@/features/financial/pages/FinancialReportsPage"));
+const PatientPublicSignPage = safeLazy(() => import("@/features/signatures/pages/PatientPublicSignPage"));
+const PublicVerifySignaturePage = safeLazy(() => import("@/features/signatures/pages/PublicVerifySignaturePage"));
 
 const PageLoader = () => (
   <div className="flex items-center justify-center h-full">

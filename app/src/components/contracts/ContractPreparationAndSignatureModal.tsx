@@ -569,9 +569,9 @@ export const ContractPreparationAndSignatureModal: React.FC<
         field_type: 'signature',
         page: draAnchor?.page ?? pageCount,
         x_percent: draAnchor?.x_percent ?? 28,
-        y_percent: draAnchor?.y_percent ?? 12,
+        y_percent: draAnchor?.y_percent ?? 38,
         width_percent: draAnchor?.width_percent ?? 44,
-        height_percent: draAnchor?.height_percent ?? 7,
+        height_percent: draAnchor?.height_percent ?? 6.8,
       });
 
       autoFields.push({
@@ -580,9 +580,9 @@ export const ContractPreparationAndSignatureModal: React.FC<
         field_type: 'signature',
         page: patientAnchor?.page ?? pageCount,
         x_percent: patientAnchor?.x_percent ?? 28,
-        y_percent: patientAnchor?.y_percent ?? 27,
+        y_percent: patientAnchor?.y_percent ?? 54,
         width_percent: patientAnchor?.width_percent ?? 44,
-        height_percent: patientAnchor?.height_percent ?? 7,
+        height_percent: patientAnchor?.height_percent ?? 6.8,
       });
 
       setInitialSignatureFields(autoFields);

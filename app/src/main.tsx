@@ -20,6 +20,50 @@ if (typeof Node === "function" && Node.prototype) {
   };
 }
 
+// Auto-recuperação de novas versões e assets desatualizados pós-deploy (ChunkLoadError / Failed to fetch dynamically imported module)
+if (typeof window !== "undefined") {
+  const triggerSafeReload = () => {
+    const reloadKey = "chunk_load_failed_retry";
+    const hasRetried = sessionStorage.getItem(reloadKey);
+    if (!hasRetried) {
+      sessionStorage.setItem(reloadKey, "true");
+      window.location.reload();
+    }
+  };
+
+  window.addEventListener("vite:preloadError", (event) => {
+    event.preventDefault();
+    triggerSafeReload();
+  });
+
+  window.addEventListener("error", (event) => {
+    const msg = event.message || "";
+    if (
+      msg.includes("Failed to fetch dynamically imported module") ||
+      msg.includes("Importing a module script failed") ||
+      msg.includes("error loading dynamically imported module")
+    ) {
+      triggerSafeReload();
+    }
+  });
+
+  window.addEventListener("unhandledrejection", (event) => {
+    const msg = event.reason?.message || String(event.reason || "");
+    if (
+      msg.includes("Failed to fetch dynamically imported module") ||
+      msg.includes("Importing a module script failed") ||
+      msg.includes("error loading dynamically imported module")
+    ) {
+      triggerSafeReload();
+    }
+  });
+
+  // Limpa flag de retry após inicialização bem-sucedida
+  setTimeout(() => {
+    sessionStorage.removeItem("chunk_load_failed_retry");
+  }, 4000);
+}
+
 import { createRoot } from "react-dom/client";
 import { App } from "./app/App";
 import { brandAssets } from "./lib/brand-assets";

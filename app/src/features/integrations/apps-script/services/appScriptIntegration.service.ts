@@ -49,31 +49,39 @@ export const appScriptIntegrationService = {
     };
   },
 
-  async sendPayload(payload: Record<string, any>): Promise<AppsScriptResponse> {
+  async sendPayload(
+    payload: Record<string, any>,
+    overrides?: { url?: string; apiKey?: string; enabled?: boolean }
+  ): Promise<AppsScriptResponse> {
     const config = await this.getSettings();
-    if (!config.enabled) {
+    const isEnabled = overrides?.enabled ?? config.enabled;
+    let targetUrl = (overrides?.url || config.url || "").trim();
+    const targetApiKey = (overrides?.apiKey || config.apiKey || "").trim();
+
+    if (!isEnabled) {
       throw new Error("Integração Apps Script está desativada nas configurações.");
     }
-    if (!config.url || !config.apiKey) {
+    if (!targetUrl || !targetApiKey) {
       throw new Error("URL ou API Key do Apps Script não configurada.");
+    }
+
+    // Normaliza URLs que foram coladas incorretamente com /edit no final
+    if (targetUrl.endsWith("/edit")) {
+      targetUrl = targetUrl.replace(/\/edit$/, "/exec");
     }
 
     const fullPayload = {
       ...payload,
-      api_key: config.apiKey,
+      api_key: targetApiKey,
       clinic_id: "ana-morong-clinic",
     };
 
     try {
       const controller = new AbortController();
-      // --- CORREÇÃO 3: Timeout de 5min (antes: 30s) ---
-      // O Google Apps Script pode levar até 6 minutos em operações complexas
-      // (criar evento no Calendar + enviar e-mail + agendar checkin simultaneamente).
-      // Com 30s, o frontend cancelava e re-enfileirava a tarefa enquanto o servidor
-      // já a havia executado — causando duplicação de eventos e e-mails.
-      const timeoutId = setTimeout(() => controller.abort(), 300_000); // 5min timeout
+      // Timeout de 5min: o Google Apps Script pode levar até 6 minutos em operações complexas
+      const timeoutId = setTimeout(() => controller.abort(), 300_000);
 
-      const response = await fetch(config.url, {
+      const response = await fetch(targetUrl, {
         method: "POST",
         headers: {
           "Content-Type": "text/plain", // Usa text/plain para evitar CORS preflight (OPTIONS)
@@ -90,38 +98,49 @@ export const appScriptIntegrationService = {
 
       const data: AppsScriptResponse = await response.json();
       if (!data.ok) {
-         throw new Error(data.message || data.error || data.error_code || "A API do Apps Script retornou um erro.");
+        throw new Error(data.message || data.error || data.error_code || "A API do Apps Script retornou um erro.");
       }
 
       return data;
     } catch (error) {
       if (error instanceof Error && error.name === "AbortError") {
-        // IMPORTANTE: Um AbortError de timeout é AMBÍGUO — o Apps Script pode ter
-        // terminado a operação com sucesso antes da conexão cair. O status 'failed'
-        // na fila local permite reprocessamento seguro pois a idempotência do backend
-        // (LockService + request_id) garante que não haverá duplicação.
         throw new Error(
           "Timeout: O Apps Script demorou mais de 5 minutos para responder. " +
           "A operação pode ter sido concluída no servidor — o sistema tentará novamente com segurança."
         );
       }
+      if (error instanceof TypeError && error.message.includes("Failed to fetch")) {
+        throw new Error(
+          `Falha de conexão com o Google Apps Script (Failed to fetch). ` +
+          `Verifique se a implantação no Apps Script está com "Quem pode acessar: Qualquer pessoa" (Anyone), ` +
+          `se a URL termina em "/exec" e se sua conexão está ativa. (URL testada: ${targetUrl})`
+        );
+      }
       throw error;
     }
-
   },
 
-  async testConnection(): Promise<AppsScriptResponse> {
-    return this.sendPayload({
-      action: "health_check",
-      request_id: crypto.randomUUID(),
-    });
+  async testConnection(overrides?: { url?: string; apiKey?: string }): Promise<AppsScriptResponse> {
+    return this.sendPayload(
+      {
+        action: "health_check",
+        request_id: crypto.randomUUID(),
+      },
+      overrides ? { ...overrides, enabled: true } : undefined
+    );
   },
 
-  async sendTestEmail(to: string): Promise<AppsScriptResponse> {
-    return this.sendPayload({
-      action: "send_test_email",
-      request_id: crypto.randomUUID(),
-      to,
-    });
+  async sendTestEmail(
+    to: string,
+    overrides?: { url?: string; apiKey?: string }
+  ): Promise<AppsScriptResponse> {
+    return this.sendPayload(
+      {
+        action: "send_test_email",
+        request_id: crypto.randomUUID(),
+        to,
+      },
+      overrides ? { ...overrides, enabled: true } : undefined
+    );
   }
 };

@@ -66,7 +66,12 @@ export default function SettingsPage() {
   const handleTestConnection = async () => {
     setIsTestingConnection(true);
     try {
-      await appScriptIntegrationService.testConnection();
+      const currentUrl = getValues("appscript_api_url");
+      const currentKey = getValues("appscript_api_key");
+      await appScriptIntegrationService.testConnection({
+        url: currentUrl,
+        apiKey: currentKey,
+      });
       
       const currentData = getValues() as SettingsFormData;
       mutation.mutate({
@@ -91,7 +96,12 @@ export default function SettingsPage() {
 
     setIsTestingEmail(true);
     try {
-      await appScriptIntegrationService.sendTestEmail(email);
+      const currentUrl = getValues("appscript_api_url");
+      const currentKey = getValues("appscript_api_key");
+      await appScriptIntegrationService.sendTestEmail(email, {
+        url: currentUrl,
+        apiKey: currentKey,
+      });
       alert(`E-mail de teste enviado com sucesso para ${email}!`);
     } catch (error) {
       alert(`Falha ao enviar e-mail: ${error instanceof Error ? error.message : String(error)}`);

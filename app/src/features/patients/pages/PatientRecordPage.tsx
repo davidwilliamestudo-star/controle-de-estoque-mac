@@ -1,7 +1,7 @@
 import { useState } from "react";
 import type { ReactNode } from "react";
 import { useNavigate, useParams } from "@tanstack/react-router";
-import { Activity, AlertTriangle, ArrowLeft, Clipboard, FileText, MapPin, Package, Pill, Printer, User } from "lucide-react";
+import { Activity, AlertTriangle, ArrowLeft, Clipboard, FileCheck, FileText, MapPin, Package, Pill, Printer, User } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { EmptyState } from "@/components/common/EmptyState";
@@ -19,16 +19,18 @@ import { PatientMonthlyCostPanel } from "@/features/monthly-summary/components/P
 import { ContractPreparationAndSignatureModal } from "@/components/contracts/ContractPreparationAndSignatureModal";
 import { PatientDocumentsModal } from "@/components/documents/PatientDocumentsModal";
 import { PatientDocumentsTab } from "../components/PatientDocumentsTab";
+import { PatientContractsMonitorTab } from "../components/PatientContractsMonitorTab";
 
-// FIX: Removida tab "Relatórios" redundante — botão já existe no PatientHeader
-type Tab = "overview" | "applications" | "history" | "evolutions" | "documents" | "medications" | "lots" | "areas";
+// Tabs do prontuário
+type Tab = "overview" | "contracts" | "applications" | "history" | "evolutions" | "documents" | "medications" | "lots" | "areas";
 
 const tabs: { id: Tab; label: string }[] = [
   { id: "overview", label: "Visão Geral" },
+  { id: "contracts", label: "Monitorar Contratos" },
   { id: "applications", label: "Aplicações" },
   { id: "history", label: "Histórico" },
   { id: "evolutions", label: "Evoluções" },
-  { id: "documents", label: "Documentos e Contratos" },
+  { id: "documents", label: "Documentos e TCLE" },
   { id: "medications", label: "Medicamentos e Materiais" },
   { id: "lots", label: "Lotes Utilizados" },
   { id: "areas", label: "Áreas Corporais" },
@@ -168,6 +170,7 @@ export default function PatientRecordPage() {
         onPrintReport={() => setIsReportOpen(true)}
         onPrepareContract={() => setIsContractModalOpen(true)}
         onOpenDocumentsModal={() => setIsDocumentsModalOpen(true)}
+        onOpenContractMonitoring={() => setActiveTab("contracts")}
       />
 
       {record.alert_notes?.trim() && (
@@ -195,6 +198,16 @@ export default function PatientRecordPage() {
       </div>
 
       {activeTab === "overview" && <OverviewTab record={record} procedures={finalizedProcedures} />}
+      {activeTab === "contracts" && (
+        <PatientContractsMonitorTab
+          patientId={record.id}
+          patientName={record.full_name}
+          patientCpf={record.document || undefined}
+          patientEmail={record.email || undefined}
+          patientPhone={record.phone || undefined}
+          onNewContract={() => setIsContractModalOpen(true)}
+        />
+      )}
       {activeTab === "applications" && (
         <PatientApplicationsManager
           patientId={record.id}
@@ -284,6 +297,7 @@ function PatientHeader({
   onPrintReport,
   onPrepareContract,
   onOpenDocumentsModal,
+  onOpenContractMonitoring,
 }: {
   record: PatientRecord;
   lastProcedure?: ProcedureSummary;
@@ -292,6 +306,7 @@ function PatientHeader({
   onPrintReport: () => void;
   onPrepareContract: () => void;
   onOpenDocumentsModal: () => void;
+  onOpenContractMonitoring: () => void;
 }) {
   const recency = getApplicationRecency(lastProcedure?.performed_at);
   const daysSinceLastApplication =
@@ -353,6 +368,15 @@ function PatientHeader({
       </div>
 
       <div className="patient-hero-actions">
+        <button
+          className="btn btn-secondary"
+          onClick={onOpenContractMonitoring}
+          style={{ borderColor: "#059669", color: "#047857", fontWeight: 700 }}
+          title="Abrir painel de monitoramento de contratos"
+        >
+          <FileCheck size={16} className="text-emerald-700" />
+          Monitorar Contratos
+        </button>
         <button
           className="btn btn-primary"
           onClick={onPrepareContract}
