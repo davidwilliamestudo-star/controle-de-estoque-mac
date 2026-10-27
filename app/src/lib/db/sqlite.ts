@@ -430,6 +430,111 @@ async function ensureCompatibilitySchema(db: Database): Promise<void> {
         )
       ) > 0.0001
   `);
+
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS documents (
+      id TEXT PRIMARY KEY NOT NULL,
+      external_provider_id TEXT UNIQUE,
+      verification_code TEXT NOT NULL UNIQUE,
+      patient_id TEXT NOT NULL,
+      patient_name TEXT NOT NULL,
+      patient_cpf TEXT NOT NULL,
+      patient_email TEXT,
+      patient_phone TEXT,
+      title TEXT NOT NULL,
+      category TEXT NOT NULL DEFAULT 'CONTRATO',
+      signing_mode TEXT NOT NULL DEFAULT 'hybrid',
+      engine_provider TEXT NOT NULL DEFAULT 'native',
+      status TEXT NOT NULL DEFAULT 'pending',
+      original_pdf_url TEXT,
+      original_pdf_sha256 TEXT,
+      signed_pdf_url TEXT,
+      signed_pdf_sha256 TEXT,
+      drive_file_id TEXT,
+      drive_file_url TEXT,
+      drive_folder_url TEXT,
+      gas_sync_status TEXT NOT NULL DEFAULT 'pending',
+      created_by_user_id TEXT,
+      expires_at TEXT,
+      completed_at TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )
+  `);
+  await db.execute("CREATE INDEX IF NOT EXISTS idx_documents_patient_id ON documents(patient_id)");
+  await db.execute("CREATE INDEX IF NOT EXISTS idx_documents_verification_code ON documents(verification_code)");
+
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS document_signers (
+      id TEXT PRIMARY KEY NOT NULL,
+      document_id TEXT NOT NULL,
+      external_signer_token TEXT UNIQUE,
+      remote_access_token TEXT NOT NULL UNIQUE,
+      role TEXT NOT NULL,
+      signing_order INTEGER NOT NULL DEFAULT 1,
+      full_name TEXT NOT NULL,
+      cpf TEXT NOT NULL,
+      email TEXT,
+      phone_whatsapp TEXT,
+      council_id TEXT,
+      auth_type TEXT NOT NULL DEFAULT 'canvas_advanced',
+      legal_standard TEXT NOT NULL DEFAULT 'ADVANCED',
+      status TEXT NOT NULL DEFAULT 'pending',
+      rejection_reason TEXT,
+      signature_png_base64 TEXT,
+      selfie_photo_base64 TEXT,
+      icp_subject_cn TEXT,
+      icp_issuer_ca TEXT,
+      icp_serial_number TEXT,
+      signer_ip TEXT,
+      signer_user_agent TEXT,
+      signer_lat REAL,
+      signer_lng REAL,
+      signed_at TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (document_id) REFERENCES documents(id) ON DELETE CASCADE
+    )
+  `);
+  await db.execute("CREATE INDEX IF NOT EXISTS idx_signers_document_id ON document_signers(document_id)");
+  await db.execute("CREATE INDEX IF NOT EXISTS idx_signers_remote_token ON document_signers(remote_access_token)");
+
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS signature_fields (
+      id TEXT PRIMARY KEY NOT NULL,
+      document_id TEXT NOT NULL,
+      signer_id TEXT NOT NULL,
+      field_type TEXT NOT NULL DEFAULT 'signature',
+      page INTEGER NOT NULL,
+      x_percent REAL NOT NULL,
+      y_percent REAL NOT NULL,
+      width_percent REAL NOT NULL DEFAULT 26.00,
+      height_percent REAL NOT NULL DEFAULT 8.50,
+      required INTEGER NOT NULL DEFAULT 1,
+      stamped_at TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (document_id) REFERENCES documents(id) ON DELETE CASCADE,
+      FOREIGN KEY (signer_id) REFERENCES document_signers(id) ON DELETE CASCADE
+    )
+  `);
+  await db.execute("CREATE INDEX IF NOT EXISTS idx_signature_fields_document ON signature_fields(document_id)");
+
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS signature_audit_trails (
+      id TEXT PRIMARY KEY NOT NULL,
+      document_id TEXT NOT NULL,
+      signer_id TEXT,
+      event_name TEXT NOT NULL,
+      event_description TEXT NOT NULL,
+      actor_name TEXT NOT NULL,
+      actor_role TEXT NOT NULL,
+      actor_ip TEXT,
+      actor_user_agent TEXT,
+      document_sha256 TEXT,
+      metadata_json TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (document_id) REFERENCES documents(id) ON DELETE CASCADE
+    )
+  `);
 }
 
 export function getDb(): Promise<Database> {

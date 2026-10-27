@@ -17,6 +17,7 @@ import { ProcedureCorrectionModal } from "@/features/procedures/components/Proce
 import { PatientRecordReportPanel } from "../components/PatientRecordReportPanel";
 import { PatientMonthlyCostPanel } from "@/features/monthly-summary/components/PatientMonthlyCostPanel";
 import { ContractPreparationAndSignatureModal } from "@/components/contracts/ContractPreparationAndSignatureModal";
+import { PatientDocumentsModal } from "@/components/documents/PatientDocumentsModal";
 import { PatientDocumentsTab } from "../components/PatientDocumentsTab";
 
 // FIX: Removida tab "Relatórios" redundante — botão já existe no PatientHeader
@@ -46,8 +47,10 @@ export default function PatientRecordPage() {
   const [activeTab, setActiveTab] = useState<Tab>("overview");
   const [isReportOpen, setIsReportOpen] = useState(false);
   const [isContractModalOpen, setIsContractModalOpen] = useState(false);
+  const [isDocumentsModalOpen, setIsDocumentsModalOpen] = useState(false);
 
   const { data: recordResult, isLoading, error } = usePatientRecord(patientId);
+
   const {
     data: fullHistory,
     isLoading: isLoadingHistory,
@@ -164,6 +167,7 @@ export default function PatientRecordPage() {
         onNewProcedure={() => navigate({ to: "/procedures/new", search: { patientId: record.id } })}
         onPrintReport={() => setIsReportOpen(true)}
         onPrepareContract={() => setIsContractModalOpen(true)}
+        onOpenDocumentsModal={() => setIsDocumentsModalOpen(true)}
       />
 
       {record.alert_notes?.trim() && (
@@ -215,6 +219,7 @@ export default function PatientRecordPage() {
           patientCpf={record.document || undefined}
           patientPhone={record.phone || undefined}
           onNewContract={() => setIsContractModalOpen(true)}
+          onNewDocument={() => setIsDocumentsModalOpen(true)}
         />
       )}
       {activeTab === "medications" && <PatientUsedItemsTab patientId={record.id} />}
@@ -254,6 +259,19 @@ export default function PatientRecordPage() {
           onClose={() => setIsContractModalOpen(false)}
         />
       )}
+
+      {isDocumentsModalOpen && (
+        <PatientDocumentsModal
+          isOpen={isDocumentsModalOpen}
+          patientId={record.id}
+          patientName={record.full_name}
+          patientCpf={record.document || undefined}
+          patientPhone={record.phone || undefined}
+          patientEmail={record.email || undefined}
+          onClose={() => setIsDocumentsModalOpen(false)}
+          onOpenContractPreparation={() => setIsContractModalOpen(true)}
+        />
+      )}
     </>
   );
 }
@@ -265,6 +283,7 @@ function PatientHeader({
   onNewProcedure,
   onPrintReport,
   onPrepareContract,
+  onOpenDocumentsModal,
 }: {
   record: PatientRecord;
   lastProcedure?: ProcedureSummary;
@@ -272,6 +291,7 @@ function PatientHeader({
   onNewProcedure: () => void;
   onPrintReport: () => void;
   onPrepareContract: () => void;
+  onOpenDocumentsModal: () => void;
 }) {
   const recency = getApplicationRecency(lastProcedure?.performed_at);
   const daysSinceLastApplication =
@@ -340,6 +360,10 @@ function PatientHeader({
         >
           <FileText size={16} />
           Contrato Saúde 360®
+        </button>
+        <button className="btn btn-secondary" onClick={onOpenDocumentsModal}>
+          <FileText size={16} />
+          Documentos & TCLE
         </button>
         <button className="btn btn-secondary" onClick={onNewProcedure}>
           <Activity size={16} />

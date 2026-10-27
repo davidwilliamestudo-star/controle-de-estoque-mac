@@ -34,6 +34,7 @@ interface PatientDocumentsTabProps {
   patientCpf?: string | null;
   patientPhone?: string | null;
   onNewContract: () => void;
+  onNewDocument?: () => void;
 }
 
 export function PatientDocumentsTab({
@@ -42,6 +43,7 @@ export function PatientDocumentsTab({
   patientCpf,
   patientPhone,
   onNewContract,
+  onNewDocument,
 }: PatientDocumentsTabProps) {
   const [documents, setDocuments] = useState<PatientDocument[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -229,13 +231,24 @@ export function PatientDocumentsTab({
               Atualizar
             </Button>
 
+            {onNewDocument && (
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={onNewDocument}
+                leftIcon={<Plus size={16} />}
+              >
+                Novo Documento / TCLE
+              </Button>
+            )}
+
             <Button
-              variant="primary"
+              variant={onNewDocument ? "secondary" : "primary"}
               size="sm"
               onClick={onNewContract}
-              leftIcon={<Plus size={16} />}
+              leftIcon={<FileText size={16} />}
             >
-              Novo Contrato / Termo
+              Contrato Saúde 360®
             </Button>
           </div>
         </div>

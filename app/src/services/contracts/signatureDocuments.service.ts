@@ -76,6 +76,9 @@ export interface PatientDocument {
   signers: PatientDocumentSigner[];
 }
 
+import { isTauri } from "@tauri-apps/api/core";
+import { documentsRepository, type DocumentFilterOptions } from "./documents.repository";
+
 export class SignatureDocumentsService {
   private static getAuthToken(): string | null {
     if (typeof window === 'undefined') return null;
@@ -87,83 +90,101 @@ export class SignatureDocumentsService {
   }
 
   /**
-   * Registra um novo documento, signatários e campos de assinatura no Cloudflare D1
+   * Registra um novo documento, signatários e campos de assinatura
    */
   public static async createDocument(
     payload: CreateSignatureDocumentPayload
   ): Promise<CreateSignatureDocumentResponse> {
-    const token = this.getAuthToken();
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-    };
-
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
+    if (isTauri()) {
+      return documentsRepository.createDocument(payload);
     }
 
-    const response = await fetch('/api/signatures/documents', {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({
-        title: payload.title,
-        category: payload.category || 'CONTRATO',
-        signing_mode: payload.signing_mode || 'hybrid',
-        patient_id: payload.patient_id,
-        patient_name: payload.patient_name,
-        patient_cpf: payload.patient_cpf,
-        patient_email: payload.patient_email,
-        patient_phone: payload.patient_phone,
-        original_pdf_base64: payload.original_pdf_base64,
-        signers: payload.signers.map((s) => ({
-          id: s.id,
-          role: s.role,
-          full_name: s.fullName,
-          cpf: s.cpf,
-          email: s.email,
-          phone_whatsapp: s.phoneWhatsapp,
-          auth_type: s.role === 'DRA_ANA' ? 'icp_brasil_a1_auto' : 'canvas_advanced',
-          legal_standard: s.role === 'DRA_ANA' ? 'QUALIFIED_ICP' : 'ADVANCED',
-        })),
-        fields: payload.fields.map((f) => ({
-          signer_id: f.signer_id,
-          field_type: f.field_type,
-          page: f.page,
-          x_percent: f.x_percent,
-          y_percent: f.y_percent,
-          width_percent: f.width_percent,
-          height_percent: f.height_percent,
-        })),
-      }),
-    });
+    try {
+      const token = this.getAuthToken();
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
 
-    if (!response.ok) {
-      const errData = await response.json().catch(() => ({ error: 'Erro de comunicação.' }));
-      throw new Error(errData.error || `Erro ao registrar documento (${response.status})`);
+      const response = await fetch('/api/signatures/documents', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          title: payload.title,
+          category: payload.category || 'CONTRATO',
+          signing_mode: payload.signing_mode || 'hybrid',
+          patient_id: payload.patient_id,
+          patient_name: payload.patient_name,
+          patient_cpf: payload.patient_cpf,
+          patient_email: payload.patient_email,
+          patient_phone: payload.patient_phone,
+          original_pdf_base64: payload.original_pdf_base64,
+          signers: payload.signers.map((s) => ({
+            id: s.id,
+            role: s.role,
+            full_name: s.fullName,
+            cpf: s.cpf,
+            email: s.email,
+            phone_whatsapp: s.phoneWhatsapp,
+            auth_type: s.role === 'DRA_ANA' ? 'icp_brasil_a1_auto' : 'canvas_advanced',
+            legal_standard: s.role === 'DRA_ANA' ? 'QUALIFIED_ICP' : 'ADVANCED',
+          })),
+          fields: payload.fields.map((f) => ({
+            signer_id: f.signer_id,
+            field_type: f.field_type,
+            page: f.page,
+            x_percent: f.x_percent,
+            y_percent: f.y_percent,
+            width_percent: f.width_percent,
+            height_percent: f.height_percent,
+          })),
+        }),
+      });
+
+      if (response.ok) {
+        return await response.json();
+      }
+    } catch {
+      // Fallback para persistência local SQLite
     }
 
-    return await response.json();
+    return documentsRepository.createDocument(payload);
   }
 
   /**
    * Busca todos os documentos vinculados a um paciente
    */
   public static async getDocumentsByPatient(patientId: string): Promise<PatientDocument[]> {
-    const token = this.getAuthToken();
-    const headers: Record<string, string> = {};
-    if (token) headers['Authorization'] = `Bearer ${token}`;
-
-    const response = await fetch(`/api/signatures/documents/patient/${encodeURIComponent(patientId)}`, {
-      method: 'GET',
-      headers,
-    });
-
-    if (!response.ok) {
-      const errData = await response.json().catch(() => ({ error: 'Erro de comunicação.' }));
-      throw new Error(errData.error || `Erro ao carregar documentos (${response.status})`);
+    if (isTauri()) {
+      return documentsRepository.getDocumentsByPatient(patientId);
     }
 
-    const data = await response.json();
-    return data.documents || [];
+    try {
+      const token = this.getAuthToken();
+      const headers: Record<string, string> = {};
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+
+      const response = await fetch(`/api/signatures/documents/patient/${encodeURIComponent(patientId)}`, {
+        method: 'GET',
+        headers,
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        return data.documents || [];
+      }
+    } catch {
+      // Fallback
+    }
+
+    return documentsRepository.getDocumentsByPatient(patientId);
+  }
+
+  /**
+   * Busca todos os documentos emitidos no sistema (com filtros opcionais)
+   */
+  public static async getAllDocuments(filters?: DocumentFilterOptions): Promise<PatientDocument[]> {
+    return documentsRepository.getAllDocuments(filters);
   }
 
   /**
@@ -177,21 +198,35 @@ export class SignatureDocumentsService {
     pdf_base64: string;
     drive_file_url?: string;
   }> {
-    const token = this.getAuthToken();
-    const headers: Record<string, string> = {};
-    if (token) headers['Authorization'] = `Bearer ${token}`;
-
-    const response = await fetch(`/api/signatures/documents/${encodeURIComponent(documentId)}/pdf`, {
-      method: 'GET',
-      headers,
-    });
-
-    if (!response.ok) {
-      const errData = await response.json().catch(() => ({ error: 'Erro ao obter PDF.' }));
-      throw new Error(errData.error || `Erro ao obter PDF (${response.status})`);
+    if (isTauri()) {
+      return documentsRepository.getDocumentPdf(documentId);
     }
 
-    return await response.json();
+    try {
+      const token = this.getAuthToken();
+      const headers: Record<string, string> = {};
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+
+      const response = await fetch(`/api/signatures/documents/${encodeURIComponent(documentId)}/pdf`, {
+        method: 'GET',
+        headers,
+      });
+
+      if (response.ok) {
+        return await response.json();
+      }
+    } catch {
+      // Fallback
+    }
+
+    return documentsRepository.getDocumentPdf(documentId);
+  }
+
+  /**
+   * Exclui um documento do prontuário
+   */
+  public static async deleteDocument(documentId: string): Promise<void> {
+    return documentsRepository.deleteDocument(documentId);
   }
 
   /**

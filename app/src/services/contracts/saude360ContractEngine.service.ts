@@ -540,14 +540,59 @@ function base64ToUint8Array(base64: string): Uint8Array {
 }
 
 /**
- * Gera um PDF A4 paginado de altíssima fidelidade a partir do contrato preenchido e retorna Base64 + total de páginas.
- * Reproduz rigorosamente a tipografia EB Garamond, o papel timbrado oficial da Dra. Ana Morong,
- * os blocos de assinatura centralizados e o rodapé oficial em Poppins.
+ * Zonas seguras do PDF do contrato (em pontos, origem no canto inferior esquerdo da página).
+ * Derivadas da medição do papel timbrado oficial (1448x2048 px => 1 px = 0,4111 pt):
+ *  - Página 1: logo/contato terminam a 68 pt do topo; mancha verde na esquerda (x 0-177 pt)
+ *    sobe até 147 pt do rodapé; frase "Prevenção, Ciência e Longevidade." em x 395-575, y 22-34.
+ *  - Páginas 2+: QR + endereço em x 24-220, y 22-79; mancha verde na direita (x >= 419) até 102 pt.
  */
-export async function generateContractPdfBase64(filledContractText: string): Promise<{
+export const CONTRACT_PDF_LAYOUT = {
+  pageWidth: 595.28,
+  pageHeight: 841.89,
+  marginX: 56.7,
+  page1: { top: 100, bottom: 150 },
+  otherPages: { top: 60, bottom: 146 },
+  noLetterhead: { top: 56, bottom: 146 },
+  // Faixa de rubricas (acima da mancha direita das páginas 2+, à direita da mancha esquerda da pág. 1)
+  rubric: { bottom: 112, height: 28, width: 66, gap: 6 },
+  // Espaço reservado acima das linhas de assinatura e altura do campo
+  signature: { spaceAbove: 26, boxHeight: 34, boxLift: 3 },
+  // Numeração (somente páginas 2+): entre o bloco QR/endereço e a mancha direita
+  pageNumber: { y: 28, centerX: 320 },
+} as const;
+
+export interface ContractPdfAnchor {
+  page: number;
+  x_percent: number;
+  y_percent: number; // origem no topo da página
+  width_percent: number;
+  height_percent: number;
+}
+
+export interface ContractPdfLayoutResult {
   pdfBase64: string;
   pageCount: number;
-}> {
+  /** Posição real das linhas de assinatura medidas durante a diagramação */
+  signatureAnchors: {
+    dra?: ContractPdfAnchor;
+    patient?: ContractPdfAnchor;
+  };
+  /** Caixas de rubrica (mesma posição em todas as páginas, exceto a última) */
+  initialsBoxes: {
+    patient: Omit<ContractPdfAnchor, 'page'>;
+    dra: Omit<ContractPdfAnchor, 'page'>;
+  };
+}
+
+/**
+ * Gera um PDF A4 paginado de altíssima fidelidade a partir do contrato preenchido.
+ * Respeita as zonas seguras do papel timbrado, mantém o bloco final de assinaturas
+ * inteiro na mesma página e devolve as âncoras reais de assinatura/rubrica.
+ */
+export async function generateContractPdfBase64(
+  filledContractText: string
+): Promise<ContractPdfLayoutResult> {
+  const L = CONTRACT_PDF_LAYOUT;
   const pdfDoc = await PDFDocument.create();
   pdfDoc.registerFontkit(fontkit);
 
@@ -587,31 +632,30 @@ export async function generateContractPdfBase64(filledContractText: string): Pro
   let bgImg2: PDFImage | null = null;
 
   try {
-    const page1Bytes = base64ToUint8Array(LETTERHEAD_PAGE1_BASE64);
-    const page2Bytes = base64ToUint8Array(LETTERHEAD_PAGE2_BASE64);
-    bgImg1 = await pdfDoc.embedPng(page1Bytes);
-    bgImg2 = await pdfDoc.embedPng(page2Bytes);
+    bgImg1 = await pdfDoc.embedPng(base64ToUint8Array(LETTERHEAD_PAGE1_BASE64));
+    bgImg2 = await pdfDoc.embedPng(base64ToUint8Array(LETTERHEAD_PAGE2_BASE64));
   } catch (err) {
     console.warn('Papel timbrado não pôde ser embutido, gerando versão padrão:', err);
   }
 
-  const pageWidth = 595.28; // A4 padrão largura (pt)
-  const pageHeight = 841.89; // A4 padrão altura (pt)
-  const marginX = 56.7; // Margem oficial de 2cm (56.7 pt)
+  const pageWidth = L.pageWidth;
+  const pageHeight = L.pageHeight;
+  const marginX = L.marginX;
   const maxTextWidth = pageWidth - marginX * 2;
-  const bottomMargin = 72; // Resguardo para o rodapé timbrado e rubricas
-  const page1TopMargin = 142; // Resguardo para o cabeçalho timbrado na pág. 1
-  const generalTopMargin = 56; // Resguardo para o topo nas demais páginas
 
   let pageIndex = 1;
   let page = pdfDoc.addPage([pageWidth, pageHeight]);
   if (bgImg1) {
     page.drawImage(bgImg1, { x: 0, y: 0, width: pageWidth, height: pageHeight });
   }
-  let y = pageHeight - (bgImg1 ? page1TopMargin : 56);
 
-  const sanitized = sanitizeTextForHelvetica(filledContractText);
-  const lines = sanitized.split('\n');
+  const limitsFor = (idx: number) => {
+    if (!bgImg1) return L.noLetterhead;
+    return idx === 1 ? L.page1 : L.otherPages;
+  };
+  const bottomLimit = () => limitsFor(pageIndex).bottom;
+
+  let y = pageHeight - limitsFor(1).top;
 
   const addPageBreak = () => {
     pageIndex++;
@@ -619,30 +663,33 @@ export async function generateContractPdfBase64(filledContractText: string): Pro
     if (bgImg2) {
       page.drawImage(bgImg2, { x: 0, y: 0, width: pageWidth, height: pageHeight });
     }
-    y = pageHeight - generalTopMargin;
+    y = pageHeight - limitsFor(pageIndex).top;
   };
 
-  let inSignatureSection = false;
-
-  for (let i = 0; i < lines.length; i++) {
-    const rawLine = lines[i];
-    const trimmed = rawLine.trim();
-
-    if (!trimmed) {
-      y -= 6.5;
-      if (y < bottomMargin) {
-        addPageBreak();
-      }
-      continue;
+  const widthOf = (font: any, text: string, size: number): number => {
+    try {
+      return font.widthOfTextAtSize(text, size);
+    } catch {
+      return font.widthOfTextAtSize(text.replace(/[^\x00-\x7F]/g, ''), size);
     }
+  };
 
-    if (
-      trimmed.startsWith('E, por estarem plenamente esclarecidas') ||
-      trimmed.startsWith('Florianópolis - SC')
-    ) {
-      inSignatureSection = true;
+  const drawSafe = (text: string, x: number, yy: number, size: number, font: any) => {
+    const opts = { x, y: yy, size, font, color: rgb(0.12, 0.14, 0.17) };
+    try {
+      page.drawText(text, opts);
+    } catch {
+      page.drawText(text.replace(/[^\x00-\x7F]/g, ''), opts);
     }
+  };
 
+  const sanitized = sanitizeTextForHelvetica(filledContractText);
+  const lines = sanitized.split('\n');
+
+  // Início do bloco final de assinaturas (mantido inteiro na mesma página)
+  const sigStartIdx = lines.findIndex((l) => l.trim().startsWith('E, por estarem plenamente esclarecidas'));
+
+  const classify = (trimmed: string, inSig: boolean) => {
     const isMainTitle = trimmed.startsWith('CONTRATO DE PRESTAÇÃO');
     const isSectionHeader =
       /^[IVX]+\s*[-–—]\s*/.test(trimmed) ||
@@ -650,151 +697,155 @@ export async function generateContractPdfBase64(filledContractText: string): Pro
       trimmed.startsWith('CONTRATANTE (PACIENTE):') ||
       trimmed.startsWith('2.2. Diretrizes Técnicas') ||
       trimmed.startsWith('Parágrafo');
-
     const isProgramItem = /^\[[X\s]\]\s+/i.test(trimmed);
     const isIndentedItem = /^[a-z]\)\s+/i.test(trimmed) || /^[-–]\s+/i.test(trimmed);
-
-    // Identificação de linhas centralizadas (conforme document.xml original)
+    const isUnderline = inSig && trimmed.startsWith('___________________');
     const isCentered =
       isMainTitle ||
-      (inSignatureSection &&
-        (trimmed.startsWith('___________________') ||
+      (inSig &&
+        (isUnderline ||
           trimmed.startsWith('DRA. ANA CARLA MORONG') ||
           trimmed.startsWith('Médica CONTRATADA') ||
           trimmed.startsWith('CNPJ: 54.811.772/0001-32') ||
           trimmed.startsWith('CONTRATANTE / PACIENTE') ||
           trimmed.startsWith('Nome:') ||
           trimmed.startsWith('CPF:')));
-
     const font = isMainTitle || isSectionHeader || isProgramItem ? fontBold : fontRegular;
     const size = isMainTitle ? 11.5 : isSectionHeader ? 10.5 : 10;
-    const lineHeight = size + 4.2;
+    return {
+      isMainTitle,
+      isSectionHeader,
+      isUnderline,
+      isCentered,
+      font,
+      size,
+      lineHeight: size + 4.2,
+      indent: isIndentedItem ? 14 : 0,
+    };
+  };
 
-    // Espaçamento adicional antes de títulos de seção
-    if (isSectionHeader && !isMainTitle) {
-      y -= 4;
-      if (y < bottomMargin) {
-        addPageBreak();
-      }
-    }
-
-    // Proteção contra quebra órfã do bloco final de assinaturas
-    if (trimmed.startsWith('E, por estarem plenamente esclarecidas') && y < 270) {
-      addPageBreak();
-    }
-
-    const indent = isIndentedItem ? 14 : 0;
-    const currentMaxW = maxTextWidth - indent;
-
-    const words = trimmed.split(/\s+/);
-    let currentLine = '';
-
-    for (const word of words) {
-      const candidate = currentLine ? `${currentLine} ${word}` : word;
-      let candidateWidth = 0;
-      try {
-        candidateWidth = font.widthOfTextAtSize(candidate, size);
-      } catch {
-        candidateWidth = font.widthOfTextAtSize(candidate.replace(/[^\x00-\x7F]/g, ''), size);
-      }
-
-      if (candidateWidth > currentMaxW && currentLine) {
-        if (y < bottomMargin) {
-          addPageBreak();
-        }
-
-        let drawX = marginX + indent;
-        if (isCentered) {
-          let lineW = 0;
-          try {
-            lineW = font.widthOfTextAtSize(currentLine, size);
-          } catch {
-            lineW = font.widthOfTextAtSize(currentLine.replace(/[^\x00-\x7F]/g, ''), size);
-          }
-          drawX = (pageWidth - lineW) / 2;
-        }
-
-        try {
-          page.drawText(currentLine, {
-            x: drawX,
-            y,
-            size,
-            font,
-            color: rgb(0.12, 0.14, 0.17),
-          });
-        } catch {
-          page.drawText(currentLine.replace(/[^\x00-\x7F]/g, ''), {
-            x: drawX,
-            y,
-            size,
-            font,
-            color: rgb(0.12, 0.14, 0.17),
-          });
-        }
-        y -= lineHeight;
-        currentLine = word;
+  const wrap = (trimmed: string, st: ReturnType<typeof classify>): string[] => {
+    const out: string[] = [];
+    const maxW = maxTextWidth - st.indent - 3; // folga p/ ligaduras/kerning do renderizador
+    let current = '';
+    for (const word of trimmed.split(/\s+/)) {
+      const candidate = current ? `${current} ${word}` : word;
+      if (widthOf(st.font, candidate, st.size) > maxW && current) {
+        out.push(current);
+        current = word;
       } else {
-        currentLine = candidate;
+        current = candidate;
+      }
+    }
+    if (current) out.push(current);
+    return out;
+  };
+
+  // Altura real do bloco de assinaturas (do "E, por estarem..." até o CPF)
+  const measureSignatureBlock = (from: number): number => {
+    let h = 0;
+    for (let i = from; i < lines.length; i++) {
+      const trimmed = lines[i].trim();
+      if (!trimmed) {
+        h += 6.5;
+        continue;
+      }
+      const st = classify(trimmed, true);
+      if (st.isUnderline) h += L.signature.spaceAbove;
+      h += wrap(trimmed, st).length * st.lineHeight;
+    }
+    return h;
+  };
+
+  const signatureAnchors: ContractPdfLayoutResult['signatureAnchors'] = {};
+  let underlineCount = 0;
+  let inSig = false;
+
+  for (let i = 0; i < lines.length; i++) {
+    const trimmed = lines[i].trim();
+
+    if (sigStartIdx >= 0 && i === sigStartIdx) {
+      inSig = true;
+      // Mantém o bloco inteiro na mesma página: se não couber, vai tudo para a próxima
+      if (y - measureSignatureBlock(i) < bottomLimit()) {
+        addPageBreak();
       }
     }
 
-    if (currentLine) {
-      if (y < bottomMargin) {
-        addPageBreak();
+    if (!trimmed) {
+      y -= 6.5;
+      if (y < bottomLimit()) addPageBreak();
+      continue;
+    }
+
+    const st = classify(trimmed, inSig);
+
+    // Título de seção: nunca fica órfão no fim da página (exige espaço p/ título + 2 linhas)
+    if (st.isSectionHeader && !st.isMainTitle) {
+      y -= 4;
+      if (y - st.lineHeight * 3 < bottomLimit()) addPageBreak();
+    }
+
+    // Espaço reservado para a assinatura acima da linha
+    if (st.isUnderline) {
+      y -= L.signature.spaceAbove;
+    }
+
+    const wrapped = wrap(trimmed, st);
+    for (const textLine of wrapped) {
+      if (y < bottomLimit()) addPageBreak();
+
+      const lineW = widthOf(st.font, textLine, st.size);
+      const drawX = st.isCentered ? (pageWidth - lineW) / 2 : marginX + st.indent;
+      drawSafe(textLine, drawX, y, st.size, st.font);
+
+      if (st.isUnderline) {
+        underlineCount++;
+        const anchor: ContractPdfAnchor = {
+          page: pageIndex,
+          x_percent: Number(((drawX / pageWidth) * 100).toFixed(2)),
+          y_percent: Number(
+            (((pageHeight - (y + L.signature.boxLift + L.signature.boxHeight)) / pageHeight) * 100).toFixed(2)
+          ),
+          width_percent: Number(((lineW / pageWidth) * 100).toFixed(2)),
+          height_percent: Number(((L.signature.boxHeight / pageHeight) * 100).toFixed(2)),
+        };
+        if (underlineCount === 1) signatureAnchors.dra = anchor;
+        else if (underlineCount === 2) signatureAnchors.patient = anchor;
       }
 
-      let drawX = marginX + indent;
-      if (isCentered) {
-        let lineW = 0;
-        try {
-          lineW = font.widthOfTextAtSize(currentLine, size);
-        } catch {
-          lineW = font.widthOfTextAtSize(currentLine.replace(/[^\x00-\x7F]/g, ''), size);
-        }
-        drawX = (pageWidth - lineW) / 2;
-      }
-
-      try {
-        page.drawText(currentLine, {
-          x: drawX,
-          y,
-          size,
-          font,
-          color: rgb(0.12, 0.14, 0.17),
-        });
-      } catch {
-        page.drawText(currentLine.replace(/[^\x00-\x7F]/g, ''), {
-          x: drawX,
-          y,
-          size,
-          font,
-          color: rgb(0.12, 0.14, 0.17),
-        });
-      }
-      y -= lineHeight;
+      y -= st.lineHeight;
     }
   }
 
-  // Rodapé Oficial: "Clínica Dra. Ana Morong | Página X de Y." em Poppins (#405549)
+  // Rodapé oficial "Clínica Dra. Ana Morong | Página X de Y." — oculto na página 1 (o timbrado já
+  // traz a frase institucional nessa posição) e posicionado fora da arte nas demais páginas.
   const totalPages = pdfDoc.getPageCount();
   const allPages = pdfDoc.getPages();
-  for (let p = 0; p < totalPages; p++) {
+  for (let p = 1; p < totalPages; p++) {
     const footerText = `Clínica Dra. Ana Morong | Página ${p + 1} de ${totalPages}.`;
     const fSize = 8.5;
-    let fWidth = 0;
-    try {
-      fWidth = fontFooter.widthOfTextAtSize(footerText, fSize);
-    } catch {
-      fWidth = fontRegular.widthOfTextAtSize(footerText, fSize);
-    }
+    const fWidth = widthOf(fontFooter, footerText, fSize);
     allPages[p].drawText(footerText, {
-      x: pageWidth - marginX - fWidth,
-      y: 28,
+      x: L.pageNumber.centerX - fWidth / 2,
+      y: L.pageNumber.y,
       size: fSize,
       font: fontFooter,
       color: rgb(0.25, 0.33, 0.29), // #405549 oficial da identidade visual
     });
   }
+
+  // Caixas de rubrica (lado direito, acima da mancha das páginas 2+ e fora da frase da pág. 1)
+  const rightEdge = pageWidth - marginX;
+  const rubricTopPct = ((pageHeight - (L.rubric.bottom + L.rubric.height)) / pageHeight) * 100;
+  const rubricBox = (x: number) => ({
+    x_percent: Number(((x / pageWidth) * 100).toFixed(2)),
+    y_percent: Number(rubricTopPct.toFixed(2)),
+    width_percent: Number(((L.rubric.width / pageWidth) * 100).toFixed(2)),
+    height_percent: Number(((L.rubric.height / pageHeight) * 100).toFixed(2)),
+  });
+  const draX = rightEdge - L.rubric.width;
+  const patientX = draX - L.rubric.gap - L.rubric.width;
 
   const pdfBytes = await pdfDoc.save();
   let binary = '';
@@ -810,5 +861,10 @@ export async function generateContractPdfBase64(filledContractText: string): Pro
   return {
     pdfBase64,
     pageCount: pdfDoc.getPageCount(),
+    signatureAnchors,
+    initialsBoxes: {
+      patient: rubricBox(patientX),
+      dra: rubricBox(draX),
+    },
   };
 }

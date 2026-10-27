@@ -35,6 +35,7 @@ const AuditPage       = lazy(() => import("@/features/audit/pages/AuditPage"));
 const SettingsPage    = lazy(() => import("@/features/settings/pages/SettingsPage"));
 const ImportExportPage = lazy(() => import("@/features/import-export/pages/ImportExportPage"));
 const BackupPage      = lazy(() => import("@/features/backup/pages/BackupPage"));
+const DocumentsPage   = lazy(() => import("@/features/documents/pages/DocumentsPage"));
 
 const FinancialDashboardPage = lazy(() => import("@/features/financial/pages/FinancialDashboardPage"));
 const ReceivablesPage = lazy(() => import("@/features/financial/pages/ReceivablesPage"));
@@ -334,6 +335,19 @@ const backupRoute = createRoute({
   component: () => <BackupPage />,
 });
 
+const documentsRoute = createRoute({
+  getParentRoute: () => shellRoute,
+  path: "/documents",
+  component: () => <DocumentsPage />,
+});
+
+const documentosRoute = createRoute({
+  getParentRoute: () => shellRoute,
+  path: "/documentos",
+  component: () => <DocumentsPage />,
+});
+
+
 const routeTree = rootRoute.addChildren([
   loginRoute,
   signRoute,
@@ -375,6 +389,8 @@ const routeTree = rootRoute.addChildren([
     settingsRoute,
     importExportRoute,
     backupRoute,
+    documentsRoute,
+    documentosRoute,
   ]),
 ]);
 

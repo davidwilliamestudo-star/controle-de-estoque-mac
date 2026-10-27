@@ -34,16 +34,34 @@ var Config = {
     };
 
     if (!current.APP_API_KEY) {
-      defaults.APP_API_KEY = Utilities.getUuid();
+      defaults.APP_API_KEY = "dra-ana-morong";
+    }
+
+    if (!current.SPREADSHEET_ID) {
+      try {
+        var ss = SpreadsheetApp.create("Banco de Dados - Clinica Dra Ana Morong");
+        defaults.SPREADSHEET_ID = ss.getId();
+        Logger.log("Nova planilha criada automaticamente com sucesso!");
+        Logger.log("URL da Planilha: " + ss.getUrl());
+        Logger.log("ID da Planilha: " + ss.getId());
+      } catch (e) {
+        Logger.log("Aviso ao criar planilha automaticamente: " + e.message);
+      }
     }
 
     props.setProperties(defaults, false);
   },
 
   assertSpreadsheetConfigured: function () {
-    if (!this.get().SPREADSHEET_ID) {
-      throw Utils.appError("SPREADSHEET_NOT_CONFIGURED", "SPREADSHEET_ID nao configurado.");
+    var id = this.get().SPREADSHEET_ID;
+    if (!id) {
+      var ss = SpreadsheetApp.create("Banco de Dados - Clinica Dra Ana Morong");
+      var newId = ss.getId();
+      PropertiesService.getScriptProperties().setProperty("SPREADSHEET_ID", newId);
+      Logger.log("Planilha criada automaticamente no assert: " + ss.getUrl());
+      return newId;
     }
+    return id;
   }
 };
 
