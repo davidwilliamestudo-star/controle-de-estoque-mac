@@ -39,12 +39,12 @@ const variantStyles: Record<ButtonVariant, string> = {
 };
 
 const sizeStyles: Record<ButtonSize, string> = {
-  xs: "h-8 px-2.5 text-xs gap-1.5 rounded-lg",
-  sm: "h-9 px-3.5 text-xs font-semibold gap-1.5 rounded-xl",
-  md: "h-11 px-4.5 text-sm font-semibold gap-2 rounded-xl",
-  lg: "h-12 px-6 text-base font-bold gap-2.5 rounded-2xl",
-  icon: "h-10 w-10 p-0 rounded-xl justify-center shrink-0",
-  "icon-sm": "h-8 w-8 p-0 rounded-lg justify-center shrink-0",
+  xs: "h-8.5 px-3 text-xs font-semibold gap-1.5 rounded-lg",
+  sm: "h-10 px-4 text-xs sm:text-[13px] font-semibold gap-2 rounded-xl",
+  md: "h-11.5 px-5.5 text-sm font-semibold gap-2 rounded-xl",
+  lg: "h-[52px] px-7 text-[15px] font-bold gap-2.5 rounded-2xl",
+  icon: "h-11 w-11 p-0 rounded-xl justify-center shrink-0",
+  "icon-sm": "h-9 w-9 p-0 rounded-lg justify-center shrink-0",
 };
 
 export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
@@ -68,7 +68,7 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
       <button
         ref={ref}
         disabled={isDisabled}
-        className={`inline-flex items-center justify-center font-medium transition-all duration-200 select-none cursor-pointer focus:outline-none focus:ring-3 focus:ring-emerald-600/25 active:scale-[0.985] disabled:opacity-50 disabled:pointer-events-none disabled:active:scale-100 ${variantStyles[variant]} ${sizeStyles[size]} ${className}`}
+        className={`inline-flex items-center justify-center whitespace-nowrap font-medium transition-all duration-200 select-none cursor-pointer focus:outline-none focus:ring-3 focus:ring-emerald-600/25 active:scale-[0.985] disabled:opacity-50 disabled:pointer-events-none disabled:active:scale-100 ${variantStyles[variant]} ${sizeStyles[size]} ${className}`}
         {...props}
       >
         {isLoading ? (

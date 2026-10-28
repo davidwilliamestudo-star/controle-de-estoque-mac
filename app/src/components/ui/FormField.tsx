@@ -27,12 +27,12 @@ export const FormField: React.FC<FormFieldProps> = ({
   hint,
 }) => {
   return (
-    <div className={`flex flex-col space-y-1.5 ${className}`}>
+    <div className={`flex flex-col space-y-2 ${className}`}>
       {label && (
-        <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center justify-between gap-2.5">
           <label
             htmlFor={htmlFor}
-            className="text-xs font-bold text-slate-700 tracking-tight flex items-center gap-1.5 select-none"
+            className="text-xs sm:text-[13px] font-bold text-slate-700 tracking-tight flex items-center gap-1.5 select-none"
           >
             <span>{label}</span>
             {required && (

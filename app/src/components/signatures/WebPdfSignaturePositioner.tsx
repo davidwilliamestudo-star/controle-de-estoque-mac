@@ -379,41 +379,41 @@ export const WebPdfSignaturePositioner: React.FC<WebPdfSignaturePositionerProps>
       {/* PAINEL LATERAL DE CONTROLE (SIDEBAR CLARA, ESPAÇOSA E LUXUOSA) */}
       {/* ================================================================== */}
       <aside
-        className="w-[380px] shrink-0 bg-white border-r border-slate-200 flex flex-col h-full overflow-hidden z-10 shadow-xs"
-        style={{ width: '380px', flexShrink: 0, height: '100%', display: 'flex', flexDirection: 'column' }}
+        className="w-[410px] shrink-0 bg-white border-r border-slate-200 flex flex-col h-full overflow-hidden z-10 shadow-xs"
+        style={{ width: '410px', flexShrink: 0, height: '100%', display: 'flex', flexDirection: 'column' }}
       >
         {/* CABEÇALHO FIXO DO PAINEL */}
-        <div className="p-4 sm:p-5 border-b border-slate-100 bg-white shrink-0">
+        <div className="p-5 sm:p-6 border-b border-slate-100 bg-white shrink-0">
           <div className="flex items-center justify-between gap-2">
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider bg-emerald-50 text-emerald-800 border border-emerald-200/80">
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider bg-emerald-50 text-emerald-800 border border-emerald-200/80">
               <span className="w-2 h-2 rounded-full bg-emerald-600 animate-pulse" />
               Web Signer ICP-Brasil
             </span>
-            <span className="text-[11px] font-bold text-slate-600 font-mono">
+            <span className="text-xs font-bold text-slate-600 font-mono">
               Etapa 2 de 3
             </span>
           </div>
-          <h2 className="text-sm font-extrabold text-slate-900 mt-2 truncate leading-snug" title={documentTitle}>
+          <h2 className="text-base font-extrabold text-slate-900 mt-2.5 truncate leading-snug" title={documentTitle}>
             {documentTitle}
           </h2>
-          <p className="text-xs text-slate-500 mt-0.5">
+          <p className="text-xs sm:text-[13px] text-slate-500 mt-1">
             Posicione as assinaturas e rubricas sobre o contrato.
           </p>
         </div>
 
         {/* CORPO ROLÁVEL COM CONTROLES */}
-        <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-5 min-h-0">
+        <div className="flex-1 overflow-y-auto p-5 sm:p-6 space-y-6 min-h-0">
           {/* 1. SELEÇÃO DO SIGNATÁRIO ATIVO */}
-          <div className="space-y-2">
+          <div className="space-y-2.5">
             <div className="flex items-center justify-between">
-              <label className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
-                <User className="w-3.5 h-3.5 text-emerald-700" />
+              <label className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-2">
+                <User className="w-4 h-4 text-emerald-700" />
                 1. Quem vai assinar?
               </label>
-              <span className="text-[10px] text-slate-600 font-medium">Selecione para vincular</span>
+              <span className="text-[11px] text-slate-500 font-medium">Selecione para vincular</span>
             </div>
 
-            <div className="space-y-2">
+            <div className="space-y-2.5">
               {signers.map((s) => {
                 const selected = s.id === activeSignerId;
                 const initials = s.fullName
@@ -428,28 +428,28 @@ export const WebPdfSignaturePositioner: React.FC<WebPdfSignaturePositionerProps>
                     key={s.id}
                     type="button"
                     onClick={() => setActiveSignerId(s.id)}
-                    className={`w-full p-3 rounded-2xl border text-left transition-all duration-150 flex items-center justify-between gap-3 cursor-pointer ${
+                    className={`w-full p-3.5 sm:p-4 rounded-2xl border text-left transition-all duration-150 flex items-center justify-between gap-3 cursor-pointer ${
                       selected
                         ? 'bg-emerald-50/80 border-emerald-600 shadow-xs ring-4 ring-emerald-600/10'
                         : 'bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50/80'
                     }`}
                   >
-                    <div className="flex items-center gap-3 min-w-0">
+                    <div className="flex items-center gap-3.5 min-w-0">
                       <div
-                        className="w-9 h-9 rounded-xl flex items-center justify-center font-bold text-xs text-white shrink-0 shadow-xs"
+                        className="w-10 h-10 rounded-xl flex items-center justify-center font-bold text-xs text-white shrink-0 shadow-xs"
                         style={{ backgroundColor: s.colorHex }}
                       >
                         {initials}
                       </div>
                       <div className="min-w-0">
                         <p
-                          className={`text-xs font-bold truncate ${
+                          className={`text-xs sm:text-[13px] font-bold truncate ${
                             selected ? 'text-emerald-950 font-extrabold' : 'text-slate-900'
                           }`}
                         >
                           {s.fullName}
                         </p>
-                        <p className="text-[10px] text-slate-500 truncate mt-0.5">
+                        <p className="text-[11px] text-slate-500 truncate mt-0.5">
                           {s.role === 'DRA_ANA'
                             ? 'Médica Contratada'
                             : s.role === 'PACIENTE'
@@ -460,7 +460,7 @@ export const WebPdfSignaturePositioner: React.FC<WebPdfSignaturePositionerProps>
                       </div>
                     </div>
                     {selected && (
-                      <div className="w-5 h-5 rounded-full bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-2xs">
+                      <div className="w-6 h-6 rounded-full bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-2xs">
                         <Check className="w-3.5 h-3.5 stroke-[3]" />
                       </div>
                     )}
@@ -471,28 +471,28 @@ export const WebPdfSignaturePositioner: React.FC<WebPdfSignaturePositionerProps>
           </div>
 
           {/* 2. INSERIR CAIXA NA PÁGINA ATUAL */}
-          <div className="space-y-2">
+          <div className="space-y-3">
             <div className="flex items-center justify-between">
-              <label className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
-                <PenTool className="w-3.5 h-3.5 text-emerald-700" />
+              <label className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-2">
+                <PenTool className="w-4 h-4 text-emerald-700" />
                 2. Inserir na Página {currentPage}
               </label>
-              <span className="text-[10px] text-slate-600 font-medium">Clique para adicionar</span>
+              <span className="text-[11px] text-slate-500 font-medium">Clique para adicionar</span>
             </div>
 
-            <div className="grid grid-cols-2 gap-2.5">
+            <div className="grid grid-cols-2 gap-3">
               {/* Assinatura */}
               <button
                 type="button"
                 onClick={() => addFieldToCurrentPage('signature')}
-                className="p-2.5 sm:p-3 rounded-2xl bg-white hover:bg-sky-50/80 border border-slate-200 hover:border-sky-300 transition-all flex items-center gap-2.5 text-left group shadow-2xs cursor-pointer active:scale-95"
+                className="p-3.5 rounded-2xl bg-white hover:bg-sky-50/80 border border-slate-200 hover:border-sky-300 transition-all flex items-center gap-3 text-left group shadow-2xs cursor-pointer active:scale-95 min-h-[62px]"
               >
-                <div className="w-8 h-8 rounded-xl bg-sky-100 text-sky-700 flex items-center justify-center shrink-0 group-hover:bg-sky-600 group-hover:text-white transition-colors shadow-2xs">
+                <div className="w-9 h-9 rounded-xl bg-sky-100 text-sky-700 flex items-center justify-center shrink-0 group-hover:bg-sky-600 group-hover:text-white transition-colors shadow-2xs">
                   <PenTool className="w-4 h-4" />
                 </div>
                 <div className="min-w-0">
-                  <p className="text-xs font-bold text-slate-900 group-hover:text-sky-950 leading-tight">Assinatura</p>
-                  <p className="text-[10px] text-slate-500 mt-0.5">Manuscrita</p>
+                  <p className="text-xs sm:text-[13px] font-bold text-slate-900 group-hover:text-sky-950 leading-tight">Assinatura</p>
+                  <p className="text-[11px] text-slate-500 mt-0.5">Manuscrita</p>
                 </div>
               </button>
 
@@ -500,14 +500,14 @@ export const WebPdfSignaturePositioner: React.FC<WebPdfSignaturePositionerProps>
               <button
                 type="button"
                 onClick={() => addFieldToCurrentPage('initials')}
-                className="p-2.5 sm:p-3 rounded-2xl bg-white hover:bg-amber-50/80 border border-slate-200 hover:border-amber-300 transition-all flex items-center gap-2.5 text-left group shadow-2xs cursor-pointer active:scale-95"
+                className="p-3.5 rounded-2xl bg-white hover:bg-amber-50/80 border border-slate-200 hover:border-amber-300 transition-all flex items-center gap-3 text-left group shadow-2xs cursor-pointer active:scale-95 min-h-[62px]"
               >
-                <div className="w-8 h-8 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center shrink-0 group-hover:bg-amber-600 group-hover:text-white transition-colors shadow-2xs">
+                <div className="w-9 h-9 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center shrink-0 group-hover:bg-amber-600 group-hover:text-white transition-colors shadow-2xs">
                   <Stamp className="w-4 h-4" />
                 </div>
                 <div className="min-w-0">
-                  <p className="text-xs font-bold text-slate-900 group-hover:text-amber-950 leading-tight">Rubrica</p>
-                  <p className="text-[10px] text-slate-500 mt-0.5">Visto em folha</p>
+                  <p className="text-xs sm:text-[13px] font-bold text-slate-900 group-hover:text-amber-950 leading-tight">Rubrica</p>
+                  <p className="text-[11px] text-slate-500 mt-0.5">Visto em folha</p>
                 </div>
               </button>
 
@@ -515,14 +515,14 @@ export const WebPdfSignaturePositioner: React.FC<WebPdfSignaturePositionerProps>
               <button
                 type="button"
                 onClick={() => addFieldToCurrentPage('icp_seal')}
-                className="p-2.5 sm:p-3 rounded-2xl bg-white hover:bg-emerald-50/80 border border-slate-200 hover:border-emerald-300 transition-all flex items-center gap-2.5 text-left group shadow-2xs cursor-pointer active:scale-95"
+                className="p-3.5 rounded-2xl bg-white hover:bg-emerald-50/80 border border-slate-200 hover:border-emerald-300 transition-all flex items-center gap-3 text-left group shadow-2xs cursor-pointer active:scale-95 min-h-[62px]"
               >
-                <div className="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0 group-hover:bg-emerald-600 group-hover:text-white transition-colors shadow-2xs">
+                <div className="w-9 h-9 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0 group-hover:bg-emerald-600 group-hover:text-white transition-colors shadow-2xs">
                   <ShieldCheck className="w-4 h-4" />
                 </div>
                 <div className="min-w-0">
-                  <p className="text-xs font-bold text-slate-900 group-hover:text-emerald-950 leading-tight">Selo ICP</p>
-                  <p className="text-[10px] text-slate-500 mt-0.5">Certificado</p>
+                  <p className="text-xs sm:text-[13px] font-bold text-slate-900 group-hover:text-emerald-950 leading-tight">Selo ICP</p>
+                  <p className="text-[11px] text-slate-500 mt-0.5">Certificado</p>
                 </div>
               </button>
 
@@ -530,55 +530,55 @@ export const WebPdfSignaturePositioner: React.FC<WebPdfSignaturePositionerProps>
               <button
                 type="button"
                 onClick={() => addFieldToCurrentPage('date_stamp')}
-                className="p-2.5 sm:p-3 rounded-2xl bg-white hover:bg-purple-50/80 border border-slate-200 hover:border-purple-300 transition-all flex items-center gap-2.5 text-left group shadow-2xs cursor-pointer active:scale-95"
+                className="p-3.5 rounded-2xl bg-white hover:bg-purple-50/80 border border-slate-200 hover:border-purple-300 transition-all flex items-center gap-3 text-left group shadow-2xs cursor-pointer active:scale-95 min-h-[62px]"
               >
-                <div className="w-8 h-8 rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center shrink-0 group-hover:bg-purple-600 group-hover:text-white transition-colors shadow-2xs">
+                <div className="w-9 h-9 rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center shrink-0 group-hover:bg-purple-600 group-hover:text-white transition-colors shadow-2xs">
                   <Calendar className="w-4 h-4" />
                 </div>
                 <div className="min-w-0">
-                  <p className="text-xs font-bold text-slate-900 group-hover:text-purple-950 leading-tight">Data</p>
-                  <p className="text-[10px] text-slate-500 mt-0.5">Carimbo</p>
+                  <p className="text-xs sm:text-[13px] font-bold text-slate-900 group-hover:text-purple-950 leading-tight">Data</p>
+                  <p className="text-[11px] text-slate-500 mt-0.5">Carimbo</p>
                 </div>
               </button>
             </div>
 
             {/* BOTÃO DE PADRÃO CLÍNICO AUTOMÁTICO */}
-            <div className="pt-1">
+            <div className="pt-1.5">
               <button
                 type="button"
                 onClick={handleSmartTemplatePlacement}
-                className="w-full py-3 px-4 rounded-2xl bg-gradient-to-r from-emerald-700 to-teal-800 hover:from-emerald-800 hover:to-teal-900 text-white text-xs font-bold flex items-center justify-center gap-2 shadow-xs hover:shadow transition-all cursor-pointer active:scale-98"
+                className="w-full h-12 px-5 rounded-2xl bg-gradient-to-r from-emerald-700 to-teal-800 hover:from-emerald-800 hover:to-teal-900 text-white text-xs sm:text-[13px] font-bold flex items-center justify-center gap-2.5 shadow-xs hover:shadow transition-all cursor-pointer active:scale-98"
               >
                 <Sparkles className="w-4 h-4 text-emerald-200" />
                 Posicionar Padrão Clínico Automático
               </button>
-              <p className="text-[10px] text-slate-500 text-center mt-1.5 leading-tight">
+              <p className="text-[11px] text-slate-500 text-center mt-2 leading-snug">
                 Aplica automaticamente rubricas nas páginas 1 a {Math.max(1, numPages - 1)} e assinaturas na folha final.
               </p>
             </div>
           </div>
 
           {/* 3. LISTA DE CAIXAS FIXADAS */}
-          <div className="space-y-1.5">
+          <div className="space-y-2">
             <div className="flex items-center justify-between">
               <label className="text-xs font-bold uppercase tracking-wider text-slate-700">
                 Caixas Fixadas ({fields.length})
               </label>
               {fields.length > 0 && (
-                <span className="text-[10px] text-slate-500 font-medium">
+                <span className="text-[11px] text-slate-500 font-medium">
                   {fields.filter((f) => f.page === currentPage).length} nesta pág.
                 </span>
               )}
             </div>
 
             {fields.length === 0 ? (
-              <div className="py-5 px-3 rounded-xl border border-dashed border-slate-200 text-center bg-slate-50/50">
-                <PenTool className="w-4 h-4 text-slate-300 mx-auto mb-1" />
+              <div className="py-6 px-4 rounded-xl border border-dashed border-slate-200 text-center bg-slate-50/50">
+                <PenTool className="w-5 h-5 text-slate-300 mx-auto mb-1.5" />
                 <p className="text-xs font-semibold text-slate-500">Nenhum campo inserido</p>
-                <p className="text-[10px] text-slate-400 mt-0.5">Clique nos botões acima para inserir.</p>
+                <p className="text-[11px] text-slate-400 mt-0.5">Clique nos botões acima para inserir.</p>
               </div>
             ) : (
-              <div className="max-h-36 overflow-y-auto space-y-1 pr-1">
+              <div className="max-h-40 overflow-y-auto space-y-1.5 pr-1">
                 {fields.map((f) => {
                   const signer = signers.find((s) => s.id === f.signer_id);
                   const isThisPage = f.page === currentPage;
@@ -586,23 +586,23 @@ export const WebPdfSignaturePositioner: React.FC<WebPdfSignaturePositionerProps>
                     <div
                       key={f.id}
                       onClick={() => setCurrentPage(f.page)}
-                      className={`flex items-center justify-between px-2.5 py-1.5 rounded-lg border text-xs cursor-pointer transition-all ${
+                      className={`flex items-center justify-between px-3 py-2 rounded-xl border text-xs cursor-pointer transition-all ${
                         isThisPage
                           ? 'bg-emerald-50/70 border-emerald-300 hover:border-emerald-400'
                           : 'bg-white border-slate-200 hover:bg-slate-50'
                       }`}
                     >
-                      <div className="flex items-center gap-2 truncate">
+                      <div className="flex items-center gap-2.5 truncate">
                         <span
-                          className="w-2 h-2 rounded-full shrink-0 shadow-2xs"
+                          className="w-2.5 h-2.5 rounded-full shrink-0 shadow-2xs"
                           style={{ backgroundColor: signer?.colorHex || '#0284c7' }}
                         />
-                        <span className="font-semibold text-slate-800 truncate text-[11px]">
+                        <span className="font-semibold text-slate-800 truncate text-xs">
                           Pág. {f.page} • {getFieldTitle(f.field_type)}
                         </span>
                       </div>
-                      <div className="flex items-center gap-1 shrink-0">
-                        <span className="text-[10px] text-slate-500 font-medium">
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <span className="text-[11px] text-slate-500 font-medium">
                           {signer?.fullName.split(' ')[0]}
                         </span>
                         <button
@@ -611,7 +611,7 @@ export const WebPdfSignaturePositioner: React.FC<WebPdfSignaturePositionerProps>
                             e.stopPropagation();
                             removeField(f.id);
                           }}
-                          className="p-1 rounded-md text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition cursor-pointer"
+                          className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition cursor-pointer"
                           title="Remover caixa"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
@@ -626,7 +626,7 @@ export const WebPdfSignaturePositioner: React.FC<WebPdfSignaturePositionerProps>
         </div>
 
         {/* RODAPÉ DA SIDEBAR: AÇÕES DE DISPARO (SEMPRE VISÍVEIS) */}
-        <div className="p-4 border-t border-slate-200 bg-slate-50/90 space-y-2 shrink-0">
+        <div className="p-5 border-t border-slate-200 bg-slate-50/90 space-y-3 shrink-0">
           <button
             type="button"
             disabled={fields.length === 0 || isSubmitting}
@@ -638,9 +638,9 @@ export const WebPdfSignaturePositioner: React.FC<WebPdfSignaturePositionerProps>
                 setIsSubmitting(false);
               }
             }}
-            className="w-full py-2.5 px-3 rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800 disabled:opacity-40 disabled:cursor-not-allowed text-white font-extrabold text-xs flex items-center justify-center gap-2 shadow-sm hover:shadow transition-all cursor-pointer active:scale-98"
+            className="w-full h-12 px-4 rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800 disabled:opacity-40 disabled:cursor-not-allowed text-white font-extrabold text-xs sm:text-[13px] flex items-center justify-center gap-2.5 shadow-sm hover:shadow-md transition-all cursor-pointer active:scale-98"
           >
-            <TabletSmartphone className="w-4 h-4" />
+            <TabletSmartphone className="w-4.5 h-4.5" />
             Coletar no Tablet / Consultório Agora
           </button>
 
@@ -655,9 +655,9 @@ export const WebPdfSignaturePositioner: React.FC<WebPdfSignaturePositionerProps>
                 setIsSubmitting(false);
               }
             }}
-            className="w-full py-2 px-3 rounded-xl bg-white hover:bg-slate-100 border border-slate-300 hover:border-slate-400 disabled:opacity-40 disabled:cursor-not-allowed text-slate-700 hover:text-slate-900 font-bold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer shadow-2xs active:scale-98"
+            className="w-full h-11 px-4 rounded-xl bg-white hover:bg-slate-100 border border-slate-300 hover:border-slate-400 disabled:opacity-40 disabled:cursor-not-allowed text-slate-700 hover:text-slate-900 font-bold text-xs sm:text-[13px] flex items-center justify-center gap-2.5 transition-all cursor-pointer shadow-2xs active:scale-98"
           >
-            <Send className="w-3.5 h-3.5 text-sky-600" />
+            <Send className="w-4 h-4 text-sky-600" />
             Gerar Link Remoto (/assinar/:token)
           </button>
 
@@ -665,7 +665,7 @@ export const WebPdfSignaturePositioner: React.FC<WebPdfSignaturePositionerProps>
             <button
               type="button"
               onClick={() => onSaveDraft(fields)}
-              className="w-full py-0.5 text-[11px] font-semibold text-slate-500 hover:text-emerald-700 transition cursor-pointer text-center block"
+              className="w-full py-1 text-xs font-semibold text-slate-500 hover:text-emerald-700 transition cursor-pointer text-center block"
             >
               Salvar Posições como Modelo Padrão
             </button>
@@ -678,26 +678,26 @@ export const WebPdfSignaturePositioner: React.FC<WebPdfSignaturePositionerProps>
       {/* ================================================================== */}
       <main className="flex-1 flex flex-col bg-slate-100/90 overflow-hidden min-w-0">
         {/* BARRA SUPERIOR DE PAGINAÇÃO E ZOOM */}
-        <header className="h-14 bg-white border-b border-slate-200 px-6 flex items-center justify-between shrink-0 shadow-2xs z-10">
+        <header className="min-h-[64px] py-2.5 bg-white border-b border-slate-200 px-7 flex items-center justify-between gap-4 shrink-0 shadow-2xs z-10">
           {/* Paginação */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2.5">
             <button
               type="button"
               disabled={currentPage <= 1}
               onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-              className="p-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-30 disabled:cursor-not-allowed text-slate-700 transition cursor-pointer shadow-2xs"
+              className="w-9 h-9 flex items-center justify-center rounded-xl border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-30 disabled:cursor-not-allowed text-slate-700 transition cursor-pointer shadow-2xs"
               title="Página anterior"
             >
               <ChevronLeft className="w-4 h-4" />
             </button>
-            <span className="text-xs font-semibold text-slate-600 px-1 select-none">
+            <span className="text-xs sm:text-[13px] font-semibold text-slate-600 px-1.5 select-none">
               Página <strong className="text-slate-900 font-extrabold">{currentPage}</strong> de <strong className="text-slate-900 font-extrabold">{numPages}</strong>
             </span>
             <button
               type="button"
               disabled={currentPage >= numPages}
               onClick={() => setCurrentPage((p) => Math.min(numPages, p + 1))}
-              className="p-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-30 disabled:cursor-not-allowed text-slate-700 transition cursor-pointer shadow-2xs"
+              className="w-9 h-9 flex items-center justify-center rounded-xl border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-30 disabled:cursor-not-allowed text-slate-700 transition cursor-pointer shadow-2xs"
               title="Próxima página"
             >
               <ChevronRight className="w-4 h-4" />
@@ -705,28 +705,28 @@ export const WebPdfSignaturePositioner: React.FC<WebPdfSignaturePositionerProps>
           </div>
 
           {/* Dica Central */}
-          <div className="hidden md:flex items-center gap-2 text-xs text-slate-500 bg-slate-50 border border-slate-200/80 px-3.5 py-1.5 rounded-full select-none">
-            <GripHorizontal className="w-3.5 h-3.5 text-slate-400" />
+          <div className="hidden md:flex items-center gap-2.5 text-xs sm:text-[13px] text-slate-500 bg-slate-50 border border-slate-200/80 px-4 py-2 rounded-full select-none">
+            <GripHorizontal className="w-4 h-4 text-slate-400" />
             <span>Arraste ou redimensione as caixas diretamente sobre o documento</span>
           </div>
 
           {/* Controles de Zoom */}
-          <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 p-1 rounded-xl">
+          <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 p-1.5 rounded-xl">
             <button
               type="button"
               onClick={() => setScale((s) => Math.max(0.6, Number((s - 0.15).toFixed(2))))}
-              className="p-1 rounded-lg hover:bg-white text-slate-700 transition cursor-pointer"
+              className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-white text-slate-700 transition cursor-pointer"
               title="Diminuir Zoom"
             >
               <ZoomOut className="w-4 h-4" />
             </button>
-            <span className="text-xs font-mono font-bold text-slate-700 w-12 text-center select-none">
+            <span className="text-xs sm:text-[13px] font-mono font-bold text-slate-700 w-13 text-center select-none">
               {Math.round(scale * 100)}%
             </span>
             <button
               type="button"
               onClick={() => setScale((s) => Math.min(2.2, Number((s + 0.15).toFixed(2))))}
-              className="p-1 rounded-lg hover:bg-white text-slate-700 transition cursor-pointer"
+              className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-white text-slate-700 transition cursor-pointer"
               title="Aumentar Zoom"
             >
               <ZoomIn className="w-4 h-4" />
