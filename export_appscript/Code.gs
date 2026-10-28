@@ -6,6 +6,21 @@ function doGet(e) {
   return Api.handleGet(e);
 }
 
+/**
+ * Executar esta função no editor do Google Apps Script para conceder todas as permissões necessárias
+ * (Drive, Planilhas, E-mail, Calendário) com um único clique em 'Executar'.
+ */
+function autorizarPermissoesDoSistema() {
+  Logger.log("Iniciando verificação de autorização...");
+  var rootFolder = DriveApp.getRootFolder();
+  Logger.log("Google Drive autorizado: " + rootFolder.getName());
+  var quota = MailApp.getRemainingDailyQuota();
+  Logger.log("MailApp autorizado. Cota diária restante: " + quota);
+  var calendar = CalendarApp.getDefaultCalendar();
+  Logger.log("CalendarApp autorizado: " + (calendar ? calendar.getName() : "OK"));
+  return "Autorizações concedidas com sucesso!";
+}
+
 var Api = {
   handlePost: function (e) {
     // --- CORREÇÃO 1: LockService para eliminar race condition de idempotência ---
