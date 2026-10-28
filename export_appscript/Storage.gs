@@ -143,6 +143,12 @@ var SheetsRepository = {
 
     if (!sheet) {
       sheet = ss.insertSheet(sheetName);
+      var headers = SHEET_HEADERS[sheetName];
+      if (headers && headers.length > 0) {
+        sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+        sheet.setFrozenRows(1);
+        sheet.getRange(1, 1, 1, headers.length).setFontWeight("bold");
+      }
     }
 
     return sheet;

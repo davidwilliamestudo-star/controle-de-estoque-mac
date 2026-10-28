@@ -61,6 +61,7 @@ export function PatientContractsMonitorTab({
   const [downloadingDocId, setDownloadingDocId] = useState<string | null>(null);
   const [syncingDocId, setSyncingDocId] = useState<string | null>(null);
   const [syncSuccessMsg, setSyncSuccessMsg] = useState<{ id: string; msg: string } | null>(null);
+  const [syncErrorMsg, setSyncErrorMsg] = useState<{ id: string; msg: string } | null>(null);
   const [copiedToken, setCopiedToken] = useState<string | null>(null);
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
   const [previewPdfUrl, setPreviewPdfUrl] = useState<string | null>(null);
@@ -117,23 +118,37 @@ export function PatientContractsMonitorTab({
   // Sincronização manual com Google Drive e Envio de E-mail
   const handleSyncToDrive = async (doc: PatientDocument) => {
     setSyncingDocId(doc.id);
+    setSyncErrorMsg(null);
+    setSyncSuccessMsg(null);
     try {
       const res = await SignatureDocumentsService.syncDocumentToDrive(doc.id);
       if (!res.success) {
         throw new Error(res.error || "Falha ao sincronizar com Google Drive.");
       }
 
+      const emailNote =
+        res.email_status === "ENVIADO"
+          ? "e cópia enviada por e-mail ao paciente."
+          : res.email_status === "SEM_EMAIL"
+            ? "(paciente sem e-mail cadastrado para disparo automático)."
+            : res.email_status?.startsWith("ERRO")
+              ? `(salvo no Drive, mas houve aviso no e-mail: ${res.email_status}).`
+              : `(${res.email_status || "OK"}).`;
+
       setSyncSuccessMsg({
         id: doc.id,
-        msg: `Sincronizado com sucesso! Arquivado no Google Drive e cópia enviada ao e-mail (${res.email_status || "OK"}).`,
+        msg: `Sincronizado com sucesso! Arquivado no Google Drive ${emailNote}`,
       });
 
       // Recarrega lista atualizada
       await fetchDocuments();
 
-      setTimeout(() => setSyncSuccessMsg(null), 6000);
+      setTimeout(() => setSyncSuccessMsg(null), 8000);
     } catch (err: any) {
-      alert(`Erro na sincronização: ${err?.message || String(err)}`);
+      setSyncErrorMsg({
+        id: doc.id,
+        msg: err?.message || String(err),
+      });
     } finally {
       setSyncingDocId(null);
     }
@@ -526,11 +541,39 @@ export function PatientContractsMonitorTab({
                   </div>
                 </div>
 
-                {/* Feedback de sucesso na sincronização */}
+                {/* Feedback de sucesso ou erro na sincronização */}
                 {syncSuccessMsg && syncSuccessMsg.id === doc.id && (
-                  <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-900 font-semibold flex items-center gap-2 animate-fade-in">
-                    <CheckCircle2 size={16} className="text-emerald-600 shrink-0" />
-                    <span>{syncSuccessMsg.msg}</span>
+                  <div className="p-3.5 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-900 font-semibold flex items-center justify-between gap-3 animate-fade-in">
+                    <div className="flex items-center gap-2">
+                      <CheckCircle2 size={16} className="text-emerald-600 shrink-0" />
+                      <span>{syncSuccessMsg.msg}</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setSyncSuccessMsg(null)}
+                      className="text-emerald-700 hover:text-emerald-950 p-1 rounded cursor-pointer"
+                    >
+                      <X size={14} />
+                    </button>
+                  </div>
+                )}
+
+                {syncErrorMsg && syncErrorMsg.id === doc.id && (
+                  <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-900 font-medium flex items-start justify-between gap-3 animate-fade-in">
+                    <div className="flex items-start gap-2.5">
+                      <AlertCircle size={16} className="text-rose-600 shrink-0 mt-0.5" />
+                      <div>
+                        <strong className="font-bold block text-rose-950">Não foi possível sincronizar com o Google Drive</strong>
+                        <span className="leading-relaxed">{syncErrorMsg.msg}</span>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setSyncErrorMsg(null)}
+                      className="text-rose-600 hover:text-rose-900 p-1 rounded cursor-pointer shrink-0"
+                    >
+                      <X size={14} />
+                    </button>
                   </div>
                 )}
 

@@ -101,6 +101,26 @@ export const appScriptIntegrationService = {
       try {
         data = JSON.parse(rawText);
       } catch (parseErr) {
+        const monoMatch = rawText.match(/<div[^>]*font-family:\s*monospace[^>]*>([\s\S]*?)<\/div>/i);
+        const plainException = monoMatch?.[1]
+          ? monoMatch[1].replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim()
+          : "";
+
+        if (
+          plainException.includes("You do not have permission") ||
+          rawText.includes("You do not have permission") ||
+          rawText.includes("Required permissions")
+        ) {
+          throw new Error(
+            `O Google Apps Script precisa de autorização de acesso ao Google Drive/E-mail (${plainException || "Permissão pendente"}). ` +
+            `Abra o editor do Apps Script, execute a função "autorizarPermissoesDoSistema" e publique uma Nova Versão da Implantação.`
+          );
+        }
+
+        if (plainException) {
+          throw new Error(`Erro retornado pelo Google Apps Script: ${plainException}`);
+        }
+
         if (rawText.includes("<!DOCTYPE") || rawText.includes("<html") || rawText.includes("Google Accounts")) {
           throw new Error(
             "O Google Apps Script retornou uma página HTML em vez de JSON. " +

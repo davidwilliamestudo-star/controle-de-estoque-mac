@@ -185,6 +185,30 @@ async function ensureD1Compatibility(db?: D1Database) {
     if (cols.length > 0 && !cols.includes("document")) {
       await db.prepare("ALTER TABLE patients ADD COLUMN document TEXT").run();
     }
+
+    try {
+      const docTableInfo = await db.prepare("PRAGMA table_info(documents)").all();
+      const docCols = (docTableInfo.results || []).map((r: any) => r.name);
+      if (docCols.length > 0) {
+        const requiredDocColumns: Array<[string, string]> = [
+          ["original_pdf_base64", "TEXT"],
+          ["signed_pdf_base64", "TEXT"],
+          ["pades_pkcs7_hex", "TEXT"],
+          ["drive_file_id", "TEXT"],
+          ["drive_file_url", "TEXT"],
+          ["drive_folder_url", "TEXT"],
+          ["gas_sync_status", "TEXT DEFAULT 'pending'"],
+        ];
+        for (const [colName, colDef] of requiredDocColumns) {
+          if (!docCols.includes(colName)) {
+            await db.prepare(`ALTER TABLE documents ADD COLUMN ${colName} ${colDef}`).run();
+          }
+        }
+      }
+    } catch {
+      // Silencioso caso tabela documents ainda não exista neste banco
+    }
+
     await db.prepare(`
       CREATE TABLE IF NOT EXISTS login_rate_limits (
         rate_key TEXT PRIMARY KEY,
@@ -651,21 +675,26 @@ import { DoctorAutoSignVaultService } from "../../src/services/signatures/doctor
 import { PdfStampingEngineService } from "../../src/services/signatures/pdfStampingEngine.service";
 
 // Helper para obter configuração ativa do Apps Script (via env ou tabela settings)
-async function getGasConfig(env: any): Promise<{ url: string | null; apiKey: string | null }> {
-  let url = (env.GAS_WEBAPP_URL as string) || null;
-  let apiKey = (env.GAS_INTERNAL_SECRET as string) || null;
+async function getGasConfig(env: Bindings): Promise<{ url: string | null; apiKey: string | null }> {
+  let url = typeof env.GAS_WEBAPP_URL === "string" && env.GAS_WEBAPP_URL.trim() ? env.GAS_WEBAPP_URL.trim() : null;
+  let apiKey = typeof env.GAS_INTERNAL_SECRET === "string" && env.GAS_INTERNAL_SECRET.trim() ? env.GAS_INTERNAL_SECRET.trim() : null;
 
   if ((!url || !apiKey) && env.DB) {
     try {
       const rows = await env.DB.prepare(
-        "SELECT key, value FROM settings WHERE key IN ('appscript_api_url', 'appscript_api_key')"
+        `SELECT clinic_id, key, value
+         FROM settings
+         WHERE key IN ('appscript_api_url', 'appscript_api_key')
+         ORDER BY CASE WHEN clinic_id = 'ana-morong-clinic' THEN 0 ELSE 1 END`
       ).all<any>();
       for (const row of rows?.results || []) {
+        const val = typeof row.value === "string" ? row.value.trim() : "";
+        if (!val) continue;
         if (row.key === "appscript_api_url" && !url) {
-          url = row.value;
+          url = val;
         }
         if (row.key === "appscript_api_key" && !apiKey) {
-          apiKey = row.value;
+          apiKey = val;
         }
       }
     } catch (e) {
@@ -683,9 +712,100 @@ async function getGasConfig(env: any): Promise<{ url: string | null; apiKey: str
   return { url, apiKey };
 }
 
+function bytesToHex(bytes: ArrayBuffer | Uint8Array): string {
+  return Array.from(new Uint8Array(bytes))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+async function createShortLivedPdfDownloadUrl(
+  origin: string,
+  docId: string,
+  secret: string
+): Promise<string> {
+  const exp = String(Date.now() + 10 * 60 * 1000); // 10 minutos
+  const enc = new TextEncoder();
+  const key = await crypto.subtle.importKey(
+    "raw",
+    enc.encode(secret),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"]
+  );
+  const sig = await crypto.subtle.sign("HMAC", key, enc.encode(`raw-pdf:${docId}:${exp}`));
+  const sigHex = bytesToHex(sig);
+  return `${origin}/api/signatures/documents/${encodeURIComponent(docId)}/raw-pdf?exp=${exp}&sig=${sigHex}`;
+}
+
+async function verifyShortLivedPdfDownloadSig(
+  docId: string,
+  exp: string,
+  sigHex: string,
+  secret: string
+): Promise<boolean> {
+  const expMs = Number(exp);
+  if (!Number.isFinite(expMs) || Date.now() > expMs) return false;
+  if (!sigHex || sigHex.length !== 64 || !/^[0-9a-f]+$/i.test(sigHex)) return false;
+
+  const sigBytes = new Uint8Array(
+    sigHex.match(/.{1,2}/g)!.map((byte) => parseInt(byte, 16))
+  );
+  const enc = new TextEncoder();
+  const key = await crypto.subtle.importKey(
+    "raw",
+    enc.encode(secret),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["verify"]
+  );
+  return crypto.subtle.verify("HMAC", key, sigBytes as any, enc.encode(`raw-pdf:${docId}:${exp}`));
+}
+
+function extractReadableGasHtmlError(rawHtml: string, status: number): string {
+  // Captura mensagens de erro nativas do Google Apps Script exibidas em blocos HTML
+  const monoMatch = rawHtml.match(/<div[^>]*font-family:\s*monospace[^>]*>([\s\S]*?)<\/div>/i);
+  const plainException = monoMatch?.[1]
+    ? monoMatch[1].replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim()
+    : "";
+
+  if (
+    plainException.includes("You do not have permission") ||
+    rawHtml.includes("You do not have permission") ||
+    rawHtml.includes("Required permissions")
+  ) {
+    return (
+      `O Google Apps Script ainda não tem permissão autorizada para acessar o Google Drive ou E-mail (${plainException || "Permissão pendente"}). ` +
+      `Abra o painel do Google Apps Script, execute a função "autorizarPermissoesDoSistema" e publique uma Nova Versão da Implantação.`
+    );
+  }
+
+  if (
+    rawHtml.includes("Google Accounts") ||
+    rawHtml.includes("ServiceLogin") ||
+    rawHtml.includes("accounts.google.com")
+  ) {
+    return (
+      "O Google Apps Script bloqueou o acesso exigindo login do Google. " +
+      "Em 'Gerenciar implantações' no Apps Script, altere 'Quem pode acessar' para 'Qualquer pessoa' (Anyone)."
+    );
+  }
+
+  if (plainException) {
+    return `Erro retornado pelo Google Apps Script: ${plainException}`;
+  }
+
+  const titleMatch = rawHtml.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
+  const titleText = titleMatch?.[1]?.replace(/\s+/g, " ").trim();
+  if (titleText) {
+    return `Resposta inesperada do Google Apps Script (HTTP ${status}): ${titleText}`;
+  }
+
+  return `Resposta não-JSON recebida do Google Apps Script (HTTP ${status}). Verifique a URL /exec e a implantação ativa.`;
+}
+
 // Helper universal para arquivar documento assinado no Google Drive e disparar e-mail ao paciente
 async function dispatchSaveSignedDocumentToDrive(
-  env: any,
+  env: Bindings,
   payload: {
     requestId: string;
     documentId: string;
@@ -707,6 +827,7 @@ async function dispatchSaveSignedDocumentToDrive(
   file_url: string | null;
   folder_url: string | null;
   email_status: string | null;
+  error_code?: string | null;
   error?: string;
 }> {
   const { url, apiKey } = await getGasConfig(env);
@@ -717,48 +838,128 @@ async function dispatchSaveSignedDocumentToDrive(
       file_url: null,
       folder_url: null,
       email_status: "NO_GAS_URL",
-      error: "URL do Apps Script não configurada nas variáveis nem nas configurações da clínica.",
+      error_code: "NO_GAS_URL",
+      error: "URL do Google Apps Script não configurada em Configurações > Integrações.",
+    };
+  }
+
+  if (!apiKey) {
+    return {
+      ok: false,
+      file_id: null,
+      file_url: null,
+      folder_url: null,
+      email_status: "NO_GAS_KEY",
+      error_code: "NO_GAS_KEY",
+      error: "Chave de API (API Key) do Google Apps Script não configurada em Configurações > Integrações.",
     };
   }
 
   try {
-    const res = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "text/plain" },
-      body: JSON.stringify({
-        action: "saveSignedDocumentToDrive",
-        secret: apiKey,
-        api_key: apiKey,
-        clinic_id: "ana-morong-clinic",
-        request_id: payload.requestId,
-        payload: {
-          document_id: payload.documentId,
-          verification_code: payload.verificationCode,
-          document_title: payload.documentTitle,
-          category: payload.category || "CONTRATO",
-          patient_name: payload.patientName,
-          patient_cpf: payload.patientCpf,
-          patient_email: payload.patientEmail || "",
-          original_sha256: payload.originalSha256 || "",
-          signed_sha256: payload.signedSha256 || payload.originalSha256 || "",
-          signed_pdf_base64: payload.signedPdfBase64 || null,
-          signed_file_url: payload.signedFileUrl || null,
-          completed_at_brt:
-            payload.completedAtBrt ||
-            new Date().toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" }),
-        },
-      }),
+    const cleanBase64 = payload.signedPdfBase64
+      ? payload.signedPdfBase64.replace(/^data:application\/pdf;base64,/, "")
+      : null;
+
+    let requestBody: string | null = JSON.stringify({
+      action: "saveSignedDocumentToDrive",
+      secret: apiKey,
+      api_key: apiKey,
+      clinic_id: "ana-morong-clinic",
+      request_id: payload.requestId,
+      payload: {
+        document_id: payload.documentId,
+        verification_code: payload.verificationCode,
+        document_title: payload.documentTitle,
+        category: payload.category || "CONTRATO",
+        patient_name: payload.patientName,
+        patient_cpf: payload.patientCpf,
+        patient_email: payload.patientEmail || "",
+        original_sha256: payload.originalSha256 || "",
+        signed_sha256: payload.signedSha256 || payload.originalSha256 || "",
+        signed_pdf_base64: cleanBase64,
+        signed_file_url: payload.signedFileUrl || null,
+        completed_at_brt:
+          payload.completedAtBrt ||
+          new Date().toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" }),
+      },
     });
 
-    const json = (await res.json()) as any;
+    // Usa redirect: "manual" para evitar retenção duplicada de buffer em memória no Worker
+    // e converter corretamente o 302 do Google Apps Script em GET para script.googleusercontent.com
+    const postRes = await fetch(url, {
+      method: "POST",
+      redirect: "manual",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: requestBody,
+    });
+    requestBody = null;
+
+    let finalRes = postRes;
+    const redirectLocation =
+      postRes.headers.get("location") || postRes.headers.get("Location");
+
+    if (postRes.status >= 300 && postRes.status < 400 && redirectLocation) {
+      if (
+        redirectLocation.includes("accounts.google.com") ||
+        redirectLocation.includes("ServiceLogin")
+      ) {
+        return {
+          ok: false,
+          file_id: null,
+          file_url: null,
+          folder_url: null,
+          email_status: "AUTH_REDIRECT",
+          error_code: "AUTH_REDIRECT",
+          error:
+            "O Google Apps Script redirecionou para login do Google. Em 'Gerenciar implantações' no Apps Script, defina 'Quem pode acessar: Qualquer pessoa' (Anyone).",
+        };
+      }
+
+      const resolvedRedirectUrl = new URL(redirectLocation, url).toString();
+      finalRes = await fetch(resolvedRedirectUrl, {
+        method: "GET",
+        redirect: "follow",
+      });
+    }
+
+    const rawText = await finalRes.text();
+    let json: any = null;
+    try {
+      json = JSON.parse(rawText);
+    } catch {
+      return {
+        ok: false,
+        file_id: null,
+        file_url: null,
+        folder_url: null,
+        email_status: "INVALID_RESPONSE",
+        error_code: "INVALID_RESPONSE",
+        error: extractReadableGasHtmlError(rawText, finalRes.status),
+      };
+    }
+
     const ok = Boolean(json?.ok || json?.success);
+    const errorCode = json?.error_code || null;
+    let errorMsg: string | undefined = json?.error || json?.message;
+
+    if (!ok) {
+      if (errorCode === "UNAUTHORIZED") {
+        errorMsg =
+          "Não autorizado pelo Google Apps Script (API Key divergente). Verifique se a API Key nas Configurações da Clínica é idêntica à propriedade APP_API_KEY no Apps Script.";
+      } else if (errorCode === "INVALID_ACTION" || errorMsg?.includes("Ação inválida")) {
+        errorMsg =
+          "O Google Apps Script publicado está desatualizado (Ação saveSignedDocumentToDrive ausente). Atualize o código com CodigoCompletoUnificado.gs e publique uma Nova Versão da Implantação.";
+      }
+    }
+
     return {
       ok,
       file_id: json?.file_id || json?.data?.file_id || null,
       file_url: json?.file_url || json?.data?.file_url || null,
       folder_url: json?.folder_url || json?.data?.folder_url || null,
       email_status: json?.email_status || json?.data?.email_status || null,
-      error: json?.error || json?.message,
+      error_code: errorCode,
+      error: errorMsg,
     };
   } catch (err: any) {
     console.error("Erro na comunicação com Apps Script:", err);
@@ -768,6 +969,7 @@ async function dispatchSaveSignedDocumentToDrive(
       file_url: null,
       folder_url: null,
       email_status: "NETWORK_ERROR",
+      error_code: "NETWORK_ERROR",
       error: err?.message || String(err),
     };
   }
@@ -1204,7 +1406,13 @@ app.get("/signatures/documents/:id/pdf", authMiddleware, async (c) => {
   try {
     const docId = c.req.param("id");
     const doc = await c.env.DB.prepare(
-      `SELECT id, title, verification_code, status, original_pdf_url, signed_pdf_base64, drive_file_url
+      `SELECT id, title, verification_code, status, drive_file_url,
+              COALESCE(
+                NULLIF(signed_pdf_base64, ''),
+                CASE WHEN signed_pdf_url IS NOT NULL AND signed_pdf_url NOT LIKE 'http%' THEN NULLIF(signed_pdf_url, '') ELSE NULL END,
+                NULLIF(original_pdf_base64, ''),
+                CASE WHEN original_pdf_url IS NOT NULL AND original_pdf_url NOT LIKE 'http%' THEN NULLIF(original_pdf_url, '') ELSE NULL END
+              ) AS resolved_pdf_base64
        FROM documents WHERE id = ? LIMIT 1`
     ).bind(docId).first<any>();
 
@@ -1212,8 +1420,8 @@ app.get("/signatures/documents/:id/pdf", authMiddleware, async (c) => {
       return c.json({ error: "Documento não encontrado." }, 404);
     }
 
-    const pdfBase64 = doc.signed_pdf_base64 || doc.original_pdf_url;
-    if (!pdfBase64) {
+    const pdfBase64 = doc.resolved_pdf_base64;
+    if (!pdfBase64 && !doc.drive_file_url) {
       return c.json({ error: "Arquivo PDF não disponível no registro." }, 404);
     }
 
@@ -1223,7 +1431,7 @@ app.get("/signatures/documents/:id/pdf", authMiddleware, async (c) => {
       title: doc.title,
       verification_code: doc.verification_code,
       status: doc.status,
-      pdf_base64: pdfBase64,
+      pdf_base64: pdfBase64 || "",
       drive_file_url: doc.drive_file_url,
     });
   } catch (error: any) {
@@ -1231,46 +1439,200 @@ app.get("/signatures/documents/:id/pdf", authMiddleware, async (c) => {
   }
 });
 
+// 0.2b GET /api/signatures/documents/:id/raw-pdf — Endpoint binário autenticado via HMAC temporário para download direto pelo Google Apps Script
+app.get("/signatures/documents/:id/raw-pdf", async (c) => {
+  try {
+    const docId = c.req.param("id");
+    const exp = c.req.query("exp") || "";
+    const sig = c.req.query("sig") || "";
+    const secret = getJwtSecret(c);
+
+    const isValid = await verifyShortLivedPdfDownloadSig(docId, exp, sig, secret);
+    if (!isValid) {
+      return c.json({ error: "Assinatura temporária inválida ou expirada." }, 403);
+    }
+
+    const row = await c.env.DB.prepare(
+      `SELECT COALESCE(
+                NULLIF(signed_pdf_base64, ''),
+                CASE WHEN signed_pdf_url IS NOT NULL AND signed_pdf_url NOT LIKE 'http%' THEN NULLIF(signed_pdf_url, '') ELSE NULL END,
+                NULLIF(original_pdf_base64, ''),
+                CASE WHEN original_pdf_url IS NOT NULL AND original_pdf_url NOT LIKE 'http%' THEN NULLIF(original_pdf_url, '') ELSE NULL END
+              ) AS pdf_base64
+       FROM documents WHERE id = ? LIMIT 1`
+    ).bind(docId).first<{ pdf_base64: string | null }>();
+
+    if (!row?.pdf_base64) {
+      return c.json({ error: "PDF não encontrado." }, 404);
+    }
+
+    const pdfBytes = PdfStampingEngineService.base64ToUint8Array(row.pdf_base64);
+    return new Response(pdfBytes as any, {
+      status: 200,
+      headers: {
+        "Content-Type": "application/pdf",
+        "Cache-Control": "no-store, max-age=0",
+      },
+    });
+  } catch (error: any) {
+    return c.json({ error: error?.message || "Erro ao exportar binário do PDF." }, 500);
+  }
+});
+
 // 0.3 POST /api/signatures/documents/:id/sync-drive — Sincroniza documento assinado com Google Drive e envia por e-mail
 app.post("/signatures/documents/:id/sync-drive", authMiddleware, async (c) => {
   try {
     const docId = c.req.param("id");
+
+    // Consulta enxuta (apenas metadados + comprimento do PDF) para preservar o limite de 128 MB e CPU do Cloudflare Worker
     const doc = await c.env.DB.prepare(
-      `SELECT * FROM documents WHERE id = ? LIMIT 1`
+      `SELECT d.id, d.verification_code, d.patient_id, d.patient_name, d.patient_cpf,
+              COALESCE(NULLIF(d.patient_email, ''), p.email) AS patient_email,
+              d.title, d.category, d.status,
+              d.original_pdf_sha256, d.signed_pdf_sha256,
+              CASE
+                WHEN d.signed_pdf_base64 IS NOT NULL AND length(d.signed_pdf_base64) > 0 THEN length(d.signed_pdf_base64)
+                WHEN d.signed_pdf_url IS NOT NULL AND d.signed_pdf_url NOT LIKE 'http%' AND length(d.signed_pdf_url) > 0 THEN length(d.signed_pdf_url)
+                WHEN d.original_pdf_base64 IS NOT NULL AND length(d.original_pdf_base64) > 0 THEN length(d.original_pdf_base64)
+                WHEN d.original_pdf_url IS NOT NULL AND d.original_pdf_url NOT LIKE 'http%' AND length(d.original_pdf_url) > 0 THEN length(d.original_pdf_url)
+                ELSE 0
+              END AS pdf_b64_len,
+              CASE
+                WHEN d.signed_pdf_url LIKE 'http%' THEN d.signed_pdf_url
+                WHEN d.original_pdf_url LIKE 'http%' THEN d.original_pdf_url
+                ELSE NULL
+              END AS external_pdf_url
+       FROM documents d
+       LEFT JOIN patients p ON p.id = d.patient_id
+       WHERE d.id = ?
+       LIMIT 1`
     ).bind(docId).first<any>();
 
     if (!doc) {
       return c.json({ error: "Documento não encontrado." }, 404);
     }
 
-    const pdfBase64 = doc.signed_pdf_base64 || doc.original_pdf_url;
-    if (!pdfBase64) {
+    const pdfLen = Number(doc.pdf_b64_len || 0);
+    if (pdfLen === 0 && !doc.external_pdf_url) {
       return c.json({ error: "Documento ainda não possui PDF gerado para sincronizar." }, 400);
     }
 
     const nowBrt = new Date().toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" });
-    const gasResult = await dispatchSaveSignedDocumentToDrive(c.env, {
-      requestId: `sync_${doc.id}_${Date.now()}`,
-      documentId: doc.id,
-      verificationCode: doc.verification_code,
-      documentTitle: doc.title,
-      category: doc.category,
-      patientName: doc.patient_name,
-      patientCpf: doc.patient_cpf,
-      patientEmail: doc.patient_email,
-      originalSha256: doc.original_pdf_sha256,
-      signedSha256: doc.signed_pdf_sha256 || doc.original_pdf_sha256,
-      signedPdfBase64: pdfBase64,
-      completedAtBrt: nowBrt,
-    });
+    const origin = (c.env.PUBLIC_APP_URL || new URL(c.req.url).origin).replace(/\/$/, "");
+    const isPublicHttps =
+      origin.startsWith("https://") &&
+      !origin.includes("localhost") &&
+      !origin.includes("127.0.0.1");
+
+    const baseRequestId = `sync_${doc.id}_${Date.now()}`;
+    let gasResult: Awaited<ReturnType<typeof dispatchSaveSignedDocumentToDrive>> | null = null;
+
+    // Estratégia 1 (Zero-RAM no Worker): em produção HTTPS com PDF grande (> 900 KB),
+    // fornece URL binária assinada via HMAC para o Google Apps Script buscar via UrlFetchApp
+    if (isPublicHttps && pdfLen > 900_000) {
+      const signedFileUrl = await createShortLivedPdfDownloadUrl(
+        origin,
+        doc.id,
+        getJwtSecret(c)
+      );
+
+      gasResult = await dispatchSaveSignedDocumentToDrive(c.env, {
+        requestId: baseRequestId,
+        documentId: doc.id,
+        verificationCode: doc.verification_code,
+        documentTitle: doc.title,
+        category: doc.category,
+        patientName: doc.patient_name,
+        patientCpf: doc.patient_cpf,
+        patientEmail: doc.patient_email,
+        originalSha256: doc.original_pdf_sha256,
+        signedSha256: doc.signed_pdf_sha256 || doc.original_pdf_sha256,
+        signedFileUrl,
+        completedAtBrt: nowBrt,
+      });
+
+      // Caso o WAF/Bot Fight Mode bloqueie o UrlFetchApp do Google, faz fallback para envio Base64
+      // (direto no Worker se <= 4.5 MB, ou delegando ao navegador se > 4.5 MB)
+      if (!gasResult.ok && gasResult.error_code === "DOWNLOAD_FAILED") {
+        if (pdfLen > 4_500_000) {
+          return c.json(
+            {
+              fallback_client: true,
+              error: gasResult.error || "PDF extenso requer envio direto pelo navegador.",
+            },
+            502
+          );
+        }
+        gasResult = null;
+      }
+    }
+
+    // Estratégia 2: envio enxuto de coluna única Base64 (sem SELECT * para não duplicar memória)
+    if (!gasResult) {
+      let singlePdfBase64: string | null = null;
+      if (pdfLen > 0) {
+        if (pdfLen > 6_000_000) {
+          return c.json(
+            {
+              fallback_client: true,
+              error: "Documento de alta resolução delegado para sincronização direta via navegador.",
+            },
+            502
+          );
+        }
+
+        const pdfRow = await c.env.DB.prepare(
+          `SELECT COALESCE(
+                    NULLIF(signed_pdf_base64, ''),
+                    CASE WHEN signed_pdf_url IS NOT NULL AND signed_pdf_url NOT LIKE 'http%' THEN NULLIF(signed_pdf_url, '') ELSE NULL END,
+                    NULLIF(original_pdf_base64, ''),
+                    CASE WHEN original_pdf_url IS NOT NULL AND original_pdf_url NOT LIKE 'http%' THEN NULLIF(original_pdf_url, '') ELSE NULL END
+                  ) AS pdf_base64
+           FROM documents WHERE id = ? LIMIT 1`
+        ).bind(docId).first<{ pdf_base64: string | null }>();
+
+        singlePdfBase64 = pdfRow?.pdf_base64 || null;
+      }
+
+      gasResult = await dispatchSaveSignedDocumentToDrive(c.env, {
+        requestId: `${baseRequestId}_b64`,
+        documentId: doc.id,
+        verificationCode: doc.verification_code,
+        documentTitle: doc.title,
+        category: doc.category,
+        patientName: doc.patient_name,
+        patientCpf: doc.patient_cpf,
+        patientEmail: doc.patient_email,
+        originalSha256: doc.original_pdf_sha256,
+        signedSha256: doc.signed_pdf_sha256 || doc.original_pdf_sha256,
+        signedPdfBase64: singlePdfBase64,
+        signedFileUrl: singlePdfBase64 ? null : doc.external_pdf_url,
+        completedAtBrt: nowBrt,
+      });
+    }
 
     if (!gasResult.ok) {
+      // Se foi falha de rede do Worker até o Google, sinaliza 502 com fallback_client para o navegador tentar direto
+      if (gasResult.error_code === "NETWORK_ERROR") {
+        return c.json(
+          {
+            fallback_client: true,
+            error: gasResult.error || "Falha de rede entre o servidor e o Google Apps Script.",
+            email_status: gasResult.email_status,
+          },
+          502
+        );
+      }
+
+      // Erros determinísticos de configuração/permissão retornam 422 com mensagem clara
       return c.json(
         {
+          success: false,
           error: gasResult.error || "Falha na comunicação com o Google Drive/Apps Script.",
+          error_code: gasResult.error_code,
           email_status: gasResult.email_status,
         },
-        502
+        422
       );
     }
 
@@ -1309,33 +1671,67 @@ app.get("/assinar/:token", async (c) => {
     const token = c.req.param("token");
 
     const signer = await c.env.DB.prepare(
-      `SELECT * FROM document_signers WHERE remote_access_token = ? LIMIT 1`
+      `SELECT id, document_id, full_name, cpf, role, status, signed_at
+       FROM document_signers
+       WHERE remote_access_token = ?
+       LIMIT 1`
     ).bind(token).first<any>();
 
     if (!signer) {
       return c.json({ error: "Token não encontrado." }, 404);
     }
 
+    const isAlreadySigned = signer.status === "signed";
+
+    // Consulta enxuta: carrega apenas 1 coluna de PDF (original se pendente, assinado se concluído) para poupar memória do Worker
     const doc = await c.env.DB.prepare(
-      `SELECT * FROM documents WHERE id = ? LIMIT 1`
+      isAlreadySigned
+        ? `SELECT id, title, category, status, verification_code,
+                  original_pdf_sha256, signed_pdf_sha256, drive_file_url, completed_at,
+                  COALESCE(
+                    NULLIF(signed_pdf_base64, ''),
+                    CASE WHEN signed_pdf_url IS NOT NULL AND signed_pdf_url NOT LIKE 'http%' THEN NULLIF(signed_pdf_url, '') ELSE NULL END
+                  ) AS active_pdf_data
+           FROM documents WHERE id = ? LIMIT 1`
+        : `SELECT id, title, category, status, verification_code,
+                  original_pdf_sha256, signed_pdf_sha256, drive_file_url, completed_at,
+                  COALESCE(
+                    NULLIF(original_pdf_base64, ''),
+                    NULLIF(original_pdf_url, '')
+                  ) AS active_pdf_data
+           FROM documents WHERE id = ? LIMIT 1`
     ).bind(signer.document_id).first<any>();
 
+    if (!doc) {
+      return c.json({ error: "Documento não encontrado." }, 404);
+    }
+
     const fieldsRes = await c.env.DB.prepare(
-      `SELECT * FROM signature_fields WHERE document_id = ? AND signer_id = ?`
+      `SELECT id, field_type, page, x_percent, y_percent, width_percent, height_percent
+       FROM signature_fields
+       WHERE document_id = ? AND signer_id = ?
+       ORDER BY page ASC, y_percent ASC`
     ).bind(signer.document_id, signer.id).all();
 
     return c.json({
-      document_id: doc?.id,
-      document_title: doc?.title,
-      verification_code: doc?.verification_code,
-      original_pdf_url: doc?.original_pdf_url,
-      original_pdf_sha256: doc?.original_pdf_sha256,
+      document_id: doc.id,
+      document_title: doc.title,
+      category: doc.category || "CONTRATO",
+      document_status: doc.status,
+      verification_code: doc.verification_code,
+      original_pdf_url: isAlreadySigned ? "" : (doc.active_pdf_data || ""),
+      signed_pdf_base64: isAlreadySigned ? (doc.active_pdf_data || null) : null,
+      original_pdf_sha256: doc.original_pdf_sha256,
+      signed_pdf_sha256: doc.signed_pdf_sha256 || null,
+      drive_file_url: doc.drive_file_url || null,
+      completed_at: doc.completed_at || null,
       signer: {
         id: signer.id,
         full_name: signer.full_name,
         cpf: signer.cpf,
         role: signer.role,
         status: signer.status,
+        signed_at: signer.signed_at || null,
       },
       fields: fieldsRes.results || [],
     });
@@ -1638,13 +2034,44 @@ app.post("/assinar/:token", async (c) => {
       finalSignedBase64 = PdfStampingEngineService.uint8ArrayToBase64(stampedPdfBytes);
     }
 
-    // 7. Envia para o Google Apps Script (Drive + Gmail + Sheets)
+    // 7. Salva o PDF final selado no banco D1 imediatamente (garante persistência e permite streaming via signedFileUrl)
+    await c.env.DB.prepare(
+      `UPDATE documents
+       SET status = 'completed',
+           signed_pdf_base64 = ?,
+           signed_pdf_sha256 = ?,
+           pades_pkcs7_hex = ?,
+           gas_sync_status = 'pending',
+           completed_at = ?,
+           updated_at = ?
+       WHERE id = ?`
+    ).bind(
+      finalSignedBase64,
+      finalSignedSha256,
+      padesPkcs7Hex,
+      nowUtc,
+      nowUtc,
+      doc.id
+    ).run();
+
+    // 8. Envia para o Google Apps Script (Drive + Gmail + Sheets)
     let driveFileId: string | null = null;
     let driveFileUrl: string | null = null;
     let driveFolderUrl: string | null = null;
     let emailStatus: string | null = null;
 
     try {
+      const origin = (c.env.PUBLIC_APP_URL || new URL(c.req.url).origin).replace(/\/$/, "");
+      const isPublicHttps =
+        origin.startsWith("https://") &&
+        !origin.includes("localhost") &&
+        !origin.includes("127.0.0.1");
+
+      const useSignedUrl = isPublicHttps && finalSignedBase64.length > 900_000;
+      const signedFileUrl = useSignedUrl
+        ? await createShortLivedPdfDownloadUrl(origin, String(doc.id), getJwtSecret(c))
+        : null;
+
       const gasResult = await dispatchSaveSignedDocumentToDrive(c.env, {
         requestId: patientTrailId,
         documentId: doc.id,
@@ -1656,7 +2083,8 @@ app.post("/assinar/:token", async (c) => {
         patientEmail: doc.patient_email,
         originalSha256: doc.original_pdf_sha256,
         signedSha256: finalSignedSha256,
-        signedPdfBase64: finalSignedBase64,
+        signedPdfBase64: useSignedUrl ? null : finalSignedBase64,
+        signedFileUrl,
         completedAtBrt: nowBrt,
       });
 
@@ -1665,41 +2093,30 @@ app.post("/assinar/:token", async (c) => {
         driveFileUrl = gasResult.file_url;
         driveFolderUrl = gasResult.folder_url;
         emailStatus = gasResult.email_status;
+
+        await c.env.DB.prepare(
+          `UPDATE documents
+           SET signed_pdf_url = COALESCE(?, signed_pdf_url),
+               drive_file_id = ?,
+               drive_file_url = ?,
+               drive_folder_url = ?,
+               gas_sync_status = 'synced',
+               updated_at = ?
+           WHERE id = ?`
+        ).bind(
+          driveFileUrl,
+          driveFileId,
+          driveFileUrl,
+          driveFolderUrl,
+          new Date().toISOString(),
+          doc.id
+        ).run();
       } else {
         console.warn("[POST /assinar/:token] Falha ao enviar para Apps Script:", gasResult.error);
       }
     } catch (gasErr) {
       console.error("[POST /assinar/:token] Erro de rede ao conectar Apps Script:", gasErr);
     }
-
-    // 8. Salva o PDF final selado no banco D1
-    await c.env.DB.prepare(
-      `UPDATE documents
-       SET status = 'completed',
-           signed_pdf_base64 = ?,
-           signed_pdf_url = COALESCE(?, signed_pdf_url),
-           signed_pdf_sha256 = ?,
-           pades_pkcs7_hex = ?,
-           drive_file_id = ?,
-           drive_file_url = ?,
-           drive_folder_url = ?,
-           gas_sync_status = ?,
-           completed_at = ?,
-           updated_at = ?
-       WHERE id = ?`
-    ).bind(
-      finalSignedBase64,
-      driveFileUrl,
-      finalSignedSha256,
-      padesPkcs7Hex,
-      driveFileId,
-      driveFileUrl,
-      driveFolderUrl,
-      driveFileUrl ? "synced" : "pending",
-      nowUtc,
-      nowUtc,
-      doc.id
-    ).run();
 
     return c.json({
       status: "completed",

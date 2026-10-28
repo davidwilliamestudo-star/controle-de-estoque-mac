@@ -101,11 +101,25 @@ const loginRoute = createRoute({
   component: () => <Suspense fallback={<PageLoader />}><LoginPage /></Suspense>,
 });
 
+// Central Pública de Assinatura (sem token na URL)
+const signIndexRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/assinar",
+  component: () => <Suspense fallback={<PageLoader />}><PatientPublicSignPage /></Suspense>,
+});
+
 // Rota Pública de Assinatura do Paciente (sem shell, sem login)
 const signRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/assinar/$token",
   component: () => <Suspense fallback={<PageLoader />}><PatientPublicSignPage /></Suspense>,
+});
+
+// Central Pública de Verificação (sem código na URL)
+const verifyIndexRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/verificar",
+  component: () => <Suspense fallback={<PageLoader />}><PublicVerifySignaturePage /></Suspense>,
 });
 
 // Rota Pública de Verificação do QR Code (sem shell, sem login)
@@ -382,7 +396,9 @@ const documentosRoute = createRoute({
 
 const routeTree = rootRoute.addChildren([
   loginRoute,
+  signIndexRoute,
   signRoute,
+  verifyIndexRoute,
   verifyRoute,
   shellRoute.addChildren([
     indexRoute,

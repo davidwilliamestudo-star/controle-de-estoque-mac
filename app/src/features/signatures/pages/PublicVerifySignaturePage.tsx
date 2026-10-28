@@ -97,8 +97,8 @@ export default function PublicVerifySignaturePage() {
   }, [code]);
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center p-4 sm:p-6 font-sans">
-      <div className="max-w-2xl w-full bg-slate-900 border border-slate-800 rounded-3xl p-6 sm:p-8 shadow-2xl space-y-6">
+    <div className="h-dvh w-full overflow-y-auto overflow-x-hidden bg-slate-950 text-slate-100 flex flex-col items-center justify-start sm:justify-center p-4 sm:p-6 py-8 font-sans">
+      <div className="max-w-2xl w-full bg-slate-900 border border-slate-800 rounded-3xl p-6 sm:p-8 shadow-2xl space-y-6 my-auto">
         {/* Cabeçalho Oficial Clínico */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-slate-800 pb-5">
           <div className="flex items-center gap-3.5">

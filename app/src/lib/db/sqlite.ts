@@ -461,6 +461,17 @@ async function ensureCompatibilitySchema(db: Database): Promise<void> {
       updated_at TEXT NOT NULL DEFAULT (datetime('now'))
     )
   `);
+  for (const column of [
+    "original_pdf_base64 TEXT",
+    "signed_pdf_base64 TEXT",
+    "pades_pkcs7_hex TEXT",
+    "drive_file_id TEXT",
+    "drive_file_url TEXT",
+    "drive_folder_url TEXT",
+    "gas_sync_status TEXT DEFAULT 'pending'",
+  ]) {
+    await addColumnIfMissing(db, "documents", column);
+  }
   await db.execute("CREATE INDEX IF NOT EXISTS idx_documents_patient_id ON documents(patient_id)");
   await db.execute("CREATE INDEX IF NOT EXISTS idx_documents_verification_code ON documents(verification_code)");
 

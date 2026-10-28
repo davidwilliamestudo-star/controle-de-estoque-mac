@@ -860,10 +860,14 @@ var DriveSignaturesService = {
   saveSignedDocumentToDrive: function (payload, requestId) {
     requestId = requestId || payload.request_id || Utilities.getUuid();
 
-    // 1. Checa idempotência
-    var existing = SignaturesLogRepository.findByRequestId(requestId);
-    if (existing) {
-      return existing;
+    // 1. Checa idempotência (tolerante a falhas de planilha para nunca bloquear Drive/E-mail)
+    try {
+      var existing = SignaturesLogRepository.findByRequestId(requestId);
+      if (existing) {
+        return existing;
+      }
+    } catch (idempErr) {
+      Logger.log('Aviso ao consultar idempotencia signatures_log: ' + idempErr);
     }
 
     // 2. Garante estrutura de pastas
@@ -921,24 +925,28 @@ var DriveSignaturesService = {
       }
     }
 
-    // 7. Registra na planilha
-    SignaturesLogRepository.log({
-      requestId: requestId,
-      documentId: payload.document_id,
-      verificationCode: payload.verification_code,
-      completedAtBrt: payload.completed_at_brt || Utilities.formatDate(new Date(), 'America/Sao_Paulo', 'dd/MM/yyyy HH:mm:ss'),
-      patientName: payload.patient_name,
-      patientCpf: payload.patient_cpf,
-      patientEmail: payload.patient_email || '',
-      documentTitle: payload.document_title,
-      category: payload.category || 'TCLE',
-      originalSha256: payload.original_sha256 || '',
-      signedSha256: payload.signed_sha256 || '',
-      fileId: fileId,
-      fileUrl: fileUrl,
-      folderUrl: folderUrl,
-      emailStatus: emailStatus
-    });
+    // 7. Registra na planilha (tolerante a falhas de planilha)
+    try {
+      SignaturesLogRepository.log({
+        requestId: requestId,
+        documentId: payload.document_id,
+        verificationCode: payload.verification_code,
+        completedAtBrt: payload.completed_at_brt || Utilities.formatDate(new Date(), 'America/Sao_Paulo', 'dd/MM/yyyy HH:mm:ss'),
+        patientName: payload.patient_name,
+        patientCpf: payload.patient_cpf,
+        patientEmail: payload.patient_email || '',
+        documentTitle: payload.document_title,
+        category: payload.category || 'TCLE',
+        originalSha256: payload.original_sha256 || '',
+        signedSha256: payload.signed_sha256 || '',
+        fileId: fileId,
+        fileUrl: fileUrl,
+        folderUrl: folderUrl,
+        emailStatus: emailStatus
+      });
+    } catch (logErr) {
+      Logger.log('Aviso ao gravar signatures_log: ' + logErr);
+    }
 
     return {
       file_id: fileId,

@@ -152,36 +152,60 @@ export const documentsRepository = {
   },
 
   /**
-   * Busca todos os documentos vinculados a um paciente
+   * Busca todos os documentos vinculados a um paciente (sem trafegar blobs de PDF na listagem)
    */
   async getDocumentsByPatient(patientId: string): Promise<PatientDocument[]> {
     const docs = await dbSelect<any>(
-      `SELECT * FROM documents WHERE patient_id = ? ORDER BY created_at DESC`,
+      `SELECT id, verification_code, patient_id, patient_name, patient_cpf,
+              patient_email, patient_phone, title, category, signing_mode,
+              engine_provider, status, original_pdf_sha256, signed_pdf_sha256,
+              (pades_pkcs7_hex IS NOT NULL AND length(pades_pkcs7_hex) > 0) AS has_pades_flag,
+              drive_file_id, drive_file_url, drive_folder_url, gas_sync_status,
+              created_at, completed_at, updated_at
+       FROM documents
+       WHERE patient_id = ?
+       ORDER BY created_at DESC`,
       [patientId]
     );
 
-    const result: PatientDocument[] = [];
+    if (docs.length === 0) return [];
 
-    for (const d of docs) {
-      const signers = await dbSelect<any>(
-        `SELECT * FROM document_signers WHERE document_id = ? ORDER BY signing_order ASC`,
-        [d.id]
-      );
+    const docIds = docs.map((d) => d.id);
+    const placeholders = docIds.map(() => "?").join(",");
+    const allSigners = await dbSelect<any>(
+      `SELECT id, document_id, role, signing_order, full_name, cpf, email,
+              phone_whatsapp, council_id, auth_type, legal_standard, status,
+              signed_at, remote_access_token, icp_subject_cn, icp_serial_number
+       FROM document_signers
+       WHERE document_id IN (${placeholders})
+       ORDER BY signing_order ASC`,
+      docIds
+    );
 
-      result.push({
-        ...d,
-        signers: signers.map((s) => ({
-          ...s,
-          remote_sign_url: `${window.location.origin}/assinar/${s.remote_access_token}`,
-        })),
+    const signersByDoc = new Map<string, any[]>();
+    for (const s of allSigners) {
+      const list = signersByDoc.get(s.document_id) || [];
+      list.push({
+        ...s,
+        sign_url: s.remote_access_token
+          ? `${window.location.origin}/assinar/${s.remote_access_token}`
+          : undefined,
+        remote_sign_url: s.remote_access_token
+          ? `${window.location.origin}/assinar/${s.remote_access_token}`
+          : undefined,
       });
+      signersByDoc.set(s.document_id, list);
     }
 
-    return result;
+    return docs.map((d) => ({
+      ...d,
+      has_pades: Boolean(d.has_pades_flag),
+      signers: signersByDoc.get(d.id) || [],
+    }));
   },
 
   /**
-   * Lista todos os documentos do sistema com filtros opcionais
+   * Lista todos os documentos do sistema com filtros opcionais (sem carregar blobs Base64 pesados)
    */
   async getAllDocuments(filters: DocumentFilterOptions = {}): Promise<PatientDocument[]> {
     const conditions: string[] = [];
@@ -198,8 +222,12 @@ export const documentsRepository = {
     }
 
     if (filters.status && filters.status !== "ALL") {
-      conditions.push("d.status = ?");
-      params.push(filters.status);
+      if (filters.status === "pending") {
+        conditions.push("(d.status = 'pending' OR d.status = 'partially_signed')");
+      } else {
+        conditions.push("d.status = ?");
+        params.push(filters.status);
+      }
     }
 
     if (filters.search) {
@@ -213,32 +241,56 @@ export const documentsRepository = {
     const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
 
     const docs = await dbSelect<any>(
-      `SELECT d.* FROM documents d ${whereClause} ORDER BY d.created_at DESC`,
+      `SELECT d.id, d.verification_code, d.patient_id, d.patient_name, d.patient_cpf,
+              d.patient_email, d.patient_phone, d.title, d.category, d.signing_mode,
+              d.engine_provider, d.status, d.original_pdf_sha256, d.signed_pdf_sha256,
+              (d.pades_pkcs7_hex IS NOT NULL AND length(d.pades_pkcs7_hex) > 0) AS has_pades_flag,
+              d.drive_file_id, d.drive_file_url, d.drive_folder_url, d.gas_sync_status,
+              d.created_at, d.completed_at, d.updated_at
+       FROM documents d
+       ${whereClause}
+       ORDER BY d.created_at DESC`,
       params
     );
 
-    const result: PatientDocument[] = [];
+    if (docs.length === 0) return [];
 
-    for (const d of docs) {
-      const signers = await dbSelect<any>(
-        `SELECT * FROM document_signers WHERE document_id = ? ORDER BY signing_order ASC`,
-        [d.id]
-      );
+    const docIds = docs.map((d) => d.id);
+    const placeholders = docIds.map(() => "?").join(",");
+    const allSigners = await dbSelect<any>(
+      `SELECT id, document_id, role, signing_order, full_name, cpf, email,
+              phone_whatsapp, council_id, auth_type, legal_standard, status,
+              signed_at, remote_access_token, icp_subject_cn, icp_serial_number
+       FROM document_signers
+       WHERE document_id IN (${placeholders})
+       ORDER BY signing_order ASC`,
+      docIds
+    );
 
-      result.push({
-        ...d,
-        signers: signers.map((s) => ({
-          ...s,
-          remote_sign_url: `${window.location.origin}/assinar/${s.remote_access_token}`,
-        })),
+    const signersByDoc = new Map<string, any[]>();
+    for (const s of allSigners) {
+      const list = signersByDoc.get(s.document_id) || [];
+      list.push({
+        ...s,
+        sign_url: s.remote_access_token
+          ? `${window.location.origin}/assinar/${s.remote_access_token}`
+          : undefined,
+        remote_sign_url: s.remote_access_token
+          ? `${window.location.origin}/assinar/${s.remote_access_token}`
+          : undefined,
       });
+      signersByDoc.set(s.document_id, list);
     }
 
-    return result;
+    return docs.map((d) => ({
+      ...d,
+      has_pades: Boolean(d.has_pades_flag),
+      signers: signersByDoc.get(d.id) || [],
+    }));
   },
 
   /**
-   * Obtém os bytes Base64 do documento para download ou visualização
+   * Obtém os bytes Base64 do documento para download ou visualização (prioriza versão assinada)
    */
   async getDocumentPdf(documentId: string): Promise<{
     id: string;
@@ -249,8 +301,14 @@ export const documentsRepository = {
     drive_file_url?: string;
   }> {
     const rows = await dbSelect<any>(
-      `SELECT id, title, verification_code, status, original_pdf_url, signed_pdf_url, drive_file_url 
-       FROM documents WHERE id = ?`,
+      `SELECT id, title, verification_code, status, drive_file_url,
+              COALESCE(
+                NULLIF(signed_pdf_base64, ''),
+                CASE WHEN signed_pdf_url IS NOT NULL AND signed_pdf_url NOT LIKE 'http%' THEN NULLIF(signed_pdf_url, '') ELSE NULL END,
+                NULLIF(original_pdf_base64, ''),
+                CASE WHEN original_pdf_url IS NOT NULL AND original_pdf_url NOT LIKE 'http%' THEN NULLIF(original_pdf_url, '') ELSE NULL END
+              ) AS resolved_pdf_base64
+       FROM documents WHERE id = ? LIMIT 1`,
       [documentId]
     );
 
@@ -259,7 +317,7 @@ export const documentsRepository = {
     }
 
     const doc = rows[0];
-    const pdfBase64 = doc.signed_pdf_url || doc.original_pdf_url || "";
+    const pdfBase64 = doc.resolved_pdf_base64 || "";
 
     return {
       id: doc.id,
@@ -303,9 +361,12 @@ export const documentsRepository = {
   },
 
   /**
-   * Sincroniza o documento com Google Apps Script (Drive + Email)
+   * Sincroniza o documento diretamente com Google Apps Script (Drive + Email)
    */
-  async syncDocumentToDrive(documentId: string): Promise<{
+  async syncDocumentToDrive(
+    documentId: string,
+    preloadedPdfBase64?: string
+  ): Promise<{
     success: boolean;
     drive_file_id?: string;
     drive_file_url?: string;
@@ -314,36 +375,56 @@ export const documentsRepository = {
     error?: string;
   }> {
     const rows = await dbSelect<any>(
-      `SELECT * FROM documents WHERE id = ? LIMIT 1`,
+      `SELECT d.id, d.verification_code, d.patient_id, d.patient_name, d.patient_cpf,
+              COALESCE(NULLIF(d.patient_email, ''), p.email) AS patient_email,
+              d.title, d.category, d.status,
+              d.original_pdf_sha256, d.signed_pdf_sha256
+       FROM documents d
+       LEFT JOIN patients p ON p.id = d.patient_id
+       WHERE d.id = ?
+       LIMIT 1`,
       [documentId]
     );
+
     if (rows.length === 0) {
       throw new Error("Documento não encontrado.");
     }
+
     const doc = rows[0];
-    const pdfBase64 = doc.signed_pdf_url || doc.original_pdf_url;
+    let pdfBase64 = preloadedPdfBase64 || "";
     if (!pdfBase64) {
-      throw new Error("Documento não possui PDF para upload.");
+      const pdfData = await this.getDocumentPdf(documentId);
+      pdfBase64 = pdfData.pdf_base64;
     }
 
+    if (!pdfBase64) {
+      throw new Error("Documento não possui PDF disponível para upload no Google Drive.");
+    }
+
+    const cleanBase64 = pdfBase64.replace(/^data:application\/pdf;base64,/, "");
     const nowBrt = new Date().toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" });
-    const gasRes = await appScriptIntegrationService.sendPayload({
-      action: "saveSignedDocumentToDrive",
-      request_id: `sync_${doc.id}_${Date.now()}`,
-      payload: {
-        document_id: doc.id,
-        verification_code: doc.verification_code,
-        document_title: doc.title,
-        category: doc.category || "CONTRATO",
-        patient_name: doc.patient_name,
-        patient_cpf: doc.patient_cpf,
-        patient_email: doc.patient_email || "",
-        original_sha256: doc.original_pdf_sha256 || "",
-        signed_sha256: doc.signed_pdf_sha256 || doc.original_pdf_sha256 || "",
-        signed_pdf_base64: pdfBase64,
-        completed_at_brt: nowBrt,
+
+    // Aciona diretamente o Google Apps Script a partir do cliente (com override enabled: true pois é ação explícita do usuário)
+    const gasRes = await appScriptIntegrationService.sendPayload(
+      {
+        action: "saveSignedDocumentToDrive",
+        request_id: `sync_${doc.id}_${Date.now()}`,
+        payload: {
+          document_id: doc.id,
+          verification_code: doc.verification_code,
+          document_title: doc.title,
+          category: doc.category || "CONTRATO",
+          patient_name: doc.patient_name,
+          patient_cpf: doc.patient_cpf,
+          patient_email: doc.patient_email || "",
+          original_sha256: doc.original_pdf_sha256 || "",
+          signed_sha256: doc.signed_pdf_sha256 || doc.original_pdf_sha256 || "",
+          signed_pdf_base64: cleanBase64,
+          completed_at_brt: nowBrt,
+        },
       },
-    });
+      { enabled: true }
+    );
 
     const fileId = gasRes.file_id || gasRes.data?.file_id;
     const fileUrl = gasRes.file_url || gasRes.data?.file_url;

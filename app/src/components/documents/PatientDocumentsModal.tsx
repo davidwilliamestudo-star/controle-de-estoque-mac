@@ -337,34 +337,42 @@ export const PatientDocumentsModal: React.FC<PatientDocumentsModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
-      <div className="relative w-full max-w-4xl max-h-[92vh] flex flex-col bg-white rounded-2xl shadow-2xl border border-[var(--color-gray-200)] overflow-hidden">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-slate-950/65 backdrop-blur-xs animate-fade-in"
+      style={{ fontFamily: 'var(--font-family, "Plus Jakarta Sans", sans-serif)' }}
+    >
+      <div className="relative w-full max-w-5xl max-h-[92vh] flex flex-col bg-white rounded-3xl shadow-2xl border border-slate-200/90 overflow-hidden">
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--color-gray-200)] bg-[var(--color-gray-50)]">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-[var(--color-green-soft)] flex items-center justify-center text-[var(--color-green-deep)]">
-              <FileCheck size={22} />
+        <div className="flex items-center justify-between px-6 sm:px-8 py-5 border-b border-slate-100 bg-white shrink-0">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-emerald-600 to-teal-700 text-white flex items-center justify-center shadow-md shadow-emerald-900/15 shrink-0">
+              <FileCheck size={24} />
             </div>
             <div>
-              <h2 className="text-lg font-bold text-[var(--color-gray-900)]">
-                Documentos Clínicos & Contratos
+              <h2 className="text-lg sm:text-xl font-extrabold text-slate-900 tracking-tight">
+                Documentos Clínicos &amp; Contratos
               </h2>
-              <p className="text-xs text-[var(--color-gray-500)]">
+              <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
                 {currentPatient.name ? (
                   <>
-                    Prontuário de: <strong className="text-[var(--color-green-deep)]">{currentPatient.name}</strong>
+                    Prontuário de:{" "}
+                    <strong className="text-emerald-800 font-bold">
+                      {currentPatient.name}
+                    </strong>
                     {currentPatient.cpf && ` • CPF: ${currentPatient.cpf}`}
                   </>
                 ) : (
-                  "Emissão de documentos vinculados ao prontuário"
+                  "Emissão timbrada e gestão de documentos vinculados ao prontuário"
                 )}
               </p>
             </div>
           </div>
 
           <button
+            type="button"
             onClick={onClose}
-            className="p-2 text-[var(--color-gray-400)] hover:text-[var(--color-gray-700)] rounded-lg hover:bg-[var(--color-gray-200)] transition-colors"
+            className="h-10 w-10 flex items-center justify-center text-slate-400 hover:text-slate-700 rounded-xl hover:bg-slate-100 transition-colors cursor-pointer"
+            title="Fechar janela"
           >
             <X size={20} />
           </button>
@@ -372,109 +380,115 @@ export const PatientDocumentsModal: React.FC<PatientDocumentsModalProps> = ({
 
         {/* Seleção de Paciente caso não tenha vindo pré-definido */}
         {!initialPatientId && (
-          <div className="px-6 py-3 bg-amber-50/60 border-b border-amber-200/60 flex items-center gap-3">
-            <span className="text-xs font-semibold text-amber-900">Selecione o Paciente:</span>
-            <select
-              value={selectedPatientId}
-              onChange={(e) => setSelectedPatientId(e.target.value)}
-              className="text-xs rounded-lg border border-amber-300 bg-white px-3 py-1.5 focus:ring-2 focus:ring-[var(--color-green-deep)] flex-1 max-w-md"
-            >
-              <option value="">-- Escolha um paciente do sistema --</option>
-              {allPatients.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.full_name} ({p.document || "Sem CPF"})
-                </option>
-              ))}
-            </select>
+          <div className="px-6 sm:px-8 py-4 bg-emerald-50/50 border-b border-emerald-100 flex flex-col sm:flex-row sm:items-center gap-3">
+            <span className="text-xs sm:text-sm font-bold text-emerald-950 shrink-0">
+              Paciente destinatário:
+            </span>
+            <div className="flex-1 max-w-lg">
+              <Select
+                selectSize="md"
+                value={selectedPatientId}
+                onChange={(e) => setSelectedPatientId(e.target.value)}
+              >
+                <option value="">-- Escolha um paciente do sistema --</option>
+                {allPatients.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.full_name} ({p.document || "Sem CPF"})
+                  </option>
+                ))}
+              </Select>
+            </div>
           </div>
         )}
 
         {/* Tabs de Navegação */}
-        <div className="flex border-b border-[var(--color-gray-200)] px-6 bg-white">
+        <div className="flex items-center gap-2 border-b border-slate-200/80 px-6 sm:px-8 bg-slate-50/50 shrink-0">
           <button
+            type="button"
             onClick={() => setActiveTab("list")}
-            className={`py-3 px-4 text-sm font-semibold border-b-2 flex items-center gap-2 transition-all ${
+            className={`py-3.5 px-4 text-sm font-bold border-b-2 flex items-center gap-2.5 transition-all cursor-pointer ${
               activeTab === "list"
-                ? "border-[var(--color-green-deep)] text-[var(--color-green-deep)]"
-                : "border-transparent text-[var(--color-gray-500)] hover:text-[var(--color-gray-800)]"
+                ? "border-emerald-700 text-emerald-800"
+                : "border-transparent text-slate-500 hover:text-slate-800"
             }`}
           >
-            <FileText size={16} />
-            Documentos do Prontuário
+            <FileText size={17} />
+            <span>Documentos do Prontuário</span>
             {documents.length > 0 && (
-              <span className="ml-1 px-2 py-0.5 text-xs rounded-full bg-[var(--color-green-soft)] text-[var(--color-green-deep)]">
+              <span className="ml-0.5 px-2 py-0.5 text-xs font-bold rounded-full bg-emerald-100 text-emerald-800">
                 {documents.length}
               </span>
             )}
           </button>
 
           <button
+            type="button"
             onClick={() => setActiveTab("create")}
-            className={`py-3 px-4 text-sm font-semibold border-b-2 flex items-center gap-2 transition-all ${
+            className={`py-3.5 px-4 text-sm font-bold border-b-2 flex items-center gap-2.5 transition-all cursor-pointer ${
               activeTab === "create"
-                ? "border-[var(--color-green-deep)] text-[var(--color-green-deep)]"
-                : "border-transparent text-[var(--color-gray-500)] hover:text-[var(--color-gray-800)]"
+                ? "border-emerald-700 text-emerald-800"
+                : "border-transparent text-slate-500 hover:text-slate-800"
             }`}
           >
-            <Plus size={16} />
-            Emitir Novo Documento
+            <Plus size={17} />
+            <span>Emitir Novo Documento</span>
           </button>
         </div>
 
         {/* Conteúdo da Modal */}
-        <div className="flex-1 overflow-y-auto p-6 bg-[var(--color-gray-50)]/40">
+        <div className="flex-1 overflow-y-auto p-6 sm:p-8 bg-slate-50/40">
           {activeTab === "list" ? (
-            <div className="space-y-4">
+            <div className="space-y-5">
               {/* Barra de Filtro */}
-              <div className="flex items-center justify-between gap-3">
-                <div className="relative flex-1 max-w-sm">
-                  <Search size={16} className="absolute left-3 top-2.5 text-[var(--color-gray-400)]" />
-                  <input
-                    type="text"
-                    placeholder="Buscar por título ou código..."
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex-1 max-w-md">
+                  <Input
+                    inputSize="md"
+                    placeholder="Buscar por título ou código autenticador..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full pl-9 pr-3 py-1.5 text-xs rounded-lg border border-[var(--color-gray-300)] bg-white focus:ring-1 focus:ring-[var(--color-green-deep)]"
+                    clearable
+                    onClear={() => setSearchTerm("")}
+                    leftIcon={<Search size={16} />}
                   />
                 </div>
 
                 <Button
                   variant="primary"
-                  size="sm"
+                  size="md"
                   onClick={() => setActiveTab("create")}
-                  className="gap-1.5"
+                  leftIcon={<Plus size={16} />}
                 >
-                  <Plus size={14} />
                   Novo Documento
                 </Button>
               </div>
 
               {/* Lista */}
               {isLoading ? (
-                <div className="py-12 flex justify-center">
-                  <div className="animate-spin w-8 h-8 rounded-full border-2 border-[var(--color-green-deep)] border-t-transparent" />
+                <div className="py-16 flex justify-center">
+                  <div className="animate-spin w-8 h-8 rounded-full border-3 border-emerald-600 border-t-transparent" />
                 </div>
               ) : filteredDocuments.length === 0 ? (
-                <div className="text-center py-12 px-4 rounded-xl border border-dashed border-[var(--color-gray-300)] bg-white">
-                  <FileText size={40} className="mx-auto text-[var(--color-gray-300)] mb-3" />
-                  <h3 className="text-sm font-semibold text-[var(--color-gray-700)]">
+                <div className="text-center py-16 px-6 rounded-2xl border border-dashed border-slate-300 bg-white">
+                  <FileText size={42} className="mx-auto text-slate-300 mb-3" />
+                  <h3 className="text-base font-bold text-slate-800">
                     Nenhum documento encontrado neste prontuário
                   </h3>
-                  <p className="text-xs text-[var(--color-gray-500)] mt-1 max-w-md mx-auto">
+                  <p className="text-xs sm:text-sm text-slate-500 mt-1.5 max-w-md mx-auto leading-relaxed">
                     Você pode gerar contratos, termos de consentimento (TCLE), atestados, receitas e recibos timbrados.
                   </p>
                   <Button
                     variant="secondary"
-                    size="sm"
+                    size="md"
                     onClick={() => setActiveTab("create")}
-                    className="mt-4 gap-1.5"
+                    leftIcon={<Plus size={16} />}
+                    className="mt-5"
                   >
-                    <Plus size={14} />
                     Criar Primeiro Documento
                   </Button>
                 </div>
               ) : (
-                <div className="space-y-2.5">
+                <div className="space-y-3">
                   {filteredDocuments.map((doc) => {
                     const isCompleted = doc.status === "completed";
                     const isPending = doc.status === "pending" || doc.status === "partially_signed";
@@ -483,19 +497,19 @@ export const PatientDocumentsModal: React.FC<PatientDocumentsModalProps> = ({
                     return (
                       <div
                         key={doc.id}
-                        className="p-4 rounded-xl border border-[var(--color-gray-200)] bg-white shadow-sm hover:border-[var(--color-green-soft)] transition-all flex items-center justify-between gap-4"
+                        className="p-5 rounded-2xl border border-slate-200/90 bg-white shadow-2xs hover:border-emerald-300 transition-all flex items-center justify-between gap-4"
                       >
-                        <div className="flex items-start gap-3 min-w-0">
-                          <div className={`mt-0.5 p-2 rounded-lg ${isCompleted ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"}`}>
+                        <div className="flex items-start gap-3.5 min-w-0">
+                          <div className={`mt-0.5 p-2.5 rounded-xl border ${isCompleted ? "bg-emerald-50 text-emerald-700 border-emerald-200/70" : "bg-amber-50 text-amber-700 border-amber-200/70"}`}>
                             {isCompleted ? <CheckCircle2 size={18} /> : <Clock size={18} />}
                           </div>
 
-                          <div className="min-w-0">
-                            <div className="flex items-center gap-2">
-                              <h4 className="text-sm font-bold text-[var(--color-gray-900)] truncate">
+                          <div className="min-w-0 space-y-1">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <h4 className="text-sm font-bold text-slate-900 truncate">
                                 {doc.title}
                               </h4>
-                              <Badge variant={isCompleted ? "emerald" : "amber"} size="sm">
+                              <Badge variant={isCompleted ? "emerald" : "amber"} size="sm" dot>
                                 {isCompleted ? "Assinado" : "Pendente"}
                               </Badge>
                               <Badge variant="neutral" size="sm">
@@ -503,27 +517,28 @@ export const PatientDocumentsModal: React.FC<PatientDocumentsModalProps> = ({
                               </Badge>
                             </div>
 
-                            <p className="text-xs text-[var(--color-gray-500)] mt-0.5">
-                              Código: <span className="font-mono text-[var(--color-gray-700)]">{doc.verification_code}</span>
+                            <p className="text-xs text-slate-500">
+                              Código: <span className="font-mono font-semibold text-slate-700">{doc.verification_code}</span>
                               {" • "}Criado em: {format(new Date(doc.created_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
                             </p>
 
                             {patientSigner && isPending && patientSigner.remote_access_token && (
-                              <div className="mt-2 flex items-center gap-2">
-                                <span className="text-[11px] text-[var(--color-gray-500)] font-medium">Link do Paciente:</span>
+                              <div className="pt-1.5 flex items-center gap-2">
+                                <span className="text-xs text-slate-500 font-medium">Link do Paciente:</span>
                                 <button
+                                  type="button"
                                   onClick={() => patientSigner.remote_access_token && handleCopyLink(patientSigner.remote_access_token)}
-                                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] bg-slate-100 hover:bg-slate-200 text-slate-700 font-mono transition-colors"
+                                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs bg-slate-100 hover:bg-emerald-50 text-slate-700 hover:text-emerald-800 border border-slate-200/80 font-mono transition-colors cursor-pointer"
                                   title="Copiar link para enviar ao paciente"
                                 >
                                   {copiedToken === patientSigner.remote_access_token ? (
                                     <>
-                                      <Check size={12} className="text-emerald-600" />
-                                      <span className="text-emerald-700">Copiado!</span>
+                                      <Check size={13} className="text-emerald-600" />
+                                      <span className="text-emerald-700 font-semibold">Copiado!</span>
                                     </>
                                   ) : (
                                     <>
-                                      <Copy size={12} />
+                                      <Copy size={13} />
                                       <span>Copiar Link de Assinatura</span>
                                     </>
                                   )}
@@ -534,22 +549,25 @@ export const PatientDocumentsModal: React.FC<PatientDocumentsModalProps> = ({
                         </div>
 
                         {/* Ações */}
-                        <div className="flex items-center gap-1.5 flex-shrink-0">
-                          <button
+                        <div className="flex items-center gap-2 shrink-0">
+                          <Button
+                            variant="secondary"
+                            size="sm"
                             onClick={() => handlePreviewPdf(doc)}
-                            className="p-2 text-[var(--color-gray-600)] hover:text-[var(--color-green-deep)] rounded-lg hover:bg-[var(--color-gray-100)] transition-colors"
-                            title="Visualizar PDF"
+                            leftIcon={<Eye size={16} />}
                           >
-                            <Eye size={17} />
-                          </button>
+                            Ver PDF
+                          </Button>
 
-                          <button
+                          <Button
+                            variant="secondary"
+                            size="icon-sm"
                             onClick={() => handleDownloadPdf(doc)}
-                            className="p-2 text-[var(--color-gray-600)] hover:text-[var(--color-green-deep)] rounded-lg hover:bg-[var(--color-gray-100)] transition-colors"
                             title="Baixar PDF"
+                            className="h-10 w-10 rounded-xl"
                           >
-                            <Download size={17} />
-                          </button>
+                            <Download size={16} />
+                          </Button>
                         </div>
                       </div>
                     );
@@ -559,19 +577,19 @@ export const PatientDocumentsModal: React.FC<PatientDocumentsModalProps> = ({
             </div>
           ) : (
             /* TAB: CRIAR NOVO DOCUMENTO */
-            <div className="space-y-6">
+            <div className="space-y-7">
               {/* Seleção do Tipo de Documento */}
-              <div>
-                <label className="block text-xs font-bold text-[var(--color-gray-700)] mb-2 uppercase tracking-wide">
+              <div className="space-y-3">
+                <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider">
                   1. Escolha o Tipo de Documento
                 </label>
-                <div className="grid grid-cols-2 md:grid-cols-5 gap-2.5">
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3.5">
                   {[
                     { id: "TCLE", label: "Termo TCLE", icon: ShieldCheck, desc: "Consentimento informado" },
                     { id: "ATESTADO", label: "Atestado", icon: FileCheck, desc: "Repouso ou comparecimento" },
                     { id: "RECEITUARIO", label: "Prescrição", icon: Pill, desc: "Receita médica timbrada" },
                     { id: "RECIBO", label: "Recibo", icon: DollarSign, desc: "Comprovante de pagamento" },
-                    { id: "CONTRATO", label: "Contrato 360", icon: FileText, desc: "Contrato Saúde 360" },
+                    { id: "CONTRATO", label: "Contrato 360®", icon: FileText, desc: "Contrato Saúde 360®" },
                   ].map((t) => {
                     const isSelected = docType === t.id;
                     const Icon = t.icon;
@@ -580,15 +598,23 @@ export const PatientDocumentsModal: React.FC<PatientDocumentsModalProps> = ({
                         key={t.id}
                         type="button"
                         onClick={() => setDocType(t.id as ClinicalDocumentType)}
-                        className={`p-3 rounded-xl border text-left transition-all ${
+                        className={`p-4 rounded-2xl border text-left transition-all cursor-pointer ${
                           isSelected
-                            ? "border-[var(--color-green-deep)] bg-[var(--color-green-soft)]/20 shadow-sm"
-                            : "border-[var(--color-gray-200)] bg-white hover:border-[var(--color-gray-300)]"
+                            ? "border-emerald-600 bg-emerald-50/70 ring-3 ring-emerald-600/15 shadow-xs"
+                            : "border-slate-200/90 bg-white hover:border-slate-300 hover:bg-slate-50/50"
                         }`}
                       >
-                        <Icon size={20} className={isSelected ? "text-[var(--color-green-deep)]" : "text-[var(--color-gray-500)]"} />
-                        <div className="mt-2 font-bold text-xs text-[var(--color-gray-900)]">{t.label}</div>
-                        <div className="text-[10px] text-[var(--color-gray-500)] truncate">{t.desc}</div>
+                        <div
+                          className={`w-10 h-10 rounded-xl flex items-center justify-center ${
+                            isSelected
+                              ? "bg-emerald-700 text-white"
+                              : "bg-slate-100 text-slate-600"
+                          }`}
+                        >
+                          <Icon size={20} />
+                        </div>
+                        <div className="mt-3 font-bold text-sm text-slate-900">{t.label}</div>
+                        <div className="text-xs text-slate-500 mt-0.5 truncate">{t.desc}</div>
                       </button>
                     );
                   })}
@@ -596,26 +622,33 @@ export const PatientDocumentsModal: React.FC<PatientDocumentsModalProps> = ({
               </div>
 
               {/* Formulário Específico por Tipo */}
-              <div className="p-5 bg-white rounded-xl border border-[var(--color-gray-200)] space-y-4">
-                <div className="flex items-center justify-between border-b border-[var(--color-gray-100)] pb-3">
-                  <h3 className="text-sm font-bold text-[var(--color-gray-900)]">
-                    2. Dados do Documento: <span className="text-[var(--color-green-deep)]">{docType}</span>
+              <div className="p-6 sm:p-7 bg-white rounded-3xl border border-slate-200/90 shadow-2xs space-y-5">
+                <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-4">
+                  <h3 className="text-base font-bold text-slate-900">
+                    2. Dados do Documento:{" "}
+                    <span className="text-emerald-700">{docType}</span>
                   </h3>
-                  <Badge variant="neutral" size="sm">Papel Timbrado Oficial Dra. Ana Morong</Badge>
+                  <Badge variant="emerald" size="md">
+                    Papel Timbrado Oficial Dra. Ana Morong
+                  </Badge>
                 </div>
 
                 {docType === "CONTRATO" ? (
-                  <div className="py-6 text-center space-y-3">
-                    <FileText size={44} className="mx-auto text-[var(--color-green-deep)]" />
-                    <h4 className="text-sm font-bold text-[var(--color-gray-800)]">
-                      Contrato de Prestação de Serviços (Programa Saúde 360®)
-                    </h4>
-                    <p className="text-xs text-[var(--color-gray-600)] max-w-md mx-auto">
-                      O sistema possui o gerador completo de contratos dos programas da Dra. Ana (Restart 3M, Evolution 6M, Signature 12M e Personalizado) com suporte a DOCX, PDF e carimbo de assinatura.
-                    </p>
+                  <div className="py-8 text-center space-y-4">
+                    <div className="w-16 h-16 rounded-2xl bg-emerald-50 border border-emerald-200/80 text-emerald-700 flex items-center justify-center mx-auto">
+                      <FileText size={32} />
+                    </div>
+                    <div className="space-y-1.5">
+                      <h4 className="text-base font-bold text-slate-900">
+                        Contrato de Prestação de Serviços (Programa Saúde 360®)
+                      </h4>
+                      <p className="text-sm text-slate-500 max-w-lg mx-auto leading-relaxed">
+                        O sistema possui o Estúdio de Contratos completo dos programas da Dra. Ana (Restart 3M, Evolution 6M, Signature 12M e Personalizado) com suporte a DOCX, PDF e assinatura posicionável.
+                      </p>
+                    </div>
                     <Button
                       variant="primary"
-                      size="sm"
+                      size="md"
                       onClick={() => {
                         if (onOpenContractPreparation) {
                           onClose();
@@ -624,16 +657,15 @@ export const PatientDocumentsModal: React.FC<PatientDocumentsModalProps> = ({
                           alert("Acesse a aba 'Documentos e Contratos' no prontuário do paciente.");
                         }
                       }}
-                      className="gap-2"
+                      leftIcon={<Plus size={18} />}
                     >
-                      <Plus size={16} />
-                      Abrir Preparador do Contrato Saúde 360
+                      Abrir Estúdio de Contratos Saúde 360®
                     </Button>
                   </div>
                 ) : docType === "TCLE" ? (
-                  <div className="space-y-3">
-                    <div>
-                      <label className="block text-xs font-semibold text-[var(--color-gray-700)] mb-1">
+                  <div className="space-y-4">
+                    <div className="space-y-1.5">
+                      <label className="block text-xs sm:text-[13px] font-semibold text-slate-700">
                         Nome do Procedimento / Tratamento
                       </label>
                       <Input
@@ -643,8 +675,8 @@ export const PatientDocumentsModal: React.FC<PatientDocumentsModalProps> = ({
                       />
                     </div>
 
-                    <div>
-                      <label className="block text-xs font-semibold text-[var(--color-gray-700)] mb-1">
+                    <div className="space-y-1.5">
+                      <label className="block text-xs sm:text-[13px] font-semibold text-slate-700">
                         Descrição e Objetivos do Procedimento
                       </label>
                       <Textarea
@@ -654,8 +686,8 @@ export const PatientDocumentsModal: React.FC<PatientDocumentsModalProps> = ({
                       />
                     </div>
 
-                    <div>
-                      <label className="block text-xs font-semibold text-[var(--color-gray-700)] mb-1">
+                    <div className="space-y-1.5">
+                      <label className="block text-xs sm:text-[13px] font-semibold text-slate-700">
                         Riscos Potenciais e Orientações Pós-Procedimento
                       </label>
                       <Textarea
@@ -666,26 +698,25 @@ export const PatientDocumentsModal: React.FC<PatientDocumentsModalProps> = ({
                     </div>
                   </div>
                 ) : docType === "ATESTADO" ? (
-                  <div className="space-y-3">
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <label className="block text-xs font-semibold text-[var(--color-gray-700)] mb-1">
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div className="space-y-1.5">
+                        <label className="block text-xs sm:text-[13px] font-semibold text-slate-700">
                           Finalidade do Atestado
                         </label>
-                        <select
+                        <Select
                           value={atestadoData.type}
                           onChange={(e) => setAtestadoData({ ...atestadoData, type: e.target.value as any })}
-                          className="w-full text-xs rounded-lg border border-[var(--color-gray-300)] p-2 bg-white"
                         >
                           <option value="comparecimento">Atestado de Comparecimento</option>
                           <option value="repouso">Atestado de Repouso / Afastamento</option>
                           <option value="aptidao">Atestado de Aptidão Clínica</option>
-                        </select>
+                        </Select>
                       </div>
 
                       {atestadoData.type === "repouso" ? (
-                        <div>
-                          <label className="block text-xs font-semibold text-[var(--color-gray-700)] mb-1">
+                        <div className="space-y-1.5">
+                          <label className="block text-xs sm:text-[13px] font-semibold text-slate-700">
                             Número de Dias de Repouso
                           </label>
                           <Input
@@ -697,8 +728,8 @@ export const PatientDocumentsModal: React.FC<PatientDocumentsModalProps> = ({
                           />
                         </div>
                       ) : (
-                        <div>
-                          <label className="block text-xs font-semibold text-[var(--color-gray-700)] mb-1">
+                        <div className="space-y-1.5">
+                          <label className="block text-xs sm:text-[13px] font-semibold text-slate-700">
                             Período / Horário de Comparecimento
                           </label>
                           <Input
@@ -710,8 +741,8 @@ export const PatientDocumentsModal: React.FC<PatientDocumentsModalProps> = ({
                       )}
                     </div>
 
-                    <div>
-                      <label className="block text-xs font-semibold text-[var(--color-gray-700)] mb-1">
+                    <div className="space-y-1.5">
+                      <label className="block text-xs sm:text-[13px] font-semibold text-slate-700">
                         CID / Justificativa Diagnóstica (Opcional - com anuência do paciente)
                       </label>
                       <Input
@@ -721,8 +752,8 @@ export const PatientDocumentsModal: React.FC<PatientDocumentsModalProps> = ({
                       />
                     </div>
 
-                    <div>
-                      <label className="block text-xs font-semibold text-[var(--color-gray-700)] mb-1">
+                    <div className="space-y-1.5">
+                      <label className="block text-xs sm:text-[13px] font-semibold text-slate-700">
                         Instruções ou Observações Adicionais
                       </label>
                       <Input
@@ -732,28 +763,30 @@ export const PatientDocumentsModal: React.FC<PatientDocumentsModalProps> = ({
                     </div>
                   </div>
                 ) : docType === "RECEITUARIO" ? (
-                  <div className="space-y-3">
-                    <label className="block text-xs font-semibold text-[var(--color-gray-700)]">
+                  <div className="space-y-4">
+                    <label className="block text-xs sm:text-[13px] font-semibold text-slate-700">
                       Medicamentos e Itens Prescritos
                     </label>
 
                     {receitaItems.map((item, idx) => (
-                      <div key={idx} className="p-3 bg-[var(--color-gray-50)] rounded-lg border border-[var(--color-gray-200)] space-y-2 relative">
+                      <div key={idx} className="p-4 bg-slate-50/80 rounded-2xl border border-slate-200/90 space-y-3 relative">
                         <div className="flex items-center justify-between">
-                          <span className="text-xs font-bold text-[var(--color-green-deep)]">Item #{idx + 1}</span>
+                          <span className="text-xs font-bold text-emerald-800 bg-emerald-50 border border-emerald-200/70 px-2.5 py-0.5 rounded-lg">
+                            Item #{idx + 1}
+                          </span>
                           {receitaItems.length > 1 && (
                             <button
                               type="button"
                               onClick={() => setReceitaItems(receitaItems.filter((_, i) => i !== idx))}
-                              className="text-red-500 hover:text-red-700 p-1"
+                              className="text-rose-500 hover:text-rose-700 hover:bg-rose-50 p-1.5 rounded-lg transition-colors cursor-pointer"
                               title="Remover item"
                             >
-                              <Trash2 size={14} />
+                              <Trash2 size={15} />
                             </button>
                           )}
                         </div>
 
-                        <div className="grid grid-cols-2 gap-2">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                           <Input
                             placeholder="Nome do Medicamento / Suplemento"
                             value={item.name}
@@ -791,14 +824,13 @@ export const PatientDocumentsModal: React.FC<PatientDocumentsModalProps> = ({
                       variant="secondary"
                       size="sm"
                       onClick={() => setReceitaItems([...receitaItems, { name: "", dosage: "", instructions: "" }])}
-                      className="gap-1.5"
+                      leftIcon={<Plus size={15} />}
                     >
-                      <Plus size={14} />
                       Adicionar Outro Medicamento
                     </Button>
 
-                    <div>
-                      <label className="block text-xs font-semibold text-[var(--color-gray-700)] mb-1">
+                    <div className="space-y-1.5 pt-1">
+                      <label className="block text-xs sm:text-[13px] font-semibold text-slate-700">
                         Recomendações Gerais ao Paciente
                       </label>
                       <Input
@@ -809,10 +841,10 @@ export const PatientDocumentsModal: React.FC<PatientDocumentsModalProps> = ({
                   </div>
                 ) : (
                   /* RECIBO */
-                  <div className="space-y-3">
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <label className="block text-xs font-semibold text-[var(--color-gray-700)] mb-1">
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div className="space-y-1.5">
+                        <label className="block text-xs sm:text-[13px] font-semibold text-slate-700">
                           Valor Cobrado (R$)
                         </label>
                         <Input
@@ -831,26 +863,25 @@ export const PatientDocumentsModal: React.FC<PatientDocumentsModalProps> = ({
                         />
                       </div>
 
-                      <div>
-                        <label className="block text-xs font-semibold text-[var(--color-gray-700)] mb-1">
+                      <div className="space-y-1.5">
+                        <label className="block text-xs sm:text-[13px] font-semibold text-slate-700">
                           Forma de Pagamento
                         </label>
-                        <select
+                        <Select
                           value={reciboData.paymentMethod}
                           onChange={(e) => setReciboData({ ...reciboData, paymentMethod: e.target.value })}
-                          className="w-full text-xs rounded-lg border border-[var(--color-gray-300)] p-2 bg-white"
                         >
                           <option value="PIX">PIX</option>
                           <option value="Cartão de Crédito">Cartão de Crédito</option>
                           <option value="Cartão de Débito">Cartão de Débito</option>
                           <option value="Transferência Bancária">Transferência Bancária</option>
                           <option value="Dinheiro">Dinheiro</option>
-                        </select>
+                        </Select>
                       </div>
                     </div>
 
-                    <div>
-                      <label className="block text-xs font-semibold text-[var(--color-gray-700)] mb-1">
+                    <div className="space-y-1.5">
+                      <label className="block text-xs sm:text-[13px] font-semibold text-slate-700">
                         Valor por Extenso
                       </label>
                       <Input
@@ -860,8 +891,8 @@ export const PatientDocumentsModal: React.FC<PatientDocumentsModalProps> = ({
                       />
                     </div>
 
-                    <div>
-                      <label className="block text-xs font-semibold text-[var(--color-gray-700)] mb-1">
+                    <div className="space-y-1.5">
+                      <label className="block text-xs sm:text-[13px] font-semibold text-slate-700">
                         Discriminação dos Serviços Médicos Prestados
                       </label>
                       <Textarea
@@ -876,10 +907,10 @@ export const PatientDocumentsModal: React.FC<PatientDocumentsModalProps> = ({
 
               {/* Ações de Emissão */}
               {docType !== "CONTRATO" && (
-                <div className="flex items-center justify-end gap-3 pt-2">
+                <div className="flex items-center justify-end gap-3 pt-1">
                   <Button
-                    variant="ghost"
-                    size="sm"
+                    variant="secondary"
+                    size="md"
                     onClick={() => setActiveTab("list")}
                   >
                     Cancelar
@@ -887,22 +918,15 @@ export const PatientDocumentsModal: React.FC<PatientDocumentsModalProps> = ({
 
                   <Button
                     variant="primary"
-                    size="sm"
+                    size="lg"
+                    isLoading={isSubmitting}
                     onClick={handleCreateDocument}
                     disabled={isSubmitting || !currentPatient.id}
-                    className="gap-2"
+                    leftIcon={<FileCheck size={18} />}
                   >
-                    {isSubmitting ? (
-                      <>
-                        <div className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full" />
-                        Gerando Documento...
-                      </>
-                    ) : (
-                      <>
-                        <FileCheck size={16} />
-                        Gerar e Salvar no Prontuário
-                      </>
-                    )}
+                    {isSubmitting
+                      ? "Gerando Documento..."
+                      : "Gerar e Salvar no Prontuário"}
                   </Button>
                 </div>
               )}
@@ -912,31 +936,34 @@ export const PatientDocumentsModal: React.FC<PatientDocumentsModalProps> = ({
 
         {/* Modal de Preview do PDF Embutido */}
         {previewPdfUrl && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in">
-            <div className="bg-white rounded-2xl w-full max-w-4xl h-[90vh] flex flex-col overflow-hidden shadow-2xl">
-              <div className="flex items-center justify-between px-6 py-3 border-b border-[var(--color-gray-200)] bg-[var(--color-gray-50)]">
-                <div className="flex items-center gap-2">
-                  <FileText size={20} className="text-[var(--color-green-deep)]" />
-                  <span className="font-bold text-sm text-[var(--color-gray-900)]">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-slate-950/75 backdrop-blur-xs animate-fade-in">
+            <div className="bg-white rounded-3xl w-full max-w-5xl h-[90vh] flex flex-col overflow-hidden shadow-2xl border border-slate-200/90">
+              <div className="flex items-center justify-between px-6 sm:px-8 py-4 border-b border-slate-100 bg-white">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-emerald-50 border border-emerald-200/70 flex items-center justify-center text-emerald-700">
+                    <FileText size={18} />
+                  </div>
+                  <span className="font-bold text-sm sm:text-base text-slate-900">
                     Visualização: {previewDocTitle}
                   </span>
                 </div>
                 <button
+                  type="button"
                   onClick={() => {
                     URL.revokeObjectURL(previewPdfUrl);
                     setPreviewPdfUrl(null);
                   }}
-                  className="p-1.5 text-[var(--color-gray-500)] hover:text-[var(--color-gray-800)] rounded-lg hover:bg-[var(--color-gray-200)]"
+                  className="h-10 w-10 flex items-center justify-center text-slate-400 hover:text-slate-800 rounded-xl hover:bg-slate-100 transition-colors cursor-pointer"
                 >
-                  <X size={18} />
+                  <X size={20} />
                 </button>
               </div>
 
-              <div className="flex-1 bg-slate-100 p-2">
+              <div className="flex-1 bg-slate-100/90 p-3 sm:p-5">
                 <iframe
                   src={previewPdfUrl}
                   title="PDF Preview"
-                  className="w-full h-full rounded-lg border border-[var(--color-gray-200)] bg-white"
+                  className="w-full h-full rounded-2xl border border-slate-200/90 bg-white shadow-xs"
                 />
               </div>
             </div>

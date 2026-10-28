@@ -230,7 +230,9 @@ export class SignatureDocumentsService {
   }
 
   /**
-   * Sincroniza o documento assinado com o Google Drive e dispara e-mail com a via em anexo
+   * Sincroniza o documento assinado com o Google Drive e dispara e-mail com a via em anexo.
+   * Possui contingência automática: caso o Worker retorne 502/503/504 ou delegue documentos
+   * extensos (fallback_client), realiza o upload direto do navegador para o Google Apps Script.
    */
   public static async syncDocumentToDrive(documentId: string): Promise<{
     success: boolean;
@@ -243,6 +245,24 @@ export class SignatureDocumentsService {
     if (isTauri()) {
       return documentsRepository.syncDocumentToDrive(documentId);
     }
+
+    const runBrowserDirectFallback = async (upstreamReason?: string) => {
+      try {
+        const pdfRes = await this.getDocumentPdf(documentId);
+        return await documentsRepository.syncDocumentToDrive(
+          documentId,
+          pdfRes.pdf_base64 || undefined
+        );
+      } catch (fallbackErr: any) {
+        const fbMsg = fallbackErr?.message || String(fallbackErr);
+        if (fbMsg.includes("Ação inválida")) {
+          throw new Error(
+            "O Google Apps Script precisa ser atualizado no painel do Google (Ação inválida: saveSignedDocumentToDrive). Salve e crie uma Nova Versão da Implantação no Google Apps Script com o arquivo CodigoCompletoUnificado.gs."
+          );
+        }
+        throw new Error(fbMsg || upstreamReason || "Falha ao sincronizar com Google Drive.");
+      }
+    };
 
     try {
       const token = this.getAuthToken();
@@ -258,26 +278,46 @@ export class SignatureDocumentsService {
       try {
         data = await res.json();
       } catch {
-        // Ignora erro de parse caso corpo esteja vazio
+        // Resposta não-JSON (ex: Bad Gateway 502 do proxy quando PDF excede limites do Worker)
       }
 
       if (!res.ok) {
+        const shouldFallbackToClient =
+          Boolean(data?.fallback_client) ||
+          res.status === 502 ||
+          res.status === 503 ||
+          res.status === 504 ||
+          (res.status === 500 && !data?.error);
+
+        if (shouldFallbackToClient) {
+          console.warn(
+            `[syncDocumentToDrive] Status ${res.status} na API; acionando envio direto pelo navegador ao Google Apps Script.`
+          );
+          return await runBrowserDirectFallback(data?.error);
+        }
+
         let msg = data?.error || `Erro ${res.status} ao sincronizar com Google Drive.`;
         if (msg.includes("Ação inválida")) {
-          msg = "O Google Apps Script precisa ser atualizado no painel do Google (Ação inválida: saveSignedDocumentToDrive). Salve e crie uma Nova Versão da Implantação no Google Apps Script com o arquivo CodigoCompletoUnificado.gs.";
+          msg =
+            "O Google Apps Script precisa ser atualizado no painel do Google (Ação inválida: saveSignedDocumentToDrive). Salve e crie uma Nova Versão da Implantação no Google Apps Script com o arquivo CodigoCompletoUnificado.gs.";
         }
         throw new Error(msg);
       }
 
       return data;
     } catch (err: any) {
-      // Se já é um erro de negócio retornado pelo servidor, lança sem fallback indevido
-      if (err?.message && !err.message.includes("Failed to fetch") && !err.message.includes("NetworkError")) {
+      const message = err?.message || "";
+      const isNetworkFailure =
+        message.includes("Failed to fetch") ||
+        message.includes("NetworkError") ||
+        message.includes("Load failed");
+
+      if (!isNetworkFailure) {
         throw err;
       }
-      console.warn("Falha de rede via API, tentando fallback direto com Apps Script:", err);
-      // Fallback local via documentsRepository se estiver offline ou rota inexistente
-      return documentsRepository.syncDocumentToDrive(documentId);
+
+      console.warn("Falha de rede via API, tentando envio direto com Apps Script:", err);
+      return await runBrowserDirectFallback(message);
     }
   }
 
