@@ -674,33 +674,47 @@ import { PdfStampingEngine } from "../../src/services/signatures/pdfStampingEngi
 import { DoctorAutoSignVaultService } from "../../src/services/signatures/doctorAutoSignVault.service";
 import { PdfStampingEngineService } from "../../src/services/signatures/pdfStampingEngine.service";
 
-// Helper para obter configuração ativa do Apps Script (via env ou tabela settings)
+// Helper para obter configuração ativa do Apps Script (prioriza tabela settings atualizável na UI, com fallback para env)
 async function getGasConfig(env: Bindings): Promise<{ url: string | null; apiKey: string | null }> {
-  let url = typeof env.GAS_WEBAPP_URL === "string" && env.GAS_WEBAPP_URL.trim() ? env.GAS_WEBAPP_URL.trim() : null;
-  let apiKey = typeof env.GAS_INTERNAL_SECRET === "string" && env.GAS_INTERNAL_SECRET.trim() ? env.GAS_INTERNAL_SECRET.trim() : null;
+  let dbUrl: string | null = null;
+  let dbFallbackUrl: string | null = null;
+  let dbApiKey: string | null = null;
 
-  if ((!url || !apiKey) && env.DB) {
+  if (env.DB) {
     try {
       const rows = await env.DB.prepare(
         `SELECT clinic_id, key, value
          FROM settings
-         WHERE key IN ('appscript_api_url', 'appscript_api_key')
-         ORDER BY CASE WHEN clinic_id = 'ana-morong-clinic' THEN 0 ELSE 1 END`
+         WHERE key IN ('appscript_api_url', 'apps_script_url', 'appscript_api_key')
+         ORDER BY CASE WHEN clinic_id = 'ana-morong-clinic' THEN 0 ELSE 1 END, updated_at DESC`
       ).all<any>();
       for (const row of rows?.results || []) {
         const val = typeof row.value === "string" ? row.value.trim() : "";
         if (!val) continue;
-        if (row.key === "appscript_api_url" && !url) {
-          url = val;
-        }
-        if (row.key === "appscript_api_key" && !apiKey) {
-          apiKey = val;
+        if (row.key === "appscript_api_url" && !dbUrl) {
+          dbUrl = val;
+        } else if (row.key === "apps_script_url" && !dbFallbackUrl) {
+          dbFallbackUrl = val;
+        } else if (row.key === "appscript_api_key" && !dbApiKey) {
+          dbApiKey = val;
         }
       }
     } catch (e) {
       console.error("Erro ao ler settings do Apps Script:", e);
     }
   }
+
+  const envUrl =
+    typeof env.GAS_WEBAPP_URL === "string" && env.GAS_WEBAPP_URL.trim()
+      ? env.GAS_WEBAPP_URL.trim()
+      : null;
+  const envKey =
+    typeof env.GAS_INTERNAL_SECRET === "string" && env.GAS_INTERNAL_SECRET.trim()
+      ? env.GAS_INTERNAL_SECRET.trim()
+      : null;
+
+  let url = dbUrl || dbFallbackUrl || envUrl;
+  const apiKey = dbApiKey || envKey;
 
   if (url) {
     url = url.trim();
@@ -792,6 +806,14 @@ function extractReadableGasHtmlError(rawHtml: string, status: number): string {
 
   if (plainException) {
     return `Erro retornado pelo Google Apps Script: ${plainException}`;
+  }
+
+  if (status === 401 || status === 403) {
+    return (
+      `Acesso recusado pelo Google Apps Script (HTTP ${status} — Página não encontrada / Não autenticado). ` +
+      `Isso ocorre quando a implantação está configurada como "Qualquer pessoa com uma conta do Google" (access: ANYONE) em vez de "Qualquer pessoa" (access: ANYONE_ANONYMOUS), ou quando a URL /exec pertence a uma implantação arquivada/modo /dev. ` +
+      `No Apps Script, abra "Implantar > Gerenciar implantações", edite a implantação ativa (ícone de lápis), selecione "Quem pode acessar: Qualquer pessoa" e salve uma Nova versão.`
+    );
   }
 
   const titleMatch = rawHtml.match(/<title[^>]*>([\s\S]*?)<\/title>/i);

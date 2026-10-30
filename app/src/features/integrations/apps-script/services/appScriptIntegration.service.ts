@@ -93,6 +93,12 @@ export const appScriptIntegrationService = {
       clearTimeout(timeoutId);
 
       if (!response.ok) {
+        if (response.status === 401 || response.status === 403) {
+          throw new Error(
+            `Acesso recusado pelo Google Apps Script (HTTP ${response.status}). ` +
+            `Em "Implantar > Gerenciar implantações" no Apps Script, defina "Quem pode acessar: Qualquer pessoa" (ANYONE_ANONYMOUS) e confira se a URL /exec em Configurações > Integrações está ativa.`
+          );
+        }
         throw new Error(`HTTP Error: ${response.status} - ${response.statusText}`);
       }
 
