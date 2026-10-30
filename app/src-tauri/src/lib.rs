@@ -606,6 +606,12 @@ pub fn run() {
             sql: include_str!("../../src/lib/db/migrations/028_financial_loss_category.sql"),
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 29,
+            description: "029_patient_plans_lifecycle",
+            sql: include_str!("../../src/lib/db/migrations/029_patient_plans_lifecycle.sql"),
+            kind: MigrationKind::Up,
+        },
     ];
 
     tauri::Builder::default()

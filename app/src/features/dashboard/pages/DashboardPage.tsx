@@ -9,6 +9,7 @@ import { DashboardHeader } from "../components/DashboardHeader";
 import { DashboardKpiGrid } from "../components/DashboardKpiGrid";
 import { DashboardQuickActions } from "../components/DashboardQuickActions";
 import { DashboardRecentActivity } from "../components/DashboardRecentActivity";
+import { PlansSummaryBanner } from "@/features/plans/components/PlansSummaryBanner";
 
 function isoDate(date: Date): string {
   return date.toISOString().slice(0, 10);
@@ -103,6 +104,9 @@ export default function DashboardPage() {
         onCustomDateChange={handleCustomDateChange}
         onRefresh={() => query.refetch()}
       />
+
+      {/* Banner de Inteligência de Planos e Retenção Saúde 360® */}
+      <PlansSummaryBanner />
 
       <DashboardKpiGrid kpis={data.kpis} />
 

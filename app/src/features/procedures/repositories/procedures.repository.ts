@@ -43,8 +43,9 @@ class ProceduresRepository {
       INSERT INTO procedures (
         id, patient_id, protocol_id, appointment_id, application_plan_id, body_area_id, performed_at, status, 
         had_intercurrence, intercurrence_description, notes, evolution_text, responsible_user_id, finalized_at,
-        subtotal, discount_amount, discount_type, total_amount, payment_method, payment_status
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        subtotal, discount_amount, discount_type, total_amount, payment_method, payment_status,
+        patient_plan_id, plan_charge_mode
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `;
     await dbExecute(sql, [
       id,
@@ -66,7 +67,9 @@ class ProceduresRepository {
       data.discountType ?? 'fixed',
       data.totalAmount ?? 0,
       data.paymentMethod ?? null,
-      data.paymentStatus ?? 'pending'
+      data.paymentStatus ?? 'pending',
+      data.patientPlanId ?? null,
+      data.planChargeMode ?? null,
     ]);
     return id;
   }
@@ -93,6 +96,8 @@ class ProceduresRepository {
         total_amount = COALESCE(?, total_amount),
         payment_method = ?,
         payment_status = COALESCE(?, payment_status),
+        patient_plan_id = ?,
+        plan_charge_mode = ?,
         updated_at = datetime('now')
       WHERE id = ?
     `;
@@ -116,6 +121,8 @@ class ProceduresRepository {
       data.totalAmount,
       data.paymentMethod ?? null,
       data.paymentStatus,
+      data.patientPlanId ?? null,
+      data.planChargeMode ?? null,
       id
     ]);
   }
@@ -367,6 +374,8 @@ class ProceduresRepository {
       protocolName: r.protocolName,
       bodyAreaName: r.bodyAreaName,
       bodyAreaTechnicalName: r.bodyAreaTechnicalName,
+      patientPlanId: r.patient_plan_id,
+      planChargeMode: r.plan_charge_mode,
       isCorrected: Number(r.is_corrected || 0),
       correctedAt: r.corrected_at,
       correctionReason: r.correction_reason

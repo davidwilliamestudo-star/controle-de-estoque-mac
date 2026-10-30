@@ -144,6 +144,26 @@ async function verifySessionToken(token: string, secret = "dra-ana-secret-key-20
   }
 }
 
+/**
+ * Ciclo de vida do plano: contrato assinado => plano "aguardando pagamento".
+ * Fail-safe: nunca interrompe a assinatura (a tabela pode nao existir ainda).
+ * A ativacao (active) so ocorre apos confirmacao de pagamento.
+ */
+async function markPlanSignedForDocument(db: D1Database, documentId: string, nowIso: string): Promise<void> {
+  try {
+    await db
+      .prepare(
+        `UPDATE patient_plans
+         SET status = 'signed_pending_payment', closed_at = COALESCE(closed_at, ?), updated_at = ?
+         WHERE document_id = ? AND status IN ('draft','proposed') AND deleted_at IS NULL`
+      )
+      .bind(nowIso, nowIso, documentId)
+      .run();
+  } catch (err: any) {
+    console.warn("patient_plans: nao foi possivel marcar plano como assinado:", err?.message || err);
+  }
+}
+
 const app = new Hono<{ Bindings: Bindings }>().basePath("/api");
 
 // Headers de segurança HTTP recomendados (OWASP / LGPD)
@@ -2076,6 +2096,9 @@ app.post("/assinar/:token", async (c) => {
       doc.id
     ).run();
 
+    // 7.1 Plano vinculado ao contrato: assinado => aguardando pagamento (best-effort)
+    await markPlanSignedForDocument(c.env.DB, String(doc.id), nowUtc);
+
     // 8. Envia para o Google Apps Script (Drive + Gmail + Sheets)
     let driveFileId: string | null = null;
     let driveFileUrl: string | null = null;
@@ -2361,6 +2384,7 @@ app.post("/webhooks/signatures", async (c) => {
         break;
       }
       case "document.completed": {
+        await markPlanSignedForDocument(c.env.DB, documentId, nowUtc);
         await c.env.DB.prepare(
           `UPDATE documents
            SET status = 'completed',

@@ -68,6 +68,7 @@ const SettingsPage    = safeLazy(() => import("@/features/settings/pages/Setting
 const ImportExportPage = safeLazy(() => import("@/features/import-export/pages/ImportExportPage"));
 const BackupPage      = safeLazy(() => import("@/features/backup/pages/BackupPage"));
 const DocumentsPage   = safeLazy(() => import("@/features/documents/pages/DocumentsPage"));
+const PlansManagementPage = safeLazy(() => import("@/features/plans/pages/PlansManagementPage"));
 
 const FinancialDashboardPage = safeLazy(() => import("@/features/financial/pages/FinancialDashboardPage"));
 const ReceivablesPage = safeLazy(() => import("@/features/financial/pages/ReceivablesPage"));
@@ -393,6 +394,12 @@ const documentosRoute = createRoute({
   component: () => <DocumentsPage />,
 });
 
+const plansRoute = createRoute({
+  getParentRoute: () => shellRoute,
+  path: "/plans",
+  component: () => <PlansManagementPage />,
+});
+
 
 const routeTree = rootRoute.addChildren([
   loginRoute,
@@ -439,6 +446,7 @@ const routeTree = rootRoute.addChildren([
     backupRoute,
     documentsRoute,
     documentosRoute,
+    plansRoute,
   ]),
 ]);
 

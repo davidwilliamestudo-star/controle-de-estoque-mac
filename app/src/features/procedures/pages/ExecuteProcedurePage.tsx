@@ -21,6 +21,8 @@ import { ProcedureApplicationCard } from "../components/ProcedureApplicationCard
 import { ProcedureEvolutionPanel } from "../components/ProcedureEvolutionPanel";
 import { PatientProcedureHistory } from "../components/PatientProcedureHistory";
 import { FinancialCheckoutPanel } from "../components/FinancialCheckoutPanel";
+import { ProcedurePlanSelector, type PlanChargeMode } from "../components/ProcedurePlanSelector";
+import { useActivePatientPlan } from "@/features/plans/hooks/usePatientPlans";
 
 // Types
 import type { Procedure, ProcedureApplication } from "../types";
@@ -91,6 +93,9 @@ export default function ExecuteProcedurePage() {
   const hadIntercurrence = Boolean(watch("hadIntercurrence"));
   const intercurrenceDescription = watch("intercurrenceDescription");
   const notes = watch("notes");
+
+  const [planChargeMode, setPlanChargeMode] = useState<PlanChargeMode>("included");
+  const { data: activePlan } = useActivePatientPlan(patientId);
 
   // Load plan data
   useEffect(() => {
@@ -233,6 +238,8 @@ Procedimento registrado {{intercurrence_status}}.`;
         ...data,
         ...financialData,
         applicationPlanId,
+        patientPlanId: activePlan ? activePlan.id : null,
+        planChargeMode: activePlan ? planChargeMode : "full_price",
       },
       applications: applications.map(app => ({
         ...app,
@@ -434,6 +441,15 @@ Procedimento registrado {{intercurrence_status}}.`;
                       }}
                     />
                   )}
+                />
+              </div>
+
+              {/* Vínculo de Plano Saúde 360® */}
+              <div className="mt-3">
+                <ProcedurePlanSelector
+                  patientId={patientId}
+                  chargeMode={planChargeMode}
+                  onChangeChargeMode={setPlanChargeMode}
                 />
               </div>
             </div>

@@ -11,6 +11,7 @@ import { IntegrationLogsModal } from "@/features/integrations/apps-script/compon
 import { DoctorCertificateVaultModal } from "@/components/signatures/DoctorCertificateVaultModal";
 import { appScriptIntegrationService } from "@/features/integrations/apps-script/services/appScriptIntegration.service";
 import { checkinSyncService } from "@/features/integrations/apps-script/services/checkinSync.service";
+import { brevoSyncService, type BrevoSyncConfig, type BrevoAccountInfo } from "@/features/plans/services/brevoSync.service";
 
 export default function SettingsPage() {
   const { data: initialData, isLoading, error } = useSettings();
@@ -21,6 +22,36 @@ export default function SettingsPage() {
   const [isTestingConnection, setIsTestingConnection] = useState(false);
   const [isTestingEmail, setIsTestingEmail] = useState(false);
   const [isSyncingCheckins, setIsSyncingCheckins] = useState(false);
+
+  // Configuração Brevo CRM
+  const [brevoConfig, setBrevoConfig] = useState<BrevoSyncConfig>(() => brevoSyncService.getConfig());
+  const [isTestingBrevo, setIsTestingBrevo] = useState(false);
+  const [brevoAccount, setBrevoAccount] = useState<BrevoAccountInfo | null>(null);
+  const [brevoTestError, setBrevoTestError] = useState<string | null>(null);
+  const [brevoSaveSuccess, setBrevoSaveSuccess] = useState(false);
+
+  const handleTestBrevo = async () => {
+    setIsTestingBrevo(true);
+    setBrevoTestError(null);
+    setBrevoAccount(null);
+    try {
+      const res = await brevoSyncService.testConnection(brevoConfig.apiKey);
+      if (res.success && res.account) {
+        setBrevoAccount(res.account);
+        brevoSyncService.saveConfig(brevoConfig);
+      } else {
+        setBrevoTestError(res.error || "Falha ao validar conta Brevo.");
+      }
+    } finally {
+      setIsTestingBrevo(false);
+    }
+  };
+
+  const handleSaveBrevo = () => {
+    brevoSyncService.saveConfig(brevoConfig);
+    setBrevoSaveSuccess(true);
+    setTimeout(() => setBrevoSaveSuccess(false), 3000);
+  };
 
   const {
     register,
@@ -329,6 +360,93 @@ export default function SettingsPage() {
               <Link to="/settings/import-export" className="btn btn-secondary text-xs py-1 inline-flex items-center gap-1">
                 Acessar Módulo
               </Link>
+            </div>
+          </div>
+        </div>
+
+        {/* Integração Brevo (CRM & E-mails Transacionais) */}
+        <div className="card" id="brevo-integration">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-bold flex items-center gap-2" style={{ color: "var(--color-gray-900)" }}>
+              <CheckCircle2 size={20} className="text-emerald-700" /> Brevo CRM & E-mails de Planos
+            </h2>
+            {brevoAccount && (
+              <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-900 border border-emerald-300">
+                Conectado: {brevoAccount.email} ({brevoAccount.planType})
+              </span>
+            )}
+          </div>
+
+          <p className="text-xs text-gray-500 mb-5">
+            Sincroniza os contatos do funil de vendas, etapas de propostas e envia e-mails transacionais (ativação, renovação e lembretes de acompanhamento).
+          </p>
+
+          <div className="space-y-4">
+            <div className="form-group">
+              <label className="form-label text-sm font-medium">Chave de API do Brevo (v3 API Key)</label>
+              <input
+                type="password"
+                placeholder="xkeysib-..."
+                value={brevoConfig.apiKey || ""}
+                onChange={(e) => setBrevoConfig((prev) => ({ ...prev, apiKey: e.target.value }))}
+                className="form-control font-mono text-xs"
+              />
+              <p className="text-xs text-gray-400 mt-1">
+                Obtida em Brevo &gt; Configurações da Conta &gt; Chaves SMTP e API.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="form-group">
+                <label className="form-label text-sm font-medium">Nome do Remetente</label>
+                <input
+                  type="text"
+                  value={brevoConfig.senderName || ""}
+                  onChange={(e) => setBrevoConfig((prev) => ({ ...prev, senderName: e.target.value }))}
+                  placeholder="Dra. Ana Carla Morong"
+                  className="form-control text-xs"
+                />
+              </div>
+              <div className="form-group">
+                <label className="form-label text-sm font-medium">E-mail do Remetente</label>
+                <input
+                  type="email"
+                  value={brevoConfig.senderEmail || ""}
+                  onChange={(e) => setBrevoConfig((prev) => ({ ...prev, senderEmail: e.target.value }))}
+                  placeholder="contato@draanamorong.com.br"
+                  className="form-control text-xs"
+                />
+              </div>
+            </div>
+
+            {brevoTestError && (
+              <div className="p-3 rounded-lg bg-red-50 text-red-800 text-xs border border-red-200">
+                {brevoTestError}
+              </div>
+            )}
+
+            {brevoSaveSuccess && (
+              <div className="p-3 rounded-lg bg-emerald-50 text-emerald-800 text-xs border border-emerald-200 font-semibold">
+                Configurações do Brevo salvas com sucesso!
+              </div>
+            )}
+
+            <div className="flex flex-wrap gap-2 pt-2">
+              <button
+                type="button"
+                onClick={handleTestBrevo}
+                disabled={isTestingBrevo}
+                className="btn btn-secondary text-xs py-1.5"
+              >
+                {isTestingBrevo ? "Testando Credencial..." : "Testar Conexão Brevo"}
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveBrevo}
+                className="btn btn-primary text-xs py-1.5 bg-emerald-800 text-white"
+              >
+                Salvar Configurações
+              </button>
             </div>
           </div>
         </div>

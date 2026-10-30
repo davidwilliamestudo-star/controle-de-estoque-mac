@@ -20,6 +20,7 @@ import { ContractPreparationAndSignatureModal } from "@/components/contracts/Con
 import { PatientDocumentsModal } from "@/components/documents/PatientDocumentsModal";
 import { PatientDocumentsTab } from "../components/PatientDocumentsTab";
 import { PatientContractsMonitorTab } from "../components/PatientContractsMonitorTab";
+import { PatientPlanOverviewCard } from "@/features/plans/components/PatientPlanOverviewCard";
 
 // Tabs do prontuário
 type Tab = "overview" | "contracts" | "applications" | "history" | "evolutions" | "documents" | "medications" | "lots" | "areas";
@@ -171,6 +172,14 @@ export default function PatientRecordPage() {
         onPrepareContract={() => setIsContractModalOpen(true)}
         onOpenDocumentsModal={() => setIsDocumentsModalOpen(true)}
         onOpenContractMonitoring={() => setActiveTab("contracts")}
+      />
+
+      {/* Cartão de Inteligência e Ciclo de Vida do Plano Saúde 360® */}
+      <PatientPlanOverviewCard
+        patientId={record.id}
+        patientName={record.full_name}
+        patientPhone={record.phone}
+        onOpenContractStudio={() => setIsContractModalOpen(true)}
       />
 
       {record.alert_notes?.trim() && (

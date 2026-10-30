@@ -60,6 +60,7 @@ import {
   SignatureDocumentsService,
   CreatedDocumentSignerResult,
 } from '@/services/contracts/signatureDocuments.service';
+import { patientPlansRepository } from '@/features/plans/repositories/patientPlans.repository';
 import {
   Button,
   Badge,
@@ -221,6 +222,23 @@ const FormattedContractPreview: React.FC<{
   );
 };
 
+export const getDefaultIncludedProcedures = (planId: Saude360PlanId): number => {
+  switch (planId) {
+    case 'RESTART_3M':
+      return 6;
+    case 'EVOLUTION_6M':
+      return 12;
+    case 'SIGNATURE_12M':
+      return 24;
+    case 'LIFE_ANUAL':
+      return 12;
+    case 'MAPA_360':
+      return 0;
+    default:
+      return 6;
+  }
+};
+
 export const ContractPreparationAndSignatureModal: React.FC<
   ContractPreparationAndSignatureModalProps
 > = ({
@@ -259,6 +277,9 @@ export const ContractPreparationAndSignatureModal: React.FC<
   const [installmentsCount, setInstallmentsCount] = useState<number>(12);
   const [installmentNumericValue, setInstallmentNumericValue] = useState<number>(1111.0);
   const [pixDueDay, setPixDueDay] = useState<number>(10);
+  const [includedProceduresTotal, setIncludedProceduresTotal] = useState<number>(() =>
+    getDefaultIncludedProcedures('EVOLUTION_6M')
+  );
 
   // Formatação inicial de data de nascimento para padrão brasileiro se vier em YYYY-MM-DD
   const formattedInitialBirth = useMemo(() => {
@@ -402,6 +423,9 @@ export const ContractPreparationAndSignatureModal: React.FC<
     setTotalNumericValue(nextTotal);
     setInstallmentsCount(nextCount);
     setInstallmentNumericValue(nextInstallment);
+    if (planId !== selectedPlanId) {
+      setIncludedProceduresTotal(getDefaultIncludedProcedures(planId));
+    }
 
     const formattedTotal = formatMoneyBRL(nextTotal);
     const formattedInstallment = formatMoneyBRL(nextInstallment);
@@ -639,6 +663,36 @@ export const ContractPreparationAndSignatureModal: React.FC<
         verificationCode: result.verification_code,
         signers: result.signers,
       });
+
+      // Cria a proposta de Plano de Paciente (patient_plans) vinculada a este contrato
+      try {
+        const durationMonths =
+          selectedPlanId === 'RESTART_3M'
+            ? 3
+            : selectedPlanId === 'EVOLUTION_6M'
+            ? 6
+            : selectedPlanId === 'SIGNATURE_12M'
+            ? 12
+            : selectedPlanId === 'LIFE_ANUAL'
+            ? 12
+            : selectedPlanId === 'MAPA_360'
+            ? 1
+            : 6;
+
+        await patientPlansRepository.createProposal({
+          patientId: patient.id,
+          planKey: selectedPlanId,
+          planName: currentPlanMeta.name,
+          durationMonths,
+          totalValue: totalNumericValue,
+          paymentModality,
+          includedProceduresTotal,
+          documentId: result.document_id,
+          notes: `Proposta gerada via Estúdio de Contratos (${mode === 'in_person' ? 'Assinatura Presencial' : 'Link Remoto'})`,
+        });
+      } catch (planErr) {
+        console.warn('[handleSaveAndDispatch] Não foi possível vincular proposta de plano:', planErr);
+      }
 
       if (onDocumentCreated) {
         onDocumentCreated({
@@ -1349,6 +1403,38 @@ export const ContractPreparationAndSignatureModal: React.FC<
                               handleDirectTagEdit('valor_plano_extenso', e.target.value)
                             }
                           />
+                        </FormField>
+                      </div>
+
+                      {/* PACOTE DE APLICAÇÕES / SESSÕES INCLUSAS */}
+                      <div className="pt-4 border-t border-slate-100">
+                        <FormField
+                          label="Sessões de Aplicações / Injetáveis Inclusas no Plano"
+                          badge="Editável"
+                        >
+                          <div className="space-y-1.5">
+                            <div className="flex items-center gap-3">
+                              <Input
+                                type="number"
+                                min={0}
+                                max={100}
+                                value={includedProceduresTotal}
+                                onChange={(e) =>
+                                  setIncludedProceduresTotal(
+                                    Math.max(0, parseInt(e.target.value, 10) || 0)
+                                  )
+                                }
+                                className="max-w-[130px] font-bold text-emerald-950"
+                                mono
+                              />
+                              <span className="text-xs text-slate-600 font-medium">
+                                sessões inclusas contratadas (recomendado no catálogo: {getDefaultIncludedProcedures(selectedPlanId)} sessões)
+                              </span>
+                            </div>
+                            <p className="text-[11px] text-slate-500">
+                              Define a franquia do plano para controle automático na sala de aplicação. É possível ajustar individualmente conforme o caso clínico.
+                            </p>
+                          </div>
                         </FormField>
                       </div>
                     </section>

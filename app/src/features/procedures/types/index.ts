@@ -26,6 +26,9 @@ export interface Procedure {
   bodyAreaName?: string | null;
   bodyAreaTechnicalName?: string | null;
 
+  patientPlanId?: string | null;
+  planChargeMode?: 'included' | 'discounted_extra' | 'full_price' | null;
+
   isCorrected?: number;
   correctedAt?: string | null;
   correctionReason?: string | null;
