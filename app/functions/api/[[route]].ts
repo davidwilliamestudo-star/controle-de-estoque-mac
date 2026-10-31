@@ -10,6 +10,9 @@ type Bindings = {
   GAS_INTERNAL_SECRET?: string;
   WEBHOOK_HMAC_SECRET?: string;
   VAULT_MASTER_KEY?: string;
+  BREVO_API_KEY?: string;
+  BREVO_SENDER_EMAIL?: string;
+  BREVO_SENDER_NAME?: string;
 };
 
 // PBKDF2 Password Verification via native WebCrypto (C++/BoringSSL, ultra-rápido para Cloudflare Workers)
@@ -2454,6 +2457,265 @@ app.post("/webhooks/signatures", async (c) => {
   } catch (err: any) {
     console.error("[Webhook Signatures Error]:", err);
     return c.json({ error: err?.message || "Internal Server Error" }, 500);
+  }
+});
+
+// ──────────────────────────────────────────────────────────────────────────
+// ROTAS BREVO CRM & E-MAIL TRANSACIONAL
+// ──────────────────────────────────────────────────────────────────────────
+
+async function resolveBrevoConfig(env: Bindings, reqKey?: string | null): Promise<{
+  apiKey: string | null;
+  senderEmail: string;
+  senderName: string;
+}> {
+  let dbKey: string | null = null;
+  let dbEmail: string | null = null;
+  let dbName: string | null = null;
+
+  if (env.DB) {
+    try {
+      const rows = await env.DB.prepare(
+        `SELECT key, value FROM settings
+         WHERE key IN ('brevo_api_key', 'brevo_sender_email', 'brevo_sender_name')
+         ORDER BY CASE WHEN clinic_id = 'ana-morong-clinic' THEN 0 ELSE 1 END, updated_at DESC`
+      ).all<any>();
+      for (const row of rows?.results || []) {
+        const val = typeof row.value === "string" ? row.value.trim() : "";
+        if (!val) continue;
+        if (row.key === "brevo_api_key" && !dbKey) dbKey = val;
+        else if (row.key === "brevo_sender_email" && !dbEmail) dbEmail = val;
+        else if (row.key === "brevo_sender_name" && !dbName) dbName = val;
+      }
+    } catch (e) {
+      console.warn("Erro ao ler settings do Brevo:", e);
+    }
+  }
+
+  const apiKey = reqKey || dbKey || (env.BREVO_API_KEY ? env.BREVO_API_KEY.trim() : null);
+  const senderEmail = dbEmail || env.BREVO_SENDER_EMAIL || "contato@draanamorong.com.br";
+  const senderName = dbName || env.BREVO_SENDER_NAME || "Dra. Ana Carla Morong";
+
+  return { apiKey, senderEmail, senderName };
+}
+
+app.get("/brevo/test", async (c) => {
+  try {
+    const reqKey = c.req.header("api-key") || c.req.query("apiKey") || null;
+    const { apiKey } = await resolveBrevoConfig(c.env, reqKey);
+    if (!apiKey) {
+      return c.json({ success: false, error: "Chave do Brevo não configurada." }, 400);
+    }
+
+    const res = await fetch("https://api.brevo.com/v3/account", {
+      method: "GET",
+      headers: { "api-key": apiKey, accept: "application/json" },
+    });
+
+    if (!res.ok) {
+      const errData: any = await res.json().catch(() => null);
+      return c.json({ success: false, error: errData?.message || `Erro Brevo ${res.status}` }, res.status as any);
+    }
+
+    const data: any = await res.json();
+    return c.json({
+      success: true,
+      account: {
+        email: data.email,
+        firstName: data.firstName || "Clínica",
+        companyName: data.companyName || "Dra. Ana Carla Morong",
+        planType: data.plan?.[0]?.type || "Gratuito",
+        credits: data.plan?.[0]?.credits,
+      },
+    });
+  } catch (err: any) {
+    return c.json({ success: false, error: err?.message || String(err) }, 500);
+  }
+});
+
+app.post("/brevo/setup-attributes", async (c) => {
+  try {
+    const body: any = await c.req.json().catch(() => ({}));
+    const reqKey = c.req.header("api-key") || body?.apiKey || null;
+    const { apiKey } = await resolveBrevoConfig(c.env, reqKey);
+    if (!apiKey) {
+      return c.json({ success: false, error: "Chave do Brevo não configurada." }, 400);
+    }
+
+    const attributesToCreate: Array<{ name: string; type: "text" | "date" | "float" }> = [
+      { name: "PLANO_SAUDE360", type: "text" },
+      { name: "STATUS_PLANO", type: "text" },
+      { name: "TERMINO_PLANO", type: "text" },
+      { name: "DIAS_RESTANTES", type: "float" },
+      { name: "SESSOES_USADAS", type: "float" },
+      { name: "SESSOES_TOTAL", type: "float" },
+      { name: "VALOR_PLANO", type: "float" },
+      { name: "DATA_INICIO", type: "text" },
+    ];
+
+    const created: string[] = [];
+    const errors: string[] = [];
+
+    for (const attr of attributesToCreate) {
+      try {
+        const res = await fetch(`https://api.brevo.com/v3/contacts/attributes/normal/${attr.name}`, {
+          method: "POST",
+          headers: {
+            "api-key": apiKey,
+            "content-type": "application/json",
+            accept: "application/json",
+          },
+          body: JSON.stringify({ type: attr.type }),
+        });
+
+        if (res.ok || res.status === 201 || res.status === 204) {
+          created.push(attr.name);
+        } else {
+          const errData: any = await res.json().catch(() => null);
+          const msg = errData?.message || `Erro ${res.status}`;
+          if (msg.includes("already exist") || msg.includes("déjà") || res.status === 400) {
+            created.push(`${attr.name} (já existia)`);
+          } else {
+            errors.push(`${attr.name}: ${msg}`);
+          }
+        }
+      } catch (err: any) {
+        errors.push(`${attr.name}: ${err?.message}`);
+      }
+    }
+
+    return c.json({ success: errors.length === 0, created, errors });
+  } catch (err: any) {
+    return c.json({ success: false, error: err?.message || String(err) }, 500);
+  }
+});
+
+app.post("/brevo/sync-contact", async (c) => {
+  try {
+    const payload: any = await c.req.json().catch(() => null);
+    if (!payload || !payload.email) {
+      return c.json({ success: false, error: "E-mail do contato obrigatório." }, 400);
+    }
+
+    const reqKey = c.req.header("api-key") || payload.apiKey || null;
+    const { apiKey } = await resolveBrevoConfig(c.env, reqKey);
+    if (!apiKey) {
+      return c.json({ success: false, error: "Chave do Brevo não configurada." }, 400);
+    }
+
+    let smsPhone: string | undefined = undefined;
+    if (payload.phone) {
+      const digits = String(payload.phone).replace(/\D/g, "");
+      if (digits.length >= 10) {
+        smsPhone = digits.startsWith("55") ? `+${digits}` : `+55${digits}`;
+      }
+    }
+
+    const nameParts = (payload.fullName || "").trim().split(" ");
+    const firstName = nameParts[0] || "";
+    const lastName = nameParts.slice(1).join(" ") || "";
+
+    const bodyData: any = {
+      email: String(payload.email).trim().toLowerCase(),
+      attributes: {
+        NOME: firstName,
+        SOBRENOME: lastName,
+        SMS: smsPhone,
+        PLANO_SAUDE360: payload.planName || "Sem Plano Ativo",
+        STATUS_PLANO: payload.planStatus || "Sem Plano",
+        TERMINO_PLANO: payload.planEndDate || "",
+        DATA_INICIO: payload.planStartDate || "",
+        DIAS_RESTANTES: payload.daysRemaining ?? 0,
+        SESSOES_USADAS: payload.sessionsUsed ?? 0,
+        SESSOES_TOTAL: payload.includedSessions ?? 0,
+        VALOR_PLANO: payload.totalValue ?? 0,
+      },
+      updateEnabled: true,
+    };
+
+    if (payload.defaultListId) {
+      bodyData.listIds = [Number(payload.defaultListId)];
+    }
+
+    const res = await fetch("https://api.brevo.com/v3/contacts", {
+      method: "POST",
+      headers: {
+        "api-key": apiKey,
+        "content-type": "application/json",
+        accept: "application/json",
+      },
+      body: JSON.stringify(bodyData),
+    });
+
+    if (!res.ok && res.status !== 204 && res.status !== 201) {
+      if (res.status === 400) {
+        const putRes = await fetch(
+          `https://api.brevo.com/v3/contacts/${encodeURIComponent(bodyData.email)}`,
+          {
+            method: "PUT",
+            headers: {
+              "api-key": apiKey,
+              "content-type": "application/json",
+              accept: "application/json",
+            },
+            body: JSON.stringify({ attributes: bodyData.attributes }),
+          }
+        );
+        if (putRes.ok || putRes.status === 204) {
+          return c.json({ success: true, updated: true });
+        }
+      }
+      const errJson: any = await res.json().catch(() => null);
+      return c.json({ success: false, error: errJson?.message || `Erro Brevo ${res.status}` }, res.status as any);
+    }
+
+    const resData: any = await res.json().catch(() => ({}));
+    return c.json({ success: true, contactId: resData?.id ? String(resData.id) : undefined });
+  } catch (err: any) {
+    return c.json({ success: false, error: err?.message || String(err) }, 500);
+  }
+});
+
+app.post("/brevo/send-email", async (c) => {
+  try {
+    const payload: any = await c.req.json().catch(() => null);
+    if (!payload || !payload.toEmail || !payload.subject || !payload.htmlContent) {
+      return c.json({ success: false, error: "Parâmetros de e-mail incompletos (toEmail, subject, htmlContent)." }, 400);
+    }
+
+    const reqKey = c.req.header("api-key") || payload.apiKey || null;
+    const { apiKey, senderEmail, senderName } = await resolveBrevoConfig(c.env, reqKey);
+    if (!apiKey) {
+      return c.json({ success: false, error: "Chave do Brevo não configurada." }, 400);
+    }
+
+    const res = await fetch("https://api.brevo.com/v3/smtp/email", {
+      method: "POST",
+      headers: {
+        "api-key": apiKey,
+        "content-type": "application/json",
+        accept: "application/json",
+      },
+      body: JSON.stringify({
+        sender: {
+          name: payload.senderName || senderName,
+          email: payload.senderEmail || senderEmail,
+        },
+        to: [{ email: String(payload.toEmail).trim(), name: String(payload.toName || payload.toEmail).trim() }],
+        subject: payload.subject,
+        htmlContent: payload.htmlContent,
+      }),
+    });
+
+    if (!res.ok) {
+      const errJson: any = await res.json().catch(() => null);
+      return c.json({ success: false, error: errJson?.message || `Erro SMTP Brevo ${res.status}` }, res.status as any);
+    }
+
+    const resData: any = await res.json().catch(() => ({}));
+    return c.json({ success: true, messageId: resData?.messageId });
+  } catch (err: any) {
+    return c.json({ success: false, error: err?.message || String(err) }, 500);
   }
 });
 

@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Link } from "@tanstack/react-router";
-import { Settings, Save, Building2, Package, ShieldCheck, CalendarSync, ArrowRightLeft, PlayCircle, Camera, ScanSearch, KeyRound, CheckCircle2 } from "lucide-react";
+import { Settings, Save, Building2, Package, ShieldCheck, CalendarSync, ArrowRightLeft, PlayCircle, Camera, ScanSearch, KeyRound, CheckCircle2, Mail, RefreshCw, Sparkles, Sliders } from "lucide-react";
 
 import { settingsSchema, type SettingsFormData, type SettingsFormInput } from "../schemas/settings.schema";
 import { useOnboarding } from "@/features/onboarding/OnboardingContext";
@@ -29,6 +29,11 @@ export default function SettingsPage() {
   const [brevoAccount, setBrevoAccount] = useState<BrevoAccountInfo | null>(null);
   const [brevoTestError, setBrevoTestError] = useState<string | null>(null);
   const [brevoSaveSuccess, setBrevoSaveSuccess] = useState(false);
+  const [isSettingUpAttributes, setIsSettingUpAttributes] = useState(false);
+  const [attributeSetupResult, setAttributeSetupResult] = useState<{ success: boolean; created: string[]; errors: string[] } | null>(null);
+  const [isSyncingAll, setIsSyncingAll] = useState(false);
+  const [syncProgress, setSyncProgress] = useState<{ current: number; total: number } | null>(null);
+  const [syncSummary, setSyncSummary] = useState<{ total: number; synced: number; failed: number } | null>(null);
 
   const handleTestBrevo = async () => {
     setIsTestingBrevo(true);
@@ -51,6 +56,36 @@ export default function SettingsPage() {
     brevoSyncService.saveConfig(brevoConfig);
     setBrevoSaveSuccess(true);
     setTimeout(() => setBrevoSaveSuccess(false), 3000);
+  };
+
+  const handleSetupAttributes = async () => {
+    setIsSettingUpAttributes(true);
+    setAttributeSetupResult(null);
+    try {
+      const res = await brevoSyncService.setupCustomAttributes(brevoConfig.apiKey);
+      setAttributeSetupResult(res);
+    } catch (err: any) {
+      setAttributeSetupResult({ success: false, created: [], errors: [err.message] });
+    } finally {
+      setIsSettingUpAttributes(false);
+    }
+  };
+
+  const handleSyncAllPatients = async () => {
+    if (!window.confirm("Deseja sincronizar todos os pacientes com e-mail cadastrado para a sua conta do Brevo?")) return;
+    setIsSyncingAll(true);
+    setSyncProgress(null);
+    setSyncSummary(null);
+    try {
+      const summary = await brevoSyncService.syncAllPatients((current, total) => {
+        setSyncProgress({ current, total });
+      });
+      setSyncSummary(summary);
+    } catch (err: any) {
+      alert(`Falha na sincronização em massa: ${err.message}`);
+    } finally {
+      setIsSyncingAll(false);
+    }
   };
 
   const {
@@ -417,6 +452,103 @@ export default function SettingsPage() {
                   className="form-control text-xs"
                 />
               </div>
+            </div>
+
+            {/* Automações de Disparo */}
+            <div className="pt-2 border-t border-gray-100">
+              <label className="text-xs font-bold text-gray-700 block mb-2">Disparos Automáticos de E-mail Transacional</label>
+              <div className="space-y-2">
+                <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={brevoConfig.sendActivationEmailAuto !== false}
+                    onChange={(e) => setBrevoConfig((prev) => ({ ...prev, sendActivationEmailAuto: e.target.checked }))}
+                    className="rounded text-emerald-700 focus:ring-emerald-500"
+                  />
+                  <span>Enviar e-mail de Boas-vindas / Ativação ao confirmar pagamento do plano</span>
+                </label>
+                <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={!!brevoConfig.sendProposalEmailAuto}
+                    onChange={(e) => setBrevoConfig((prev) => ({ ...prev, sendProposalEmailAuto: e.target.checked }))}
+                    className="rounded text-emerald-700 focus:ring-emerald-500"
+                  />
+                  <span>Enviar e-mail com link de assinatura eletrônica ao gerar contrato/proposta</span>
+                </label>
+                <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={!!brevoConfig.sendRenewalEmailAuto}
+                    onChange={(e) => setBrevoConfig((prev) => ({ ...prev, sendRenewalEmailAuto: e.target.checked }))}
+                    className="rounded text-emerald-700 focus:ring-emerald-500"
+                  />
+                  <span>Enviar e-mail de aviso de renovação quando faltarem 14 dias para o término</span>
+                </label>
+              </div>
+            </div>
+
+            {/* Configuração de Atributos & Sincronização em Massa */}
+            <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h4 className="text-xs font-bold text-slate-800">Ferramentas de Sincronização CRM</h4>
+                  <p className="text-[11px] text-slate-500">
+                    Cria campos especiais no Brevo (PLANO_SAUDE360, STATUS_PLANO, DIAS_RESTANTES) e sincroniza a base.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={handleSetupAttributes}
+                  disabled={isSettingUpAttributes}
+                  className="btn btn-secondary text-xs py-1.5 flex items-center gap-1.5"
+                >
+                  <Sparkles size={14} className="text-amber-600" />
+                  {isSettingUpAttributes ? "Configurando Atributos..." : "Configurar Atributos no Brevo (1 Clique)"}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleSyncAllPatients}
+                  disabled={isSyncingAll}
+                  className="btn btn-secondary text-xs py-1.5 flex items-center gap-1.5"
+                >
+                  <RefreshCw size={14} className={isSyncingAll ? "animate-spin text-emerald-700" : "text-emerald-700"} />
+                  {isSyncingAll
+                    ? `Sincronizando ${syncProgress ? `${syncProgress.current}/${syncProgress.total}` : "..."}`
+                    : "Sincronizar Todos os Pacientes"}
+                </button>
+              </div>
+
+              {attributeSetupResult && (
+                <div className={`p-2.5 rounded-lg text-xs border ${attributeSetupResult.success ? 'bg-emerald-50 text-emerald-800 border-emerald-200' : 'bg-amber-50 text-amber-800 border-amber-200'}`}>
+                  <p className="font-semibold mb-1">
+                    {attributeSetupResult.success ? "Atributos configurados com sucesso no Brevo:" : "Resultado da configuração:"}
+                  </p>
+                  <div className="flex flex-wrap gap-1">
+                    {attributeSetupResult.created.map((attr, idx) => (
+                      <span key={idx} className="bg-white/80 px-2 py-0.5 rounded text-[10px] font-mono border">
+                        {attr}
+                      </span>
+                    ))}
+                  </div>
+                  {attributeSetupResult.errors.length > 0 && (
+                    <p className="text-[11px] text-red-600 mt-1">
+                      Avisos: {attributeSetupResult.errors.join(", ")}
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {syncSummary && (
+                <div className="p-2.5 rounded-lg bg-emerald-50 text-emerald-800 border border-emerald-200 text-xs font-medium">
+                  Sincronização concluída: {syncSummary.synced} de {syncSummary.total} contatos atualizados no Brevo
+                  {syncSummary.failed > 0 && ` (${syncSummary.failed} sem e-mail ou com falha)`}.
+                </div>
+              )}
             </div>
 
             {brevoTestError && (

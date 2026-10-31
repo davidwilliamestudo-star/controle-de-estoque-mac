@@ -20,8 +20,10 @@ import {
   PlayCircle,
   PauseCircle,
   ShieldCheck,
+  Mail,
 } from 'lucide-react';
 import { useNavigate } from '@tanstack/react-router';
+import { brevoSyncService } from '../services/brevoSync.service';
 import {
   useFollowupQueue,
   useRenewalQueue,
@@ -152,6 +154,71 @@ export default function PlansManagementPage() {
     window.open(`https://wa.me/${formattedPhone}?text=${message}`, '_blank');
   };
 
+  const [sendingEmailPlanId, setSendingEmailPlanId] = useState<string | null>(null);
+  const [emailBanner, setEmailBanner] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+
+  const showEmailBanner = (message: string, type: 'success' | 'error' = 'success') => {
+    setEmailBanner({ message, type });
+    setTimeout(() => setEmailBanner(null), 6000);
+  };
+
+  const handleSendFollowupEmail = async (item: any) => {
+    if (!item.patientEmail) {
+      alert(`O paciente ${item.patientName} não possui e-mail cadastrado no prontuário.`);
+      return;
+    }
+    if (!window.confirm(`Enviar e-mail oficial de acompanhamento da proposta para ${item.patientName} (${item.patientEmail})?`)) {
+      return;
+    }
+    setSendingEmailPlanId(item.id);
+    try {
+      const res = await brevoSyncService.sendFollowupEmail({
+        toEmail: item.patientEmail,
+        toName: item.patientName,
+        planName: item.planName,
+        customNote: item.notes || undefined,
+      });
+      if (res.success) {
+        showEmailBanner(`E-mail de acompanhamento enviado com sucesso para ${item.patientEmail}!`);
+      } else {
+        showEmailBanner(`Falha ao enviar e-mail: ${res.error}`, 'error');
+      }
+    } catch (err: any) {
+      showEmailBanner(`Erro ao enviar e-mail: ${err.message}`, 'error');
+    } finally {
+      setSendingEmailPlanId(null);
+    }
+  };
+
+  const handleSendRenewalEmail = async (item: any) => {
+    if (!item.patientEmail) {
+      alert(`O paciente ${item.patientName} não possui e-mail cadastrado no prontuário.`);
+      return;
+    }
+    if (!window.confirm(`Enviar e-mail oficial de aviso de renovação para ${item.patientName} (${item.patientEmail})?`)) {
+      return;
+    }
+    setSendingEmailPlanId(item.id);
+    try {
+      const res = await brevoSyncService.sendRenewalNoticeEmail({
+        toEmail: item.patientEmail,
+        toName: item.patientName,
+        planName: item.planName,
+        endDate: item.endDate || '',
+        daysRemaining: item.view?.daysRemaining ?? 0,
+      });
+      if (res.success) {
+        showEmailBanner(`Aviso de renovação enviado com sucesso para ${item.patientEmail}!`);
+      } else {
+        showEmailBanner(`Falha ao enviar aviso: ${res.error}`, 'error');
+      }
+    } catch (err: any) {
+      showEmailBanner(`Erro ao enviar aviso: ${err.message}`, 'error');
+    } finally {
+      setSendingEmailPlanId(null);
+    }
+  };
+
   return (
     <div className="space-y-6 pb-12">
       {/* Header com Identidade Visual Premium */}
@@ -169,6 +236,28 @@ export default function PlansManagementPage() {
           </p>
         </div>
       </div>
+
+      {emailBanner && (
+        <div
+          className={`p-4 rounded-xl border text-xs font-semibold flex items-center justify-between shadow-sm animate-in fade-in slide-in-from-top duration-300 ${
+            emailBanner.type === 'success'
+              ? 'bg-emerald-50 text-emerald-900 border-emerald-300'
+              : 'bg-red-50 text-red-900 border-red-300'
+          }`}
+        >
+          <div className="flex items-center gap-2">
+            <Mail className="w-4 h-4 text-emerald-700 shrink-0" />
+            <span>{emailBanner.message}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setEmailBanner(null)}
+            className="text-slate-400 hover:text-slate-600 text-sm ml-4"
+          >
+            ✕
+          </button>
+        </div>
+      )}
 
       {/* Cards de Métricas no Topo */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -394,6 +483,17 @@ export default function PlansManagementPage() {
 
                         <button
                           type="button"
+                          onClick={() => handleSendFollowupEmail(item)}
+                          disabled={sendingEmailPlanId === item.id}
+                          className="btn btn-secondary text-xs font-semibold flex items-center gap-1.5 px-3 py-2 rounded-xl"
+                          title={item.patientEmail ? `Enviar e-mail de acompanhamento para ${item.patientEmail}` : 'Sem e-mail cadastrado'}
+                        >
+                          <Mail className="w-3.5 h-3.5 text-emerald-800" />
+                          {sendingEmailPlanId === item.id ? 'Enviando...' : 'E-mail'}
+                        </button>
+
+                        <button
+                          type="button"
                           onClick={() => setSelectedPlanForFollowup(item)}
                           className="btn btn-secondary text-xs font-semibold flex items-center gap-1.5 px-3 py-2 rounded-xl"
                         >
@@ -557,6 +657,17 @@ export default function PlansManagementPage() {
                   </div>
 
                   <div className="flex items-center gap-2 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => handleSendRenewalEmail(item)}
+                      disabled={sendingEmailPlanId === item.id}
+                      className="btn btn-secondary text-xs font-semibold flex items-center gap-1.5 px-3 py-2 rounded-xl"
+                      title={item.patientEmail ? `Enviar aviso oficial para ${item.patientEmail}` : 'Sem e-mail cadastrado'}
+                    >
+                      <Mail className="w-3.5 h-3.5 text-amber-700" />
+                      {sendingEmailPlanId === item.id ? 'Enviando...' : 'Aviso por E-mail'}
+                    </button>
+
                     <button
                       type="button"
                       onClick={() => {

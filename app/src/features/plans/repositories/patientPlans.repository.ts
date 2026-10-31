@@ -4,6 +4,7 @@
  */
 import { dbSelect, dbExecute, dbTransaction } from "@/lib/db/sqlite";
 import { getStoredAuthSession } from "@/features/auth/session";
+import { brevoSyncService } from "../services/brevoSync.service";
 import {
   type PlanStatus,
   type PlanPause,
@@ -138,6 +139,80 @@ async function writeAudit(action: string, planId: string, description: string, b
   }
 }
 
+async function syncPlanToBrevoSafely(
+  planId: string,
+  event: "created" | "activated" | "lost" | "paused" | "resumed"
+): Promise<void> {
+  try {
+    const planRows = await dbSelect<Row>(
+      `SELECT pp.*, p.full_name AS patient_name, p.email AS patient_email, p.phone AS patient_phone
+       FROM patient_plans pp JOIN patients p ON p.id = pp.patient_id
+       WHERE pp.id = ? LIMIT 1`,
+      [planId]
+    );
+    const row = planRows[0];
+    if (!row || !row.patient_email) return;
+
+    const email = String(row.patient_email);
+    const fullName = String(row.patient_name || "");
+    const phone = row.patient_phone ? String(row.patient_phone) : undefined;
+    const planName = String(row.plan_name || "");
+    const planKey = String(row.plan_key || "");
+    const startDate = row.start_date ? String(row.start_date) : undefined;
+    const endDate = row.end_date ? String(row.end_date) : undefined;
+    const included = Number(row.included_procedures_total || 0);
+    const totalValue = Number(row.total_value || 0);
+
+    let daysRemaining: number | null = null;
+    if (endDate) {
+      daysRemaining = Math.max(0, Math.round((new Date(endDate).getTime() - Date.now()) / 86400000));
+    }
+
+    let statusLabel = "Sem Plano";
+    if (event === "created") statusLabel = "Proposta Aberta";
+    else if (event === "activated" || event === "resumed") statusLabel = "Ativo em Vigência";
+    else if (event === "lost") statusLabel = "Não Fechou / Perdido";
+    else if (event === "paused") statusLabel = "Pausado";
+
+    // CRM Upsert
+    brevoSyncService
+      .syncContact({
+        email,
+        fullName,
+        phone,
+        planName,
+        planKey,
+        planStatus: statusLabel,
+        planStartDate: startDate,
+        planEndDate: endDate,
+        daysRemaining,
+        includedSessions: included,
+        totalValue,
+      })
+      .catch((err) => console.warn("[BrevoSync] Erro assíncrono ao sincronizar contato:", err));
+
+    // Se for ativação e auto-envio estiver habilitado
+    if (event === "activated" && startDate && endDate) {
+      const config = brevoSyncService.getConfig();
+      if (config.sendActivationEmailAuto !== false) {
+        brevoSyncService
+          .sendActivationEmail({
+            toEmail: email,
+            toName: fullName,
+            planName,
+            durationMonths: Number(row.duration_months || 0),
+            startDate,
+            endDate,
+            includedProcedures: included,
+          })
+          .catch((err) => console.warn("[BrevoSync] Erro assíncrono ao disparar e-mail de ativação:", err));
+      }
+    }
+  } catch (err) {
+    console.warn("[BrevoSync] Falha silenciosa no sync do Brevo:", err);
+  }
+}
+
 export const patientPlansRepository = {
   async getById(planId: string): Promise<PatientPlan | null> {
     const rows = await dbSelect<Row>(
@@ -179,6 +254,7 @@ export const patientPlansRepository = {
       ]
     );
     await writeAudit("plan.created", id, `Proposta criada: ${input.planName}`, null, input);
+    syncPlanToBrevoSafely(id, "created");
     const created = await this.getById(id);
     if (!created) throw new Error("Falha ao criar o plano do paciente.");
     return created;
@@ -305,6 +381,7 @@ export const patientPlansRepository = {
       );
     });
     await writeAudit("plan.activated", planId, `Plano ativado (${startDate} a ${baseEndDate})`);
+    syncPlanToBrevoSafely(planId, "activated");
     return (await this.getById(planId))!;
   },
 
@@ -343,6 +420,7 @@ export const patientPlansRepository = {
       [reason.trim(), reactivation, notes?.trim() || null, planId]
     );
     await writeAudit("plan.lost", planId, `Proposta marcada como perdida: ${reason}`);
+    syncPlanToBrevoSafely(planId, "lost");
   },
 
   async reopenLost(planId: string): Promise<void> {
@@ -397,9 +475,9 @@ export const patientPlansRepository = {
   },
 
   /** Fila de contatos: propostas/renovacoes com contato vencido ou ate o fim do periodo informado. */
-  async listFollowupQueue(untilISO: string = `${todayISO()}T23:59:59`): Promise<Array<PatientPlan & { patientName: string; patientPhone?: string }>> {
+  async listFollowupQueue(untilISO: string = `${todayISO()}T23:59:59`): Promise<Array<PatientPlan & { patientName: string; patientPhone?: string; patientEmail?: string }>> {
     const rows = await dbSelect<Row>(
-      `SELECT pp.*, p.full_name AS patient_name, p.phone AS patient_phone
+      `SELECT pp.*, p.full_name AS patient_name, p.phone AS patient_phone, p.email AS patient_email
        FROM patient_plans pp JOIN patients p ON p.id = pp.patient_id
        WHERE pp.deleted_at IS NULL AND pp.next_followup_at IS NOT NULL
          AND pp.next_followup_at <= ?
@@ -410,6 +488,7 @@ export const patientPlansRepository = {
       ...mapPlan(r),
       patientName: String(r.patient_name),
       patientPhone: (r.patient_phone as string) || undefined,
+      patientEmail: (r.patient_email as string) || undefined,
     }));
   },
 
@@ -428,6 +507,7 @@ export const patientPlansRepository = {
       [crypto.randomUUID(), CLINIC_ID, planId, from, reason ?? null, getStoredAuthSession()?.userId ?? null]
     );
     await writeAudit("plan.paused", planId, `Plano pausado desde ${from}${reason ? `: ${reason}` : ""}`);
+    syncPlanToBrevoSafely(planId, "paused");
   },
 
   /** Retoma o plano e grava o novo fim efetivo. `to` e o ultimo dia pausado (inclusive). */
@@ -462,20 +542,38 @@ export const patientPlansRepository = {
       planId,
     ]);
     await writeAudit("plan.resumed", planId, `Plano retomado em ${to}; novo termino ${view.effectiveEndDate}`);
+    syncPlanToBrevoSafely(planId, "resumed");
   },
 
   /** Planos ativos na janela de renovacao (dashboard / lista de renovacoes). */
-  async listRenewalWindow(): Promise<Array<PatientPlanWithView & { patientName: string }>> {
+  async listRenewalWindow(): Promise<Array<PatientPlanWithView & { patientName: string; patientEmail?: string; patientPhone?: string }>> {
     const rows = await dbSelect<Row>(
-      `SELECT pp.*, p.full_name AS patient_name
+      `SELECT pp.*, p.full_name AS patient_name, p.email AS patient_email, p.phone AS patient_phone
        FROM patient_plans pp JOIN patients p ON p.id = pp.patient_id
        WHERE pp.status = 'active' AND pp.deleted_at IS NULL`
     );
-    const names = new Map(rows.map((r) => [String(r.id), String(r.patient_name)]));
+    const patientInfo = new Map(
+      rows.map((r) => [
+        String(r.id),
+        {
+          name: String(r.patient_name),
+          email: (r.patient_email as string) || undefined,
+          phone: (r.patient_phone as string) || undefined,
+        },
+      ])
+    );
     const withViews = await this.withViews(rows.map(mapPlan));
     return withViews
       .filter((p) => p.view.health === "renewal_window" || p.view.health === "expired")
       .sort((a, b) => (a.view.daysRemaining ?? 0) - (b.view.daysRemaining ?? 0))
-      .map((p) => ({ ...p, patientName: names.get(p.id) || "" }));
+      .map((p) => {
+        const info = patientInfo.get(p.id);
+        return {
+          ...p,
+          patientName: info?.name || "",
+          patientEmail: info?.email,
+          patientPhone: info?.phone,
+        };
+      });
   },
 };
