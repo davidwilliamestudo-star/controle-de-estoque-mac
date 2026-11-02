@@ -34,6 +34,14 @@ export default function SettingsPage() {
   const [isSyncingAll, setIsSyncingAll] = useState(false);
   const [syncProgress, setSyncProgress] = useState<{ current: number; total: number } | null>(null);
   const [syncSummary, setSyncSummary] = useState<{ total: number; synced: number; failed: number } | null>(null);
+  const [isSettingUpTemplates, setIsSettingUpTemplates] = useState(false);
+  const [templateSetupResult, setTemplateSetupResult] = useState<{
+    success: boolean;
+    totalTemplates: number;
+    created: string[];
+    updated: string[];
+    errors: string[];
+  } | null>(null);
 
   const handleTestBrevo = async () => {
     setIsTestingBrevo(true);
@@ -85,6 +93,25 @@ export default function SettingsPage() {
       alert(`Falha na sincronização em massa: ${err.message}`);
     } finally {
       setIsSyncingAll(false);
+    }
+  };
+
+  const handleSetupTemplates = async () => {
+    setIsSettingUpTemplates(true);
+    setTemplateSetupResult(null);
+    try {
+      const res = await brevoSyncService.setupOfficialTemplates(brevoConfig.apiKey);
+      setTemplateSetupResult(res);
+    } catch (err: any) {
+      setTemplateSetupResult({
+        success: false,
+        totalTemplates: 0,
+        created: [],
+        updated: [],
+        errors: [err.message || String(err)],
+      });
+    } finally {
+      setIsSettingUpTemplates(false);
     }
   };
 
@@ -538,6 +565,16 @@ export default function SettingsPage() {
 
                 <button
                   type="button"
+                  onClick={handleSetupTemplates}
+                  disabled={isSettingUpTemplates}
+                  className="btn btn-secondary text-xs py-1.5 flex items-center gap-1.5"
+                >
+                  <Mail size={14} className="text-emerald-700" />
+                  {isSettingUpTemplates ? "Instalando Templates..." : "Instalar Templates e Datas Comemorativas (1 Clique)"}
+                </button>
+
+                <button
+                  type="button"
                   onClick={handleSyncAllPatients}
                   disabled={isSyncingAll}
                   className="btn btn-secondary text-xs py-1.5 flex items-center gap-1.5"
@@ -548,6 +585,30 @@ export default function SettingsPage() {
                     : "Sincronizar Todos os Pacientes"}
                 </button>
               </div>
+
+              {templateSetupResult && (
+                <div className={`p-3 rounded-lg text-xs border ${templateSetupResult.success ? 'bg-emerald-50 text-emerald-900 border-emerald-200' : 'bg-amber-50 text-amber-900 border-amber-200'}`}>
+                  <div className="flex items-center gap-1.5 font-bold mb-1.5">
+                    <CheckCircle2 size={15} className="text-emerald-600" />
+                    <span>Templates de E-mail Instalados no Brevo ({templateSetupResult.totalTemplates} templates oficiais):</span>
+                  </div>
+                  <div className="flex flex-wrap gap-1 mb-2">
+                    {[...templateSetupResult.created, ...templateSetupResult.updated].map((tmpl, idx) => (
+                      <span key={idx} className="bg-white/90 px-2 py-0.5 rounded text-[11px] font-medium border text-slate-700">
+                        {tmpl}
+                      </span>
+                    ))}
+                  </div>
+                  <p className="text-[11px] text-emerald-800">
+                    Templates timbrados prontos para uso em <strong>Campanhas</strong> e <strong>Automações</strong> dentro de <em>app.brevo.com</em>.
+                  </p>
+                  {templateSetupResult.errors.length > 0 && (
+                    <p className="text-[11px] text-red-600 mt-1">
+                      Avisos: {templateSetupResult.errors.join(", ")}
+                    </p>
+                  )}
+                </div>
+              )}
 
               {attributeSetupResult && (
                 <div className={`p-2.5 rounded-lg text-xs border ${attributeSetupResult.success ? 'bg-emerald-50 text-emerald-800 border-emerald-200' : 'bg-amber-50 text-amber-800 border-amber-200'}`}>

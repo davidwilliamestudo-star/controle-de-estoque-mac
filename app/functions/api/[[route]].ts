@@ -2549,8 +2549,12 @@ app.post("/brevo/setup-attributes", async (c) => {
       { name: "DIAS_RESTANTES", type: "float" },
       { name: "SESSOES_USADAS", type: "float" },
       { name: "SESSOES_TOTAL", type: "float" },
+      { name: "SESSOES_RESTANTES", type: "float" },
       { name: "VALOR_PLANO", type: "float" },
       { name: "DATA_INICIO", type: "text" },
+      { name: "DATA_NASCIMENTO", type: "date" },
+      { name: "GENERO", type: "text" },
+      { name: "ULTIMA_VISITA", type: "date" },
     ];
 
     const created: string[] = [];
@@ -2639,12 +2643,17 @@ app.post("/brevo/sync-contact", async (c) => {
     const firstName = nameParts[0] || "";
     const lastName = nameParts.slice(1).join(" ") || "";
 
+    const sessionsTotal = Math.max(0, Math.round(Number(payload.includedSessions ?? 0))) || 0;
+    const sessionsUsed = Math.max(0, Math.round(Number(payload.sessionsUsed ?? 0))) || 0;
+    const sessionsRemaining = Math.max(0, sessionsTotal - sessionsUsed);
+
     const attributes: Record<string, any> = {
       PLANO_SAUDE360: payload.planName || "Sem Plano Ativo",
       STATUS_PLANO: payload.planStatus || "Sem Plano",
       DIAS_RESTANTES: Math.max(0, Math.round(Number(payload.daysRemaining ?? 0))) || 0,
-      SESSOES_USADAS: Math.max(0, Math.round(Number(payload.sessionsUsed ?? 0))) || 0,
-      SESSOES_TOTAL: Math.max(0, Math.round(Number(payload.includedSessions ?? 0))) || 0,
+      SESSOES_USADAS: sessionsUsed,
+      SESSOES_TOTAL: sessionsTotal,
+      SESSOES_RESTANTES: sessionsRemaining,
       VALOR_PLANO: Number(payload.totalValue ?? 0) || 0,
     };
 
@@ -2656,6 +2665,12 @@ app.post("/brevo/sync-contact", async (c) => {
     }
     if (payload.planEndDate && String(payload.planEndDate).trim()) {
       attributes.TERMINO_PLANO = String(payload.planEndDate).slice(0, 10);
+    }
+    if (payload.birthDate && String(payload.birthDate).trim()) {
+      attributes.DATA_NASCIMENTO = String(payload.birthDate).slice(0, 10);
+    }
+    if (payload.gender && String(payload.gender).trim()) {
+      attributes.GENERO = String(payload.gender).trim();
     }
 
     const bodyData: any = {
@@ -2782,6 +2797,270 @@ app.post("/brevo/send-email", async (c) => {
 
     const resData: any = await res.json().catch(() => ({}));
     return c.json({ success: true, messageId: resData?.messageId });
+  } catch (err: any) {
+    return c.json({ success: false, error: err?.message || String(err) }, 500);
+  }
+});
+
+function buildOfficialBrevoTemplateHtml(
+  title: string,
+  subtitle: string,
+  bodyHtml: string,
+  ctaText?: string,
+  ctaUrl?: string
+): string {
+  return `<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${title}</title>
+</head>
+<body style="margin: 0; padding: 0; background-color: #F8FAFC; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #1E293B;">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color: #F8FAFC; padding: 32px 16px;">
+    <tr>
+      <td align="center">
+        <table role="presentation" width="100%" style="max-width: 600px; background-color: #FFFFFF; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 16px rgba(0,0,0,0.06); border: 1px solid #E2E8F0;">
+          <tr>
+            <td style="background: linear-gradient(135deg, #064E3B 0%, #047857 100%); padding: 32px 28px; text-align: center;">
+              <h1 style="color: #FFFFFF; font-size: 20px; font-weight: 700; letter-spacing: 1px; margin: 0 0 6px 0; text-transform: uppercase;">
+                Dra. Ana Carla Morong
+              </h1>
+              <p style="color: #A7F3D0; font-size: 13px; font-weight: 500; margin: 0; letter-spacing: 0.5px;">
+                Medicina Integrativa • Emagrecimento Saudável • Longevidade
+              </p>
+            </td>
+          </tr>
+          <tr>
+            <td style="background-color: #F59E0B; height: 3px; line-height: 3px; font-size: 3px;">&nbsp;</td>
+          </tr>
+          <tr>
+            <td style="padding: 36px 32px 28px 32px;">
+              <h2 style="color: #064E3B; font-size: 19px; font-weight: 800; margin: 0 0 8px 0; line-height: 1.3;">
+                ${title}
+              </h2>
+              <p style="color: #64748B; font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin: 0 0 24px 0;">
+                ${subtitle}
+              </p>
+              <div style="font-size: 15px; line-height: 1.7; color: #334155;">
+                ${bodyHtml}
+              </div>
+              ${ctaText && ctaUrl ? `
+              <div style="text-align: center; margin: 36px 0 16px 0;">
+                <a href="${ctaUrl}" style="background: linear-gradient(135deg, #064E3B 0%, #047857 100%); color: #FFFFFF; text-decoration: none; padding: 15px 32px; font-size: 14px; font-weight: 700; border-radius: 12px; display: inline-block; box-shadow: 0 4px 12px rgba(6,78,59,0.25);">
+                  ${ctaText}
+                </a>
+              </div>
+              ` : ""}
+            </td>
+          </tr>
+          <tr>
+            <td style="background-color: #F1F5F9; padding: 24px 32px; border-top: 1px solid #E2E8F0; text-align: center;">
+              <p style="font-size: 13px; font-weight: 700; color: #064E3B; margin: 0 0 4px 0;">
+                Clínica Médica Dra. Ana Carla Morong
+              </p>
+              <p style="font-size: 12px; color: #64748B; margin: 0 0 12px 0;">
+                CRM/SC • Florianópolis - SC • WhatsApp: (48) 98857-2882
+              </p>
+              <p style="font-size: 11px; color: #94A3B8; margin: 0; line-height: 1.4;">
+                Você está recebendo este comunicado porque faz parte da base exclusiva de pacientes da Clínica Dra. Ana Carla Morong.<br>
+                <a href="{{ unsubscribe }}" style="color: #64748B; text-decoration: underline;">Descadastrar-se</a>
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+}
+
+app.post("/brevo/setup-templates", async (c) => {
+  try {
+    const body: any = await c.req.json().catch(() => ({}));
+    const reqKey = c.req.header("api-key") || body?.apiKey || null;
+    const { apiKey, senderEmail, senderName } = await resolveBrevoConfig(c.env, reqKey);
+    if (!apiKey) {
+      return c.json({ success: false, error: "Chave do Brevo não configurada." }, 400);
+    }
+
+    const templatesDefinition = [
+      {
+        name: "[Oficial] Aniversário do Paciente",
+        subject: "Parabéns pelo seu dia, {{ contact.NOME }}! Um presente especial da Dra. Ana 🎉",
+        title: "Feliz Aniversário, {{ contact.NOME }}!",
+        subtitle: "Celebrando sua vida, sua saúde e suas conquistas",
+        bodyHtml: `<p>Hoje é um dia verdadeiramente especial e toda a nossa equipe faz questão de celebrar junto com você!</p>
+        <p>Comemorar mais um ano de vida é também renovar o compromisso com o que temos de mais valioso: a nossa saúde, vitalidade e a alegria de viver plenamente.</p>
+        <div style="background-color: #FEF3C7; border: 1px solid #FCD34D; border-radius: 12px; padding: 20px; margin: 24px 0;">
+          <h4 style="margin: 0 0 8px 0; color: #92400E; font-size: 15px; font-weight: 800;">
+            🎁 Seu Presente Especial no Mês de Aniversário
+          </h4>
+          <p style="margin: 0; font-size: 13.5px; color: #78350F; line-height: 1.6;">
+            Durante todo o mês do seu aniversário, você tem direito a uma <strong>Bioimpedância Computadorizada de Alta Precisão cortesia</strong> aqui na clínica, ou uma condição exclusiva na continuidade do seu protocolo de acompanhamento.
+          </p>
+        </div>
+        <p>Desejamos que o seu novo ciclo seja repleto de energia, leveza e muitas vitórias!</p>
+        <p style="margin-top: 24px; font-weight: 700; color: #064E3B;">Com muito carinho,<br>Dra. Ana Carla Morong & Equipe</p>`,
+        ctaText: "Agendar Meu Presente no WhatsApp",
+        ctaUrl: "https://wa.me/5548988572882?text=Olá!%20Recebi%20minha%20mensagem%20de%20aniversário%20e%20gostaria%20de%20agendar%20meu%20presente!",
+      },
+      {
+        name: "[Comemorativo] Dia da Mulher",
+        subject: "{{ contact.NOME }}, sua saúde, força e bem-estar merecem celebração ✨",
+        title: "Dia Internacional da Mulher",
+        subtitle: "A força da mulher começa no cuidado com a própria saúde",
+        bodyHtml: `<p>Olá, <strong>{{ contact.NOME }}</strong>!</p>
+        <p>Neste Dia Internacional da Mulher, quero convidá-la a um momento de reflexão e carinho com você mesma.</p>
+        <p>Tantas vezes nos dedicamos à família, ao trabalho e a quem amamos, que o nosso próprio autocuidado acaba ficando em segundo plano. Mas a verdade é uma só: <strong>cuidar de você é o ponto de partida para cuidar de tudo ao seu redor</strong>.</p>
+        <p>Que o seu dia seja repleto de reconhecimento, e que a sua busca por equilíbrio hormonal, energia e vitalidade continue sendo a sua maior prioridade.</p>
+        <p style="margin-top: 24px; font-weight: 700; color: #064E3B;">Com estima e admiração,<br>Dra. Ana Carla Morong</p>`,
+        ctaText: "Falar com a Dra. Ana no WhatsApp",
+        ctaUrl: "https://wa.me/5548988572882?text=Olá!%20Gostaria%20de%20conversar%20sobre%20minha%20saúde.",
+      },
+      {
+        name: "[Comemorativo] Dia das Mães",
+        subject: "Cuidando com carinho de quem sempre cuidou de todos 🌸",
+        title: "Feliz Dia das Mães!",
+        subtitle: "O amor que cuida também merece ser cuidado",
+        bodyHtml: `<p>Olá, <strong>{{ contact.NOME }}</strong>!</p>
+        <p>A maternidade é a mais pura expressão de entrega e amor incondicional. Mas para cuidar com excelência de quem amamos, precisamos estar plenas de saúde, vitalidade e equilíbrio físico e emocional.</p>
+        <p>Neste Dia das Mães, celebre cada momento com a sua família e lembre-se: a sua saúde é a base de todas as memórias felizes do futuro.</p>
+        <p style="margin-top: 24px; font-weight: 700; color: #064E3B;">Um abraço afetuoso,<br>Dra. Ana Carla Morong & Equipe</p>`,
+        ctaText: "Agendar Consulta de Autocuidado",
+        ctaUrl: "https://wa.me/5548988572882?text=Olá!%20Gostaria%20de%20agendar%20minha%20consulta%20de%20autocuidado.",
+      },
+      {
+        name: "[Campanha] Outubro Rosa",
+        subject: "{{ contact.NOME }}, prevenir é o ato de amor mais nobre com a sua vida 🎀",
+        title: "Outubro Rosa: Conscientização e Longevidade",
+        subtitle: "Prevenção, diagnóstico precoce e equilíbrio metabólico",
+        bodyHtml: `<p>Olá, <strong>{{ contact.NOME }}</strong>!</p>
+        <p>O Outubro Rosa é muito mais do que uma cor: é um convite anual de amor próprio e responsabilidade com o nosso futuro.</p>
+        <p>A saúde das mamas e a prevenção oncológica estão profundamente ligadas ao equilíbrio hormonal, ao controle da inflamação crônica, à qualidade do sono e à manutenção de uma composição corporal saudável.</p>
+        <p>Como estão os seus exames preventivos deste ano? Se precisar de apoio médico para revisar seus exames e planejar seu cuidado preventivo, conte conosco.</p>
+        <p style="margin-top: 24px; font-weight: 700; color: #064E3B;">Conte sempre com a nossa clínica,<br>Dra. Ana Carla Morong</p>`,
+        ctaText: "Revisar Meus Exames Preventivos",
+        ctaUrl: "https://wa.me/5548988572882?text=Olá!%20Gostaria%20de%20revisar%20meus%20exames%20preventivos.",
+      },
+      {
+        name: "[Campanha] Novembro Azul",
+        subject: "Saúde integral e longevidade: um compromisso com você 💙",
+        title: "Novembro Azul & Prevenção Integral",
+        subtitle: "Cuidado metabólico, cardiovascular e qualidade de vida",
+        bodyHtml: `<p>Olá, <strong>{{ contact.NOME }}</strong>!</p>
+        <p>Novembro nos convida a colocar a saúde preventiva e os exames de rotina no centro das atenções.</p>
+        <p>Acompanhar a glicemia, o perfil lipídico, os marcadores inflamatórios e a saúde cardiovascular é a chave para uma longevidade ativa, forte e produtiva.</p>
+        <p>Nunca deixe para depois os cuidados com o seu maior patrimônio: a sua vitalidade.</p>
+        <p style="margin-top: 24px; font-weight: 700; color: #064E3B;">Pela sua longevidade saudável,<br>Dra. Ana Carla Morong</p>`,
+        ctaText: "Agendar Check-up Preventivo",
+        ctaUrl: "https://wa.me/5548988572882?text=Olá!%20Gostaria%20de%20agendar%20um%20check-up.",
+      },
+      {
+        name: "[Comemorativo] Fim de Ano & Metas",
+        subject: "Gratidão pelo nosso ano e votos de um ciclo renovado, {{ contact.NOME }}! 🥂",
+        title: "Gratidão e Boas Festas!",
+        subtitle: "Celebrando cada conquista de saúde do ano que se encerra",
+        bodyHtml: `<p>Olá, <strong>{{ contact.NOME }}</strong>!</p>
+        <p>Ao nos aproximarmos do encerramento de mais um ano, meu sentimento principal é de profunda <strong>gratidão</strong> pela sua confiança na nossa clínica.</p>
+        <p>Cada consulta, cada meta atingida e cada evolução clínica confirmam que investir na própria saúde é a melhor escolha da vida.</p>
+        <p>Desejo a você e à sua família um Natal abençoado e um Ano Novo repleto de serenidade, energia renovada e conquistas grandiosas.</p>
+        <p style="margin-top: 24px; font-weight: 700; color: #064E3B;">Com imenso carinho,<br>Dra. Ana Carla Morong & Equipe</p>`,
+        ctaText: "Falar com a Equipe no WhatsApp",
+        ctaUrl: "https://wa.me/5548988572882?text=Olá!%20Boas%20Festas%20para%20toda%20a%20equipe!",
+      },
+      {
+        name: "[Automação] Reativação Semestral",
+        subject: "Sentimos sua falta na clínica! Como está o seu equilíbrio, {{ contact.NOME }}? 🌿",
+        title: "Hora do seu Check-up Semestral",
+        subtitle: "Manutenção contínua dos seus resultados e longevidade",
+        bodyHtml: `<p>Olá, <strong>{{ contact.NOME }}</strong>!</p>
+        <p>Faz algum tempo que não nos encontramos para uma consulta de acompanhamento, e passei para saber como você está se sentindo!</p>
+        <p>O organismo passa por constantes adaptações metabólicas e sazonais. Para garantir que as conquistas obtidas durante seu tratamento continuem firmes, o ideal é realizarmos uma <strong>avaliação de bioimpedância de controle</strong> a cada 3 a 6 meses.</p>
+        <p>Que tal reservarmos um horário para conversarmos sobre sua rotina atual e fazermos uma checagem rápida?</p>
+        <p style="margin-top: 24px; font-weight: 700; color: #064E3B;">Estamos de portas abertas para você,<br>Dra. Ana Carla Morong & Equipe</p>`,
+        ctaText: "Agendar Bioimpedância de Retorno",
+        ctaUrl: "https://wa.me/5548988572882?text=Olá!%20Gostaria%20de%20agendar%20minha%20bioimpedância%20de%20retorno.",
+      },
+    ];
+
+    // Busca templates existentes no Brevo para não duplicar
+    const listRes = await fetch("https://api.brevo.com/v3/smtp/templates?templateStatus=true&limit=50", {
+      method: "GET",
+      headers: { "api-key": apiKey, accept: "application/json" },
+    });
+    const listData: any = await listRes.json().catch(() => ({}));
+    const existingTemplates: Array<{ id: number; name: string }> = listData?.templates || [];
+
+    const created: string[] = [];
+    const updated: string[] = [];
+    const errors: string[] = [];
+
+    for (const def of templatesDefinition) {
+      try {
+        const html = buildOfficialBrevoTemplateHtml(def.title, def.subtitle, def.bodyHtml, def.ctaText, def.ctaUrl);
+        const existing = existingTemplates.find((t) => t.name.toLowerCase() === def.name.toLowerCase());
+
+        if (existing) {
+          // Atualiza template existente
+          const putRes = await fetch(`https://api.brevo.com/v3/smtp/templates/${existing.id}`, {
+            method: "PUT",
+            headers: {
+              "api-key": apiKey,
+              "content-type": "application/json",
+              accept: "application/json",
+            },
+            body: JSON.stringify({
+              templateName: def.name,
+              subject: def.subject,
+              sender: { name: senderName, email: senderEmail },
+              htmlContent: html,
+              isActive: true,
+            }),
+          });
+          if (putRes.ok || putRes.status === 204) {
+            updated.push(def.name);
+          } else {
+            const err: any = await putRes.json().catch(() => null);
+            errors.push(`${def.name}: ${err?.message || putRes.statusText}`);
+          }
+        } else {
+          // Cria novo template
+          const postRes = await fetch("https://api.brevo.com/v3/smtp/templates", {
+            method: "POST",
+            headers: {
+              "api-key": apiKey,
+              "content-type": "application/json",
+              accept: "application/json",
+            },
+            body: JSON.stringify({
+              templateName: def.name,
+              subject: def.subject,
+              sender: { name: senderName, email: senderEmail },
+              htmlContent: html,
+              isActive: true,
+            }),
+          });
+          if (postRes.ok || postRes.status === 201) {
+            created.push(def.name);
+          } else {
+            const err: any = await postRes.json().catch(() => null);
+            errors.push(`${def.name}: ${err?.message || postRes.statusText}`);
+          }
+        }
+      } catch (err: any) {
+        errors.push(`${def.name}: ${err?.message || String(err)}`);
+      }
+    }
+
+    return c.json({
+      success: errors.length === 0,
+      totalTemplates: templatesDefinition.length,
+      created,
+      updated,
+      errors,
+    });
   } catch (err: any) {
     return c.json({ success: false, error: err?.message || String(err) }, 500);
   }

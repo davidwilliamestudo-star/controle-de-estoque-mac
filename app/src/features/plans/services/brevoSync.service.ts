@@ -29,6 +29,8 @@ export interface SyncContactPayload {
   email: string;
   fullName: string;
   phone?: string | null;
+  birthDate?: string | null;
+  gender?: string | null;
   planName?: string | null;
   planKey?: string | null;
   planStatus?: string | null;
@@ -219,8 +221,12 @@ class BrevoSyncService {
       { name: "DIAS_RESTANTES", type: "float" },
       { name: "SESSOES_USADAS", type: "float" },
       { name: "SESSOES_TOTAL", type: "float" },
+      { name: "SESSOES_RESTANTES", type: "float" },
       { name: "VALOR_PLANO", type: "float" },
       { name: "DATA_INICIO", type: "text" },
+      { name: "DATA_NASCIMENTO", type: "date" },
+      { name: "GENERO", type: "text" },
+      { name: "ULTIMA_VISITA", type: "date" },
     ];
 
     const created: string[] = [];
@@ -260,6 +266,48 @@ class BrevoSyncService {
       created,
       errors,
     };
+  }
+
+  /**
+   * Instala automaticamente todos os templates oficiais de datas comemorativas e automações no Brevo
+   */
+  async setupOfficialTemplates(apiKey?: string): Promise<{
+    success: boolean;
+    totalTemplates: number;
+    created: string[];
+    updated: string[];
+    errors: string[];
+  }> {
+    const key = apiKey || this.getConfig().apiKey;
+    try {
+      const proxyRes = await fetch("/api/brevo/setup-templates", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          ...(key ? { "api-key": key } : {}),
+        },
+        body: JSON.stringify({ apiKey: key }),
+      });
+      if (proxyRes.ok) {
+        return await proxyRes.json();
+      }
+      const errJson: any = await proxyRes.json().catch(() => null);
+      return {
+        success: false,
+        totalTemplates: 0,
+        created: [],
+        updated: [],
+        errors: [errJson?.error || `Erro HTTP ${proxyRes.status}`],
+      };
+    } catch (err: any) {
+      return {
+        success: false,
+        totalTemplates: 0,
+        created: [],
+        updated: [],
+        errors: [err.message || String(err)],
+      };
+    }
   }
 
   /**
@@ -335,12 +383,14 @@ class BrevoSyncService {
       const firstName = nameParts[0] || "";
       const lastName = nameParts.slice(1).join(" ") || "";
 
+      const sessionsRemaining = Math.max(0, (sanitizedPayload.includedSessions || 0) - (sanitizedPayload.sessionsUsed || 0));
       const attributes: Record<string, any> = {
         PLANO_SAUDE360: payload.planName || "Sem Plano Ativo",
         STATUS_PLANO: payload.planStatus || "Sem Plano",
         DIAS_RESTANTES: sanitizedPayload.daysRemaining,
         SESSOES_USADAS: sanitizedPayload.sessionsUsed,
         SESSOES_TOTAL: sanitizedPayload.includedSessions,
+        SESSOES_RESTANTES: sessionsRemaining,
         VALOR_PLANO: sanitizedPayload.totalValue,
       };
 
@@ -349,6 +399,12 @@ class BrevoSyncService {
       if (smsPhone) attributes.SMS = smsPhone;
       if (sanitizedPayload.planStartDate) attributes.DATA_INICIO = sanitizedPayload.planStartDate;
       if (sanitizedPayload.planEndDate) attributes.TERMINO_PLANO = sanitizedPayload.planEndDate;
+      if (payload.birthDate && String(payload.birthDate).trim()) {
+        attributes.DATA_NASCIMENTO = String(payload.birthDate).slice(0, 10);
+      }
+      if (payload.gender && String(payload.gender).trim()) {
+        attributes.GENERO = String(payload.gender).trim();
+      }
 
       const bodyData: any = {
         email: payload.email.trim().toLowerCase(),
@@ -720,7 +776,7 @@ class BrevoSyncService {
     failed: number;
   }> {
     const rows = await dbSelect<any>(`
-      SELECT p.id, p.full_name, p.email, p.phone,
+      SELECT p.id, p.full_name, p.email, p.phone, p.birth_date,
              pp.plan_name, pp.plan_key, pp.status as plan_status,
              pp.start_date, pp.end_date, pp.included_procedures_total, pp.total_value
       FROM patients p
@@ -746,6 +802,7 @@ class BrevoSyncService {
         email: r.email,
         fullName: r.full_name,
         phone: r.phone,
+        birthDate: r.birth_date,
         planName: r.plan_name,
         planKey: r.plan_key,
         planStatus: r.plan_status ? translatePlanStatus(r.plan_status) : "Sem Plano",
