@@ -52,15 +52,23 @@ class BrevoSyncService {
   private static STORAGE_KEY = "brevo_api_config";
 
   getConfig(): BrevoSyncConfig {
+    const defaultApiKey = "";
     if (typeof window !== "undefined") {
       try {
         const stored = localStorage.getItem(BrevoSyncService.STORAGE_KEY);
-        if (stored) return JSON.parse(stored);
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          return {
+            ...parsed,
+            apiKey: parsed.apiKey || defaultApiKey,
+          };
+        }
       } catch (e) {
         console.warn("[BrevoSync] Erro ao ler config do localStorage:", e);
       }
     }
     return {
+      apiKey: defaultApiKey,
       senderName: "Dra. Ana Carla Morong",
       senderEmail: "contato@draanamorong.com.br",
       sendProposalEmailAuto: false,
@@ -118,9 +126,18 @@ class BrevoSyncService {
         if (json.success && json.account) {
           return { success: true, account: json.account };
         }
+      } else {
+        const errJson: any = await proxyRes.json().catch(() => null);
+        return {
+          success: false,
+          error: errJson?.error || `Erro HTTP ${proxyRes.status} no proxy do Brevo`,
+        };
       }
     } catch {
-      // Ignora erro de rede local/proxy e tenta direto na API do Brevo
+      // Se em navegador web, não tenta direto no browser pois o Brevo bloqueia IP de cliente com 401
+      if (typeof window !== "undefined" && window.location.protocol.startsWith("http")) {
+        return { success: false, error: "Não foi possível conectar ao servidor Brevo." };
+      }
     }
 
     if (!key) {
@@ -251,9 +268,19 @@ class BrevoSyncService {
   async syncContact(payload: SyncContactPayload): Promise<{ success: boolean; contactId?: string; error?: string }> {
     const config = this.getConfig();
 
-    if (!payload.email || !payload.email.includes("@")) {
+    if (!payload.email || typeof payload.email !== "string" || !payload.email.includes("@")) {
       return { success: false, error: "Paciente sem e-mail válido" };
     }
+
+    const sanitizedPayload = {
+      ...payload,
+      planStartDate: payload.planStartDate && String(payload.planStartDate).trim() ? String(payload.planStartDate).slice(0, 10) : undefined,
+      planEndDate: payload.planEndDate && String(payload.planEndDate).trim() ? String(payload.planEndDate).slice(0, 10) : undefined,
+      daysRemaining: Math.max(0, Math.round(Number(payload.daysRemaining ?? 0))) || 0,
+      sessionsUsed: Math.max(0, Math.round(Number(payload.sessionsUsed ?? 0))) || 0,
+      includedSessions: Math.max(0, Math.round(Number(payload.includedSessions ?? 0))) || 0,
+      totalValue: Number(payload.totalValue ?? 0) || 0,
+    };
 
     // Tenta primeiro via Cloudflare Worker
     try {
@@ -263,32 +290,43 @@ class BrevoSyncService {
           "content-type": "application/json",
           ...(config.apiKey ? { "api-key": config.apiKey } : {}),
         },
-        body: JSON.stringify({ ...payload, defaultListId: config.defaultListId }),
+        body: JSON.stringify({ ...sanitizedPayload, defaultListId: config.defaultListId }),
       });
       if (proxyRes.ok) {
         const json: any = await proxyRes.json();
         if (json.success) {
           return { success: true, contactId: json.contactId };
         }
+      } else {
+        const errJson: any = await proxyRes.json().catch(() => null);
+        const errorMsg = errJson?.error || `Erro HTTP ${proxyRes.status} no proxy do Brevo`;
+        console.warn("[BrevoSync] Proxy retornou erro ao sincronizar contato:", errorMsg);
+        return { success: false, error: errorMsg };
       }
     } catch {
-      // Prossegue direto
+      // Se em navegador web, NÃO tentar chamada direta a https://api.brevo.com/v3/contacts,
+      // pois o Brevo bloqueia IP de cliente com 401 Unauthorized
+      if (typeof window !== "undefined" && window.location.protocol.startsWith("http")) {
+        return { success: false, error: "Falha de rede ao sincronizar com o Brevo." };
+      }
     }
 
     if (!config.apiKey) {
       return { success: false, error: "Brevo não configurado" };
     }
 
-    if (!payload.email || !payload.email.includes("@")) {
-      return { success: false, error: "Paciente sem e-mail válido" };
-    }
-
     try {
       let smsPhone: string | undefined = undefined;
       if (payload.phone) {
-        const digits = payload.phone.replace(/\D/g, "");
-        if (digits.length >= 10) {
-          smsPhone = digits.startsWith("55") ? `+${digits}` : `+55${digits}`;
+        let digits = String(payload.phone).replace(/\D/g, "");
+        if (digits.startsWith("55") && (digits.length === 12 || digits.length === 13)) {
+          digits = digits.slice(2);
+        }
+        if (digits.length === 10 && ["6", "7", "8", "9"].includes(digits[2])) {
+          digits = digits.slice(0, 2) + "9" + digits.slice(2);
+        }
+        if (digits.length === 11) {
+          smsPhone = `+55${digits}`;
         }
       }
 
@@ -297,21 +335,24 @@ class BrevoSyncService {
       const firstName = nameParts[0] || "";
       const lastName = nameParts.slice(1).join(" ") || "";
 
+      const attributes: Record<string, any> = {
+        PLANO_SAUDE360: payload.planName || "Sem Plano Ativo",
+        STATUS_PLANO: payload.planStatus || "Sem Plano",
+        DIAS_RESTANTES: sanitizedPayload.daysRemaining,
+        SESSOES_USADAS: sanitizedPayload.sessionsUsed,
+        SESSOES_TOTAL: sanitizedPayload.includedSessions,
+        VALOR_PLANO: sanitizedPayload.totalValue,
+      };
+
+      if (firstName) attributes.NOME = firstName;
+      if (lastName) attributes.SOBRENOME = lastName;
+      if (smsPhone) attributes.SMS = smsPhone;
+      if (sanitizedPayload.planStartDate) attributes.DATA_INICIO = sanitizedPayload.planStartDate;
+      if (sanitizedPayload.planEndDate) attributes.TERMINO_PLANO = sanitizedPayload.planEndDate;
+
       const bodyData: any = {
         email: payload.email.trim().toLowerCase(),
-        attributes: {
-          NOME: firstName,
-          SOBRENOME: lastName,
-          SMS: smsPhone,
-          PLANO_SAUDE360: payload.planName || "Sem Plano Ativo",
-          STATUS_PLANO: payload.planStatus || "Sem Plano",
-          TERMINO_PLANO: payload.planEndDate || "",
-          DATA_INICIO: payload.planStartDate || "",
-          DIAS_RESTANTES: payload.daysRemaining ?? 0,
-          SESSOES_USADAS: payload.sessionsUsed ?? 0,
-          SESSOES_TOTAL: payload.includedSessions ?? 0,
-          VALOR_PLANO: payload.totalValue ?? 0,
-        },
+        attributes,
         updateEnabled: true,
       };
 
@@ -391,9 +432,17 @@ class BrevoSyncService {
         if (json.success) {
           return { success: true, messageId: json.messageId };
         }
+      } else {
+        const errJson: any = await proxyRes.json().catch(() => null);
+        const errorMsg = errJson?.error || `Erro HTTP ${proxyRes.status} no proxy de e-mail`;
+        console.warn("[BrevoSync] Proxy retornou erro no disparo de e-mail:", errorMsg);
+        return { success: false, error: errorMsg };
       }
     } catch {
-      // Fallback direto
+      // Se em navegador web, NÃO tentar chamada direta para api.brevo.com
+      if (typeof window !== "undefined" && window.location.protocol.startsWith("http")) {
+        return { success: false, error: "Falha de conexão com o servidor de e-mail." };
+      }
     }
 
     if (!config.apiKey) return { success: false, error: "Brevo não configurado" };

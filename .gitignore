@@ -10,3 +10,6 @@ mac-install-kit/
 .~lock.*
 *Untitled*
 scratch/
+
+.wrangler/
+app/.wrangler/

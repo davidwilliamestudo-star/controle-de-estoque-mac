@@ -235,6 +235,18 @@ export default function PlansManagementPage() {
             Funil comercial de fechamento, controle de acompanhamentos ativos e esteira de renovação antecipada.
           </p>
         </div>
+
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => navigate({ to: '/settings' })}
+            className="btn btn-secondary text-xs font-semibold flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white border border-slate-200 shadow-2xs hover:bg-slate-50 text-slate-700"
+            title="Abrir configurações de e-mail e CRM Brevo"
+          >
+            <Sparkles className="w-3.5 h-3.5 text-emerald-700" />
+            Configurar Brevo CRM
+          </button>
+        </div>
       </div>
 
       {emailBanner && (
@@ -501,14 +513,17 @@ export default function PlansManagementPage() {
                           Registrar Retorno
                         </button>
 
-                        <button
-                          type="button"
-                          onClick={() => handleConfirmPayment(item.id)}
-                          className="btn btn-primary text-xs font-bold flex items-center gap-1.5 bg-emerald-800 hover:bg-emerald-900 text-white px-3 py-2 rounded-xl shadow-2xs"
-                        >
-                          <CheckCircle2 className="w-3.5 h-3.5" />
-                          Ativar Plano
-                        </button>
+                        {item.status !== 'active' && (
+                          <button
+                            type="button"
+                            onClick={() => handleConfirmPayment(item.id)}
+                            disabled={confirmPayment.isPending}
+                            className="btn btn-primary text-xs font-bold flex items-center gap-1.5 bg-emerald-800 hover:bg-emerald-900 text-white px-3 py-2 rounded-xl shadow-2xs disabled:opacity-50"
+                          >
+                            <CheckCircle2 className="w-3.5 h-3.5" />
+                            {confirmPayment.isPending ? 'Ativando...' : 'Ativar Plano'}
+                          </button>
+                        )}
 
                         <button
                           type="button"

@@ -396,10 +396,11 @@ export const PatientPlanOverviewCard: React.FC<PatientPlanOverviewCardProps> = (
             <button
               type="button"
               onClick={() => handleConfirmPayment(pendingProposal.id)}
-              className="btn btn-primary text-xs sm:text-sm font-bold flex items-center gap-1.5 bg-emerald-700 hover:bg-emerald-800 text-white"
+              disabled={confirmPayment.isPending}
+              className="btn btn-primary text-xs sm:text-sm font-bold flex items-center gap-1.5 bg-emerald-700 hover:bg-emerald-800 text-white disabled:opacity-50"
             >
               <CheckCircle2 className="w-4 h-4" />
-              Confirmar Pagamento & Iniciar
+              {confirmPayment.isPending ? 'Ativando...' : 'Confirmar Pagamento & Iniciar'}
             </button>
           </div>
         </div>

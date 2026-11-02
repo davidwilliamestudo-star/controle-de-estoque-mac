@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "@tanstack/react-router";
-import { ArrowLeft, Save, Check, AlertTriangle, Plus, Loader2 } from "lucide-react";
+import { ArrowLeft, Save, Check, AlertTriangle, Plus, Loader2, ChevronLeft, ChevronRight, Maximize2, Minimize2 } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { Controller } from "react-hook-form";
 import Select from "react-select";
@@ -66,6 +66,8 @@ export default function ExecuteProcedurePage() {
   const [applications, setApplications] = useState<ProcedureApplication[]>([newEmptyApplication()]);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [isMapExpanded, setIsMapExpanded] = useState<boolean>(false);
+  const [isLeftCollapsed, setIsLeftCollapsed] = useState<boolean>(false);
   
   /** ID da aplicação que deve ser destacada/com foco (clicou no mapa em área já usada) */
   const [focusedAppId, setFocusedAppId] = useState<string | null>(null);
@@ -394,77 +396,118 @@ Procedimento registrado {{intercurrence_status}}.`;
       )}
 
       {/* Layout 3 colunas: Paciente | Mapa | Aplicações */}
-      <div className="flex flex-col xl:flex-row gap-4 min-h-0">
+      <div className="flex flex-col xl:flex-row gap-4 min-h-0 items-start">
         
         {/* ── COLUNA ESQUERDA: Paciente + Histórico ── */}
-        <div className="w-full xl:w-[260px] flex-shrink-0 flex flex-col gap-4">
-          <div className="card" style={{ borderColor: "var(--color-gray-200)" }}>
-            <div className="procedure-card-heading">
-              <div>
-                <h2 className="text-sm font-semibold text-gray-800">Sessão Clínica</h2>
-                <p className="text-xs text-gray-500">Paciente do plano.</p>
-              </div>
+        <div className={`w-full ${isLeftCollapsed ? 'xl:w-[56px]' : 'xl:w-[260px]'} flex-shrink-0 flex flex-col gap-4 transition-all duration-200`}>
+          {isLeftCollapsed ? (
+            <div className="card p-2 text-center flex flex-col items-center gap-3 bg-slate-50 border border-gray-200">
+              <button
+                type="button"
+                onClick={() => setIsLeftCollapsed(false)}
+                className="btn btn-ghost btn-sm p-1.5 text-gray-600 hover:text-emerald-800 rounded-lg hover:bg-slate-200"
+                title="Expandir painel do paciente e sessão"
+              >
+                <ChevronRight size={18} />
+              </button>
+              <span className="text-[10px] font-bold text-gray-500 [writing-mode:vertical-lr] rotate-180 uppercase tracking-widest py-3 select-none">
+                Sessão Clínica
+              </span>
             </div>
-            <div className="px-3 pb-3">
-              <div className="form-group mb-0">
-                <label className="form-label text-sm text-gray-600 font-medium">Paciente *</label>
-                <Controller
-                  name="patientId"
-                  control={control}
-                  rules={{ required: true }}
-                  render={({ field: { onChange, value, ref } }) => (
-                    <Select
-                      ref={ref}
-                      options={patients.map((p: any) => ({ value: p.id, label: p.full_name }))}
-                      value={
-                        patients.find((p: any) => p.id === value)
-                          ? { value, label: patients.find((p: any) => p.id === value)?.full_name ?? "" }
-                          : null
-                      }
-                      onChange={(val) => onChange(val?.value || "")}
-                      placeholder="Buscar paciente..."
-                      noOptionsMessage={() => "Nenhum paciente encontrado"}
-                      isClearable
-                      className="react-select-container"
-                      classNamePrefix="react-select"
-                      styles={{
-                        control: (base) => ({
-                          ...base,
-                          backgroundColor: "#f9fafb",
-                          borderColor: "#d1d5db",
-                          fontSize: "0.875rem",
-                          minHeight: "38px",
-                          boxShadow: "none",
-                          "&:hover": { borderColor: "#9ca3af" },
-                        }),
-                        menu: (base) => ({ ...base, zIndex: 9999 }),
-                      }}
+          ) : (
+            <>
+              <div className="card" style={{ borderColor: "var(--color-gray-200)" }}>
+                <div className="procedure-card-heading flex items-center justify-between">
+                  <div>
+                    <h2 className="text-sm font-semibold text-gray-800">Sessão Clínica</h2>
+                    <p className="text-xs text-gray-500">Paciente do plano.</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setIsLeftCollapsed(true)}
+                    className="btn btn-ghost btn-sm p-1 text-gray-400 hover:text-gray-700 hidden xl:flex rounded-lg hover:bg-gray-100"
+                    title="Recolher painel para dar mais espaço ao mapa corporal"
+                  >
+                    <ChevronLeft size={16} />
+                  </button>
+                </div>
+                <div className="px-3 pb-3">
+                  <div className="form-group mb-0">
+                    <label className="form-label text-sm text-gray-600 font-medium">Paciente *</label>
+                    <Controller
+                      name="patientId"
+                      control={control}
+                      rules={{ required: true }}
+                      render={({ field: { onChange, value, ref } }) => (
+                        <Select
+                          ref={ref}
+                          options={patients.map((p: any) => ({ value: p.id, label: p.full_name }))}
+                          value={
+                            patients.find((p: any) => p.id === value)
+                              ? { value, label: patients.find((p: any) => p.id === value)?.full_name ?? "" }
+                              : null
+                          }
+                          onChange={(val) => onChange(val?.value || "")}
+                          placeholder="Buscar paciente..."
+                          noOptionsMessage={() => "Nenhum paciente encontrado"}
+                          isClearable
+                          className="react-select-container"
+                          classNamePrefix="react-select"
+                          styles={{
+                            control: (base) => ({
+                              ...base,
+                              backgroundColor: "#f9fafb",
+                              borderColor: "#d1d5db",
+                              fontSize: "0.875rem",
+                              minHeight: "38px",
+                              boxShadow: "none",
+                              "&:hover": { borderColor: "#9ca3af" },
+                            }),
+                            menu: (base) => ({ ...base, zIndex: 9999 }),
+                          }}
+                        />
+                      )}
                     />
-                  )}
-                />
+                  </div>
+
+                  {/* Vínculo de Plano Saúde 360® */}
+                  <div className="mt-3">
+                    <ProcedurePlanSelector
+                      patientId={patientId}
+                      chargeMode={planChargeMode}
+                      onChangeChargeMode={setPlanChargeMode}
+                    />
+                  </div>
+                </div>
               </div>
 
-              {/* Vínculo de Plano Saúde 360® */}
-              <div className="mt-3">
-                <ProcedurePlanSelector
-                  patientId={patientId}
-                  chargeMode={planChargeMode}
-                  onChangeChargeMode={setPlanChargeMode}
-                />
-              </div>
-            </div>
-          </div>
-
-          <PatientProcedureHistory patientId={patientId || null} />
+              <PatientProcedureHistory patientId={patientId || null} />
+            </>
+          )}
         </div>
 
-        {/* ── COLUNA CENTRAL: Mapa Corporal ── */}
-        <div className="w-full xl:w-[340px] flex-shrink-0 flex flex-col gap-2">
+        {/* ── COLUNA CENTRAL: Mapa Corporal (Largura Expansível) ── */}
+        <div
+          className={`w-full ${
+            isMapExpanded ? "xl:w-[560px] 2xl:w-[640px]" : "xl:w-[380px] 2xl:w-[420px]"
+          } flex-shrink-0 flex flex-col gap-2 transition-all duration-200`}
+        >
           <div className="card flex-1 flex flex-col" style={{ borderColor: "var(--color-gray-200)" }}>
-            <div className="procedure-card-heading flex-shrink-0">
+            <div className="procedure-card-heading flex-shrink-0 flex items-center justify-between">
               <div>
                 <h2 className="text-sm font-semibold text-gray-800">Mapa Corporal</h2>
-                <p className="text-xs text-gray-500">Clique para adicionar aplicações</p>
+                <p className="text-xs text-gray-500">Clique para adicionar ou use a lista</p>
+              </div>
+
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => setIsMapExpanded((v) => !v)}
+                  className="btn btn-ghost btn-sm p-1.5 text-xs text-gray-500 hover:text-emerald-800 hidden xl:flex items-center gap-1 rounded-lg hover:bg-gray-100"
+                  title={isMapExpanded ? "Reduzir largura da coluna" : "Expandir largura da coluna"}
+                >
+                  {isMapExpanded ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
+                </button>
               </div>
             </div>
             <div className="px-3 pb-3 flex-1 flex flex-col">
@@ -473,6 +516,8 @@ Procedimento registrado {{intercurrence_status}}.`;
                 bodyAreas={bodyAreas}
                 activeRouteCode={activeRouteCode}
                 onAreaClick={handleMapAreaClick}
+                isColumnExpanded={isMapExpanded}
+                onToggleExpandColumn={() => setIsMapExpanded((v) => !v)}
               />
             </div>
           </div>

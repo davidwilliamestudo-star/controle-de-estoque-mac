@@ -193,13 +193,39 @@ export default function SettingsPage() {
       <div className="page-header">
         <div>
           <h1 className="page-title"><Settings size={24} style={{ display: 'inline', marginRight: 8, color: 'var(--color-green-deep)', verticalAlign: 'text-bottom' }}/> Configurações</h1>
-          <p className="page-subtitle">Preferências locais do sistema.</p>
+          <p className="page-subtitle">Preferências e integrações do sistema.</p>
         </div>
+      </div>
+
+      {/* Navegação Rápida entre Seções de Configuração */}
+      <div className="flex flex-wrap items-center gap-2 mb-6">
+        <a href="#clinic-settings" className="btn btn-secondary text-xs py-1.5 px-3 rounded-xl hover:bg-slate-100">
+          Clínica
+        </a>
+        <a href="#stock-settings" className="btn btn-secondary text-xs py-1.5 px-3 rounded-xl hover:bg-slate-100">
+          Estoque
+        </a>
+        <a href="#icp-brasil-vault" className="btn btn-secondary text-xs py-1.5 px-3 rounded-xl hover:bg-slate-100">
+          Certificado A1
+        </a>
+        <a href="#appscript-integration" className="btn btn-secondary text-xs py-1.5 px-3 rounded-xl hover:bg-slate-100">
+          Apps Script
+        </a>
+        <a
+          href="#brevo-integration"
+          className="btn text-xs py-1.5 px-3.5 rounded-xl font-bold bg-emerald-800 hover:bg-emerald-900 text-white flex items-center gap-1.5 shadow-sm"
+        >
+          <Sparkles size={13} className="text-emerald-300" />
+          Brevo CRM & E-mails de Planos
+        </a>
+        <a href="#scanner-settings" className="btn btn-secondary text-xs py-1.5 px-3 rounded-xl hover:bg-slate-100">
+          Leitor Câmera
+        </a>
       </div>
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-6 max-w-4xl" style={{ paddingBottom: '3rem' }}>
         {/* Clínica & Profissional */}
-        <div className="card">
+        <div className="card" id="clinic-settings">
           <h2 className="text-lg font-bold mb-4 flex items-center gap-2" style={{ color: "var(--color-gray-900)" }}>
             <Building2 size={20} /> Clínica e Profissional
           </h2>
@@ -218,7 +244,7 @@ export default function SettingsPage() {
         </div>
 
         {/* Estoque e Validades */}
-        <div className="card">
+        <div className="card" id="stock-settings">
           <h2 className="text-lg font-bold mb-4 flex items-center gap-2" style={{ color: "var(--color-gray-900)" }}>
             <Package size={20} /> Estoque e Validades
           </h2>

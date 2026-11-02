@@ -2590,11 +2590,41 @@ app.post("/brevo/setup-attributes", async (c) => {
   }
 });
 
+function normalizeBRPhone(raw?: string | null): string | undefined {
+  if (!raw) return undefined;
+  let digits = String(raw).replace(/\D/g, "");
+  if (!digits) return undefined;
+
+  // Se já tem prefixo internacional 55 (Brasil)
+  if (digits.startsWith("55") && (digits.length === 12 || digits.length === 13)) {
+    digits = digits.slice(2);
+  }
+
+  // Se tem 10 dígitos (DDD + 8 dígitos) e o primeiro dígito local é celular (6, 7, 8 ou 9)
+  // no Brasil foi adicionado o nono dígito (ex: 9198483768 -> 91998483768)
+  if (digits.length === 10 && ["6", "7", "8", "9"].includes(digits[2])) {
+    digits = digits.slice(0, 2) + "9" + digits.slice(2);
+  }
+
+  // Telefone celular brasileiro válido com DDD (11 dígitos): +55 + 11 dígitos
+  if (digits.length === 11) {
+    return `+55${digits}`;
+  }
+
+  // Telefone com DDI internacional já informado
+  const fullDigits = String(raw).replace(/\D/g, "");
+  if (fullDigits.length >= 11 && fullDigits.length <= 15) {
+    return fullDigits.startsWith("+") ? fullDigits : `+${fullDigits}`;
+  }
+
+  return undefined;
+}
+
 app.post("/brevo/sync-contact", async (c) => {
   try {
     const payload: any = await c.req.json().catch(() => null);
-    if (!payload || !payload.email) {
-      return c.json({ success: false, error: "E-mail do contato obrigatório." }, 400);
+    if (!payload || !payload.email || typeof payload.email !== "string" || !payload.email.includes("@")) {
+      return c.json({ success: false, error: "E-mail do contato obrigatório e válido." }, 400);
     }
 
     const reqKey = c.req.header("api-key") || payload.apiKey || null;
@@ -2603,33 +2633,34 @@ app.post("/brevo/sync-contact", async (c) => {
       return c.json({ success: false, error: "Chave do Brevo não configurada." }, 400);
     }
 
-    let smsPhone: string | undefined = undefined;
-    if (payload.phone) {
-      const digits = String(payload.phone).replace(/\D/g, "");
-      if (digits.length >= 10) {
-        smsPhone = digits.startsWith("55") ? `+${digits}` : `+55${digits}`;
-      }
-    }
+    const smsPhone = normalizeBRPhone(payload.phone);
 
     const nameParts = (payload.fullName || "").trim().split(" ");
     const firstName = nameParts[0] || "";
     const lastName = nameParts.slice(1).join(" ") || "";
 
+    const attributes: Record<string, any> = {
+      PLANO_SAUDE360: payload.planName || "Sem Plano Ativo",
+      STATUS_PLANO: payload.planStatus || "Sem Plano",
+      DIAS_RESTANTES: Math.max(0, Math.round(Number(payload.daysRemaining ?? 0))) || 0,
+      SESSOES_USADAS: Math.max(0, Math.round(Number(payload.sessionsUsed ?? 0))) || 0,
+      SESSOES_TOTAL: Math.max(0, Math.round(Number(payload.includedSessions ?? 0))) || 0,
+      VALOR_PLANO: Number(payload.totalValue ?? 0) || 0,
+    };
+
+    if (firstName) attributes.NOME = firstName;
+    if (lastName) attributes.SOBRENOME = lastName;
+    if (smsPhone) attributes.SMS = smsPhone;
+    if (payload.planStartDate && String(payload.planStartDate).trim()) {
+      attributes.DATA_INICIO = String(payload.planStartDate).slice(0, 10);
+    }
+    if (payload.planEndDate && String(payload.planEndDate).trim()) {
+      attributes.TERMINO_PLANO = String(payload.planEndDate).slice(0, 10);
+    }
+
     const bodyData: any = {
       email: String(payload.email).trim().toLowerCase(),
-      attributes: {
-        NOME: firstName,
-        SOBRENOME: lastName,
-        SMS: smsPhone,
-        PLANO_SAUDE360: payload.planName || "Sem Plano Ativo",
-        STATUS_PLANO: payload.planStatus || "Sem Plano",
-        TERMINO_PLANO: payload.planEndDate || "",
-        DATA_INICIO: payload.planStartDate || "",
-        DIAS_RESTANTES: payload.daysRemaining ?? 0,
-        SESSOES_USADAS: payload.sessionsUsed ?? 0,
-        SESSOES_TOTAL: payload.includedSessions ?? 0,
-        VALOR_PLANO: payload.totalValue ?? 0,
-      },
+      attributes,
       updateEnabled: true,
     };
 
@@ -2637,7 +2668,7 @@ app.post("/brevo/sync-contact", async (c) => {
       bodyData.listIds = [Number(payload.defaultListId)];
     }
 
-    const res = await fetch("https://api.brevo.com/v3/contacts", {
+    let res = await fetch("https://api.brevo.com/v3/contacts", {
       method: "POST",
       headers: {
         "api-key": apiKey,
@@ -2647,9 +2678,28 @@ app.post("/brevo/sync-contact", async (c) => {
       body: JSON.stringify(bodyData),
     });
 
+    // Se o Brevo rejeitar por telefone/SMS inválido, retenta sem o atributo SMS
+    if (!res.ok && res.status === 400 && attributes.SMS) {
+      const errClone = await res.clone().json().catch(() => null);
+      if (errClone?.message?.toLowerCase().includes("phone") || errClone?.message?.toLowerCase().includes("sms")) {
+        delete attributes.SMS;
+        bodyData.attributes = attributes;
+        res = await fetch("https://api.brevo.com/v3/contacts", {
+          method: "POST",
+          headers: {
+            "api-key": apiKey,
+            "content-type": "application/json",
+            accept: "application/json",
+          },
+          body: JSON.stringify(bodyData),
+        });
+      }
+    }
+
     if (!res.ok && res.status !== 204 && res.status !== 201) {
       if (res.status === 400) {
-        const putRes = await fetch(
+        // Tenta atualizar se o contato já existir
+        let putRes = await fetch(
           `https://api.brevo.com/v3/contacts/${encodeURIComponent(bodyData.email)}`,
           {
             method: "PUT",
@@ -2661,6 +2711,24 @@ app.post("/brevo/sync-contact", async (c) => {
             body: JSON.stringify({ attributes: bodyData.attributes }),
           }
         );
+
+        if (!putRes.ok && putRes.status === 400 && attributes.SMS) {
+          delete attributes.SMS;
+          bodyData.attributes = attributes;
+          putRes = await fetch(
+            `https://api.brevo.com/v3/contacts/${encodeURIComponent(bodyData.email)}`,
+            {
+              method: "PUT",
+              headers: {
+                "api-key": apiKey,
+                "content-type": "application/json",
+                accept: "application/json",
+              },
+              body: JSON.stringify({ attributes: bodyData.attributes }),
+            }
+          );
+        }
+
         if (putRes.ok || putRes.status === 204) {
           return c.json({ success: true, updated: true });
         }

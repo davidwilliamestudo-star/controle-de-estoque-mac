@@ -28,7 +28,7 @@ export function DashboardChartCard({ title, description, data, type = "bar" }: D
   const hasData = data.some(item => item.value > 0);
 
   return (
-    <div className="card dashboard-chart-card">
+    <div className="card dashboard-chart-card min-w-0">
       <div className="card-header">
         <div>
           <h3 className="card-title">{title}</h3>
@@ -42,8 +42,8 @@ export function DashboardChartCard({ title, description, data, type = "bar" }: D
           description="Quando houver registros reais, este grafico sera preenchido automaticamente."
         />
       ) : (
-        <div className="dashboard-chart-frame">
-          <ResponsiveContainer width="100%" height="100%">
+        <div className="dashboard-chart-frame w-full min-w-0" style={{ minWidth: 0, width: "100%", height: 260 }}>
+          <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={240}>
             {type === "line" ? (
               <LineChart data={data}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />

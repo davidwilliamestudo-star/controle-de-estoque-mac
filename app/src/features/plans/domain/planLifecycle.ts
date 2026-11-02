@@ -176,7 +176,7 @@ const TRANSITIONS: Record<PlanStatus, PlanStatus[]> = {
   draft: ["proposed", "cancelled"],
   proposed: ["signed_pending_payment", "active", "lost", "cancelled"],
   signed_pending_payment: ["active", "lost", "cancelled"],
-  active: ["completed", "renewed", "cancelled"],
+  active: ["active", "completed", "renewed", "cancelled"],
   completed: ["renewed"],
   renewed: [],
   lost: ["proposed"],

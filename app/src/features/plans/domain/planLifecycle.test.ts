@@ -42,6 +42,7 @@ test("pausa durante a janela adia o alerta de renovacao", () => {
 test("transicoes", () => {
   assert.ok(P.canTransition("proposed", "signed_pending_payment"));
   assert.ok(P.canTransition("signed_pending_payment", "active"));
+  assert.ok(P.canTransition("active", "active")); // Idempotência de ativação
   assert.ok(!P.canTransition("lost", "active"));
   assert.ok(!P.canTransition("renewed", "active"));
 });

@@ -168,6 +168,7 @@ export function ProcedureApplicationCard({
   isFocused = false,
 }: ProcedureApplicationCardProps) {
   const [collapsed, setCollapsed] = useState(false);
+  const [isSelectingArea, setIsSelectingArea] = useState(false);
   const { data: protocolItems = [], isFetching, isSuccess } = useProtocolItems(application.protocolId);
 
   // Quando o protocolo muda, pré-popula os itens com unidade ml para medicamentos
@@ -241,6 +242,22 @@ export function ProcedureApplicationCard({
 
   const selectedProtocol = protocols.find((p) => p.id === application.protocolId);
   const selectedArea = bodyAreas.find((a: any) => a.id === application.bodyAreaId);
+
+  const scAreas = bodyAreas.filter((a: any) => {
+    const route = (a.routeCode || "").toUpperCase();
+    return route === "SC" || a.slug?.startsWith("sc_") || a.name?.toLowerCase().includes("sc");
+  });
+  const imAreas = bodyAreas.filter((a: any) => {
+    const route = (a.routeCode || "").toUpperCase();
+    return route === "IM" || a.slug?.startsWith("im_") || a.name?.toLowerCase().includes("im");
+  });
+  const evAreas = bodyAreas.filter((a: any) => {
+    const route = (a.routeCode || "").toUpperCase();
+    return route === "EV" || a.slug?.startsWith("ev_") || a.name?.toLowerCase().includes("ev");
+  });
+  const otherAreas = bodyAreas.filter(
+    (a: any) => !scAreas.includes(a) && !imAreas.includes(a) && !evAreas.includes(a)
+  );
 
   // --- TRAVA DE SEGURANÇA VISUAL (VIA DE ADMINISTRAÇÃO) ---
   const routeMap: Record<string, string> = {
@@ -352,12 +369,24 @@ export function ProcedureApplicationCard({
         <div className="px-3 pb-3 flex flex-col gap-3 border-t border-gray-100 pt-3">
           {/* Área (info da seleção no mapa) + Protocolo */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            {/* Área selecionada pelo mapa — somente leitura aqui */}
+            {/* Área selecionada pelo mapa ou selecionável por lista */}
             <div className="form-group mb-0">
-              <label className="form-label flex items-center gap-1.5">
-                <MapPin size={13} className="text-blue-600" /> Área de Aplicação
-              </label>
-              {selectedArea ? (
+              <div className="flex items-center justify-between mb-1">
+                <label className="form-label flex items-center gap-1.5 mb-0">
+                  <MapPin size={13} className="text-blue-600" /> Área de Aplicação
+                </label>
+                {selectedArea && !isSelectingArea && (
+                  <button
+                    type="button"
+                    onClick={() => setIsSelectingArea(true)}
+                    className="text-[11px] text-blue-600 hover:text-blue-800 font-semibold underline"
+                  >
+                    Alterar
+                  </button>
+                )}
+              </div>
+
+              {selectedArea && !isSelectingArea ? (
                 <div
                   className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm border"
                   style={{
@@ -366,24 +395,85 @@ export function ProcedureApplicationCard({
                     color: "#1e40af",
                   }}
                 >
-                  <MapPin size={13} />
-                  <span className="font-medium">{selectedArea.displayName || selectedArea.name}</span>
+                  <MapPin size={13} className="shrink-0" />
+                  <span className="font-semibold">{selectedArea.displayName || selectedArea.name}</span>
+                  {selectedArea.routeCode && (
+                    <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-blue-100 text-blue-800 uppercase">
+                      {selectedArea.routeCode}
+                    </span>
+                  )}
                   <button
                     type="button"
-                    className="ml-auto text-gray-400 hover:text-red-500"
+                    className="ml-auto text-gray-400 hover:text-red-500 p-1"
                     title="Limpar área"
-                    onClick={() => handleFieldChange("bodyAreaId", null)}
+                    onClick={() => {
+                      handleFieldChange("bodyAreaId", null);
+                      handleFieldChange("bodyAreaName", null);
+                      setIsSelectingArea(true);
+                    }}
                   >
                     <X size={12} />
                   </button>
                 </div>
               ) : (
-                <div
-                  className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs border border-dashed text-gray-400"
-                  style={{ background: "#f9fafb" }}
-                >
-                  <MapPin size={12} />
-                  Clique no mapa corporal ao lado para selecionar
+                <div className="space-y-1">
+                  <select
+                    className="form-control text-sm font-medium bg-white"
+                    value={application.bodyAreaId || ""}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      if (!val) {
+                        handleFieldChange("bodyAreaId", null);
+                        handleFieldChange("bodyAreaName", null);
+                      } else {
+                        const found = bodyAreas.find((a: any) => a.id === val);
+                        handleFieldChange("bodyAreaId", val);
+                        handleFieldChange("bodyAreaName", found?.displayName || found?.name || null);
+                        setIsSelectingArea(false);
+                      }
+                    }}
+                  >
+                    <option value="">Clique no mapa OU selecione aqui...</option>
+                    {scAreas.length > 0 && (
+                      <optgroup label="🟠 Subcutânea (SC)">
+                        {scAreas.map((a: any) => (
+                          <option key={a.id} value={a.id}>
+                            {a.displayName || a.name}
+                          </option>
+                        ))}
+                      </optgroup>
+                    )}
+                    {imAreas.length > 0 && (
+                      <optgroup label="🟢 Intramuscular (IM)">
+                        {imAreas.map((a: any) => (
+                          <option key={a.id} value={a.id}>
+                            {a.displayName || a.name}
+                          </option>
+                        ))}
+                      </optgroup>
+                    )}
+                    {evAreas.length > 0 && (
+                      <optgroup label="🔵 Endovenosa (EV)">
+                        {evAreas.map((a: any) => (
+                          <option key={a.id} value={a.id}>
+                            {a.displayName || a.name}
+                          </option>
+                        ))}
+                      </optgroup>
+                    )}
+                    {otherAreas.length > 0 && (
+                      <optgroup label="Outras Regiões">
+                        {otherAreas.map((a: any) => (
+                          <option key={a.id} value={a.id}>
+                            {a.displayName || a.name}
+                          </option>
+                        ))}
+                      </optgroup>
+                    )}
+                  </select>
+                  <p className="text-[10px] text-gray-400">
+                    Você pode selecionar aqui ou clicar diretamente no mapa corporal ao lado.
+                  </p>
                 </div>
               )}
             </div>

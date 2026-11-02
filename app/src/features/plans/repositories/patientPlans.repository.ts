@@ -151,7 +151,7 @@ async function syncPlanToBrevoSafely(
       [planId]
     );
     const row = planRows[0];
-    if (!row || !row.patient_email) return;
+    if (!row || !row.patient_email || !String(row.patient_email).includes("@")) return;
 
     const email = String(row.patient_email);
     const fullName = String(row.patient_name || "");
@@ -352,6 +352,18 @@ export const patientPlansRepository = {
   ): Promise<PatientPlan> {
     const plan = await this.getById(planId);
     if (!plan) throw new Error("Plano nao encontrado.");
+
+    // Idempotência: Se já estiver ativo, atualiza pendências secundárias e retorna sem erro
+    if (plan.status === "active") {
+      if (opts.receivableId && !plan.paymentReceivableId) {
+        await dbExecute(
+          `UPDATE patient_plans SET payment_receivable_id = ?, updated_at = datetime('now') WHERE id = ?`,
+          [opts.receivableId, planId]
+        );
+      }
+      return (await this.getById(planId))!;
+    }
+
     if (!canTransition(plan.status, "active")) {
       throw new Error(`Plano em "${plan.status}" nao pode ser ativado.`);
     }
@@ -480,6 +492,7 @@ export const patientPlansRepository = {
       `SELECT pp.*, p.full_name AS patient_name, p.phone AS patient_phone, p.email AS patient_email
        FROM patient_plans pp JOIN patients p ON p.id = pp.patient_id
        WHERE pp.deleted_at IS NULL AND pp.next_followup_at IS NOT NULL
+         AND pp.status IN ('proposed', 'signed_pending_payment')
          AND pp.next_followup_at <= ?
        ORDER BY pp.next_followup_at ASC`,
       [untilISO]
