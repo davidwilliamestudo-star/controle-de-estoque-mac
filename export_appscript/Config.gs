@@ -62,7 +62,9 @@ var Config = {
       return newId;
     }
     return id;
-  }
+  },
+
+  SHEET_HEADERS: typeof SHEET_HEADERS !== "undefined" ? SHEET_HEADERS : null
 };
 
 function setupInitialProperties() {

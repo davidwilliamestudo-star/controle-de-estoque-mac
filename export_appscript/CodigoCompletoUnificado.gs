@@ -66,7 +66,9 @@ var Config = {
       return newId;
     }
     return id;
-  }
+  },
+
+  SHEET_HEADERS: typeof SHEET_HEADERS !== "undefined" ? SHEET_HEADERS : null
 };
 
 function setupInitialProperties() {
@@ -134,7 +136,6 @@ function deleteAppointmentRemindersTrigger() {
 function runCheckinTrigger() {
   CheckinService.runCheckinTrigger();
 }
-
 
 // ==========================================
 // ARQUIVO: Storage.gs
@@ -269,6 +270,14 @@ var SheetsRepository = {
         if (!currentHeaders || currentHeaders[0] === "") {
           sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
           sheet.setFrozenRows(1);
+          sheet.getRange(1, 1, 1, headers.length).setFontWeight("bold");
+        } else if (sheetName === "checkin_responses") {
+          var headerList = currentHeaders.map(function (h) { return String(h).trim(); });
+          if (headerList.indexOf("appointment_id") === -1) {
+            sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+            sheet.setFrozenRows(1);
+            sheet.getRange(1, 1, 1, headers.length).setFontWeight("bold");
+          }
         }
       }
     });
@@ -297,12 +306,39 @@ var SheetsRepository = {
   },
 
   appendObject: function (sheetName, obj) {
-    var headers = SHEET_HEADERS[sheetName];
+    var sheet = this.getSheet(sheetName);
+    var configuredHeaders = SHEET_HEADERS[sheetName];
+    if (!configuredHeaders) {
+      throw new Error("Tabela desconhecida: " + sheetName);
+    }
+
+    var lastCol = sheet.getLastColumn();
+    var headers = configuredHeaders;
+
+    if (lastCol > 0) {
+      var row1 = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
+      if (row1 && row1.length > 0 && row1[0]) {
+        var headerList = row1.map(function (h) { return String(h).trim(); });
+        if (sheetName === "checkin_responses" && headerList.indexOf("appointment_id") === -1) {
+          sheet.getRange(1, 1, 1, configuredHeaders.length).setValues([configuredHeaders]);
+          sheet.setFrozenRows(1);
+          sheet.getRange(1, 1, 1, configuredHeaders.length).setFontWeight("bold");
+          headers = configuredHeaders;
+        } else {
+          headers = headerList;
+        }
+      }
+    } else {
+      sheet.getRange(1, 1, 1, configuredHeaders.length).setValues([configuredHeaders]);
+      sheet.setFrozenRows(1);
+      sheet.getRange(1, 1, 1, configuredHeaders.length).setFontWeight("bold");
+    }
+
     var row = headers.map(function (h) {
       return obj[h] !== undefined && obj[h] !== null ? obj[h] : "";
     });
 
-    this.getSheet(sheetName).appendRow(row);
+    sheet.appendRow(row);
   },
 
   getObjects: function (sheetName) {
@@ -392,12 +428,23 @@ var SheetsRepository = {
 
 
   updateObjectByRowNumber: function (sheetName, rowNumber, obj) {
-    var headers = SHEET_HEADERS[sheetName];
+    var sheet = this.getSheet(sheetName);
+    var configuredHeaders = SHEET_HEADERS[sheetName];
+    var lastCol = sheet.getLastColumn();
+    var headers = configuredHeaders;
+
+    if (lastCol > 0) {
+      var row1 = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
+      if (row1 && row1.length > 0 && row1[0]) {
+        headers = row1.map(function (h) { return String(h).trim(); });
+      }
+    }
+
     var row = headers.map(function (h) {
       return obj[h] !== undefined && obj[h] !== null ? obj[h] : "";
     });
 
-    this.getSheet(sheetName).getRange(rowNumber, 1, 1, row.length).setValues([row]);
+    sheet.getRange(rowNumber, 1, 1, row.length).setValues([row]);
   }
 };
 
@@ -464,20 +511,39 @@ var ErrorRepository = {
 var ScheduledRemindersRepository = {
   create: function (data) {
     var patient = data.patient || {};
+    var patientName = data.patient_name || data.patientName || data.name || patient.name || patient.patient_name || patient.patientName || "Paciente";
+    var patientEmail = data.patient_email || data.patientEmail || patient.email || patient.patient_email || "";
+    var patientId = data.patient_id || data.patientId || patient.id || "";
+
+    var htmlBody = data.html_body || "";
+    if (!htmlBody || htmlBody.indexOf("<strong></strong>") !== -1 || htmlBody.indexOf("<strong>undefined</strong>") !== -1) {
+      var reminderData = {
+        patient: patient,
+        patient_name: patientName,
+        patient_email: patientEmail,
+        patient_id: patientId,
+        protocol_name: data.protocol_name || "",
+        scheduled_for: data.scheduled_for || "",
+        reminder_type: data.reminder_type || "3_days_before",
+        appointment_scheduled_at: data.appointment_scheduled_at || data.scheduled_for || ""
+      };
+      htmlBody = Templates.applicationReminderEmail(reminderData);
+    }
+
     SheetsRepository.appendObject("scheduled_reminders", {
       created_at: Utils.nowIso(),
       request_id: data.request_id || "",
       clinic_id: data.clinic_id || "",
-      patient_id: data.patient_id || patient.id || "",
-      patient_email: data.patient_email || patient.email || "",
-      patient_name: data.patient_name || patient.name || "",
+      patient_id: patientId,
+      patient_email: patientEmail,
+      patient_name: patientName,
       appointment_id: data.appointment_id || "",
       protocol_name: data.protocol_name || "",
       scheduled_for: data.scheduled_for || "",
       reminder_type: data.reminder_type || "3_days_before",
       status: "PENDING",
       sent_at: "",
-      html_body: data.html_body || ""
+      html_body: htmlBody
     });
   },
 
@@ -564,7 +630,56 @@ var CheckinRepository = {
   },
 
   saveResponse: function (data) {
-    SheetsRepository.appendObject("checkin_responses", data);
+    var responseObj = {
+      submitted_at: data.submitted_at || Utils.nowIso(),
+      response_id: data.response_id || Utilities.getUuid(),
+      checkin_request_id: data.checkin_request_id || "",
+      clinic_id: data.clinic_id || "",
+      patient_id: data.patient_id || "",
+      patient_email: data.patient_email || "",
+      application_plan_id: data.application_plan_id || "",
+      procedure_id: data.procedure_id || "",
+      appointment_id: data.appointment_id || "",
+      feeling: data.feeling || "",
+      had_intercurrence: data.had_intercurrence || "",
+      local_discomfort: data.local_discomfort || "",
+      unexpected_symptoms: data.unexpected_symptoms || "",
+      wants_contact: data.wants_contact || "",
+      notes: data.notes || "",
+      synced: data.synced !== undefined && data.synced !== null ? String(data.synced) : "FALSE"
+    };
+
+    var sheet = SheetsRepository.getSheet("checkin_responses");
+    var configuredHeaders = SHEET_HEADERS.checkin_responses;
+    var lastCol = sheet.getLastColumn();
+    var headers = configuredHeaders;
+
+    if (lastCol > 0) {
+      var row1 = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
+      if (row1 && row1.length > 0 && row1[0]) {
+        var headerList = row1.map(function (h) { return String(h).trim(); });
+        var hasAppointmentId = headerList.indexOf("appointment_id") !== -1;
+        if (!hasAppointmentId) {
+          // Atualiza cabeçalhos da linha 1 para incluir appointment_id
+          sheet.getRange(1, 1, 1, configuredHeaders.length).setValues([configuredHeaders]);
+          sheet.setFrozenRows(1);
+          sheet.getRange(1, 1, 1, configuredHeaders.length).setFontWeight("bold");
+          headers = configuredHeaders;
+        } else {
+          headers = headerList;
+        }
+      }
+    } else {
+      sheet.getRange(1, 1, 1, configuredHeaders.length).setValues([configuredHeaders]);
+      sheet.setFrozenRows(1);
+      sheet.getRange(1, 1, 1, configuredHeaders.length).setFontWeight("bold");
+    }
+
+    var row = headers.map(function (h) {
+      return responseObj[h] !== undefined && responseObj[h] !== null ? responseObj[h] : "";
+    });
+
+    sheet.appendRow(row);
   },
 
   listResponses: function (filters) {
@@ -635,7 +750,6 @@ var SignaturesLogRepository = {
   }
 };
 
-
 // ==========================================
 // ARQUIVO: Templates.gs
 // ==========================================
@@ -699,13 +813,26 @@ var Templates = {
       '</div>';
   },
 
+  getPatientName: function (rowOrPayload) {
+    if (!rowOrPayload) return "Paciente";
+    var p = rowOrPayload.patient || {};
+    return rowOrPayload.patient_name ||
+      rowOrPayload.patientName ||
+      rowOrPayload.name ||
+      p.name ||
+      p.patient_name ||
+      p.patientName ||
+      "Paciente";
+  },
+
   applicationAppointmentEmail: function (payload, calendar) {
-    var protocol = payload.application.protocol_name || "Não informado";
-    var route = payload.application.route_name || payload.application.route_code;
+    var patientName = this.getPatientName(payload);
+    var protocol = (payload.application && payload.application.protocol_name) || payload.protocol_name || "Não informado";
+    var route = (payload.application && (payload.application.route_name || payload.application.route_code)) || payload.route_name || "";
 
     var content = '' +
       '<h1 style="margin:0 0 12px;font-size:24px;color:#1A5347;">Aplicação agendada</h1>' +
-      '<p style="font-size:15px;line-height:1.7;color:#374151;">Olá, <strong>' + this.escape(payload.patient.name) + '</strong>.</p>' +
+      '<p style="font-size:15px;line-height:1.7;color:#374151;">Olá, <strong>' + this.escape(patientName) + '</strong>.</p>' +
       '<p style="font-size:15px;line-height:1.7;color:#374151;">Sua aplicação foi agendada com sucesso.</p>' +
 
       '<div style="background:#FAFAFA;border:1px solid #E5E7EB;border-radius:14px;padding:18px;margin:22px 0;">' +
@@ -725,8 +852,9 @@ var Templates = {
   },
 
   applicationAppointmentText: function (payload, calendar) {
+    var patientName = this.getPatientName(payload);
     return [
-      "Olá, " + payload.patient.name + ".",
+      "Olá, " + patientName + ".",
       "",
       "Sua aplicação foi agendada.",
       "Data: " + this.formatDate(payload.application.scheduled_at),
@@ -741,9 +869,10 @@ var Templates = {
   },
 
   applicationUpdateEmail: function (payload, calendar) {
+    var patientName = this.getPatientName(payload);
     var content = '' +
       '<h1 style="margin:0 0 12px;font-size:24px;color:#1A5347;">Agendamento atualizado</h1>' +
-      '<p style="font-size:15px;line-height:1.7;color:#374151;">Olá, <strong>' + this.escape(payload.patient.name) + '</strong>.</p>' +
+      '<p style="font-size:15px;line-height:1.7;color:#374151;">Olá, <strong>' + this.escape(patientName) + '</strong>.</p>' +
       '<p style="font-size:15px;line-height:1.7;color:#374151;">Seu agendamento foi atualizado.</p>' +
       '<div style="background:#FAFAFA;border:1px solid #E5E7EB;border-radius:14px;padding:18px;margin:22px 0;">' +
         '<div><strong>Novo horário:</strong> ' + this.formatDateTime(payload.application.scheduled_at) + '</div>' +
@@ -757,9 +886,10 @@ var Templates = {
   },
 
   applicationCancelEmail: function (payload) {
+    var patientName = this.getPatientName(payload);
     var content = '' +
       '<h1 style="margin:0 0 12px;font-size:24px;color:#B91C1C;">Agendamento cancelado</h1>' +
-      '<p style="font-size:15px;line-height:1.7;color:#374151;">Olá, <strong>' + this.escape(payload.patient.name) + '</strong>.</p>' +
+      '<p style="font-size:15px;line-height:1.7;color:#374151;">Olá, <strong>' + this.escape(patientName) + '</strong>.</p>' +
       '<p style="font-size:15px;line-height:1.7;color:#374151;">Seu agendamento foi cancelado.</p>' +
       '<p style="font-size:14px;line-height:1.7;color:#6B7280;">Para reagendar, entre em contato com a clínica.</p>';
 
@@ -767,11 +897,12 @@ var Templates = {
   },
 
   applicationReminderEmail: function (row) {
-    var protocol = row.protocol_name || "Nao informado";
-    var appointmentDate = row.appointment_scheduled_at || row.appointment_date || row.scheduled_for;
+    var patientName = this.getPatientName(row);
+    var protocol = row.protocol_name || row.protocolName || (row.application && (row.application.protocol_name || row.application.protocolName)) || "Nao informado";
+    var appointmentDate = row.appointment_scheduled_at || row.appointment_date || row.scheduled_for || (row.application && row.application.scheduled_at);
     var content = '' +
       '<h1 style="margin:0 0 12px;font-size:24px;color:#1A5347;">Lembrete da sua aplica&ccedil;&atilde;o</h1>' +
-      '<p style="font-size:15px;line-height:1.7;color:#374151;">Ola, <strong>' + this.escape(row.patient_name) + '</strong>.</p>' +
+      '<p style="font-size:15px;line-height:1.7;color:#374151;">Ola, <strong>' + this.escape(patientName) + '</strong>.</p>' +
       '<p style="font-size:15px;line-height:1.7;color:#374151;">' + this.escape(this.reminderLeadText(row.reminder_type)) + '</p>' +
       '<div style="background:#FAFAFA;border:1px solid #E5E7EB;border-radius:14px;padding:18px;margin:22px 0;">' +
         '<div style="margin-bottom:8px;"><strong>Data e horario:</strong> ' + this.formatDateTime(appointmentDate) + '</div>' +
@@ -783,13 +914,15 @@ var Templates = {
   },
 
   applicationReminderText: function (row) {
-    var appointmentDate = row.appointment_scheduled_at || row.appointment_date || row.scheduled_for;
+    var patientName = this.getPatientName(row);
+    var protocol = row.protocol_name || row.protocolName || (row.application && (row.application.protocol_name || row.application.protocolName)) || "Nao informado";
+    var appointmentDate = row.appointment_scheduled_at || row.appointment_date || row.scheduled_for || (row.application && row.application.scheduled_at);
     return [
-      "Ola, " + row.patient_name + ".",
+      "Ola, " + patientName + ".",
       "",
       this.reminderLeadText(row.reminder_type),
       "Data e horario: " + this.formatDateTime(appointmentDate),
-      "Protocolo: " + (row.protocol_name || "Nao informado"),
+      "Protocolo: " + protocol,
       "",
       "Caso precise reagendar, entre em contato com a clinica.",
       "",
@@ -927,7 +1060,6 @@ var Templates = {
 </html>`;
   }
 };
-
 
 // ==========================================
 // ARQUIVO: Services.gs
@@ -1404,10 +1536,18 @@ var EmailService = {
         return;
       }
 
+      var patientObj = payload.patient || {};
+      var patientName = payload.patient_name || payload.patientName || payload.name || patientObj.name || patientObj.patient_name || patientObj.patientName || "Paciente";
+      var patientEmail = payload.patient_email || payload.patientEmail || patientObj.email || patientObj.patient_email || "";
+      var patientId = payload.patient_id || payload.patientId || patientObj.id || "";
+
       var reminder = {
         request_id: payload.request_id,
         clinic_id: payload.clinic_id,
         patient: payload.patient,
+        patient_id: patientId,
+        patient_name: patientName,
+        patient_email: patientEmail,
         appointment_id: payload.appointment_id,
         protocol_name: payload.application.protocol_name || "",
         appointment_scheduled_at: payload.application.scheduled_at,
@@ -1452,7 +1592,10 @@ var EmailService = {
 
   sendScheduledAppointmentReminder: function (row) {
     var subject = this.buildAppointmentReminderSubject(row);
-    var html = row.html_body || Templates.applicationReminderEmail(row);
+    var html = row.html_body;
+    if (!html || html.indexOf("<strong></strong>") !== -1 || html.indexOf("<strong>undefined</strong>") !== -1) {
+      html = Templates.applicationReminderEmail(row);
+    }
     var text = Templates.applicationReminderText(row);
     return this.send(row.patient_email, subject, text, html);
   },
@@ -1923,7 +2066,6 @@ var DriveSignaturesService = {
   }
 };
 
-
 // ==========================================
 // ARQUIVO: Triggers.gs
 // ==========================================
@@ -1979,7 +2121,6 @@ function buildFallbackReminderHtml(row) {
   return Templates.applicationReminderEmail(row);
 }
 
-
 // ==========================================
 // ARQUIVO: Code.gs
 // ==========================================
@@ -1990,6 +2131,21 @@ function doPost(e) {
 
 function doGet(e) {
   return Api.handleGet(e);
+}
+
+/**
+ * Executar esta função no editor do Google Apps Script para conceder todas as permissões necessárias
+ * (Drive, Planilhas, E-mail, Calendário) com um único clique em 'Executar'.
+ */
+function autorizarPermissoesDoSistema() {
+  Logger.log("Iniciando verificação de autorização...");
+  var rootFolder = DriveApp.getRootFolder();
+  Logger.log("Google Drive autorizado: " + rootFolder.getName());
+  var quota = MailApp.getRemainingDailyQuota();
+  Logger.log("MailApp autorizado. Cota diária restante: " + quota);
+  var calendar = CalendarApp.getDefaultCalendar();
+  Logger.log("CalendarApp autorizado: " + (calendar ? calendar.getName() : "OK"));
+  return "Autorizações concedidas com sucesso!";
 }
 
 var Api = {
@@ -2517,3 +2673,4 @@ var Utils = {
     );
   }
 };
+

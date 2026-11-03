@@ -469,10 +469,18 @@ var EmailService = {
         return;
       }
 
+      var patientObj = payload.patient || {};
+      var patientName = payload.patient_name || payload.patientName || payload.name || patientObj.name || patientObj.patient_name || patientObj.patientName || "Paciente";
+      var patientEmail = payload.patient_email || payload.patientEmail || patientObj.email || patientObj.patient_email || "";
+      var patientId = payload.patient_id || payload.patientId || patientObj.id || "";
+
       var reminder = {
         request_id: payload.request_id,
         clinic_id: payload.clinic_id,
         patient: payload.patient,
+        patient_id: patientId,
+        patient_name: patientName,
+        patient_email: patientEmail,
         appointment_id: payload.appointment_id,
         protocol_name: payload.application.protocol_name || "",
         appointment_scheduled_at: payload.application.scheduled_at,
@@ -517,7 +525,10 @@ var EmailService = {
 
   sendScheduledAppointmentReminder: function (row) {
     var subject = this.buildAppointmentReminderSubject(row);
-    var html = row.html_body || Templates.applicationReminderEmail(row);
+    var html = row.html_body;
+    if (!html || html.indexOf("<strong></strong>") !== -1 || html.indexOf("<strong>undefined</strong>") !== -1) {
+      html = Templates.applicationReminderEmail(row);
+    }
     var text = Templates.applicationReminderText(row);
     return this.send(row.patient_email, subject, text, html);
   },

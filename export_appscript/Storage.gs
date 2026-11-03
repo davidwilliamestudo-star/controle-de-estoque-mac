@@ -127,6 +127,14 @@ var SheetsRepository = {
         if (!currentHeaders || currentHeaders[0] === "") {
           sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
           sheet.setFrozenRows(1);
+          sheet.getRange(1, 1, 1, headers.length).setFontWeight("bold");
+        } else if (sheetName === "checkin_responses") {
+          var headerList = currentHeaders.map(function (h) { return String(h).trim(); });
+          if (headerList.indexOf("appointment_id") === -1) {
+            sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+            sheet.setFrozenRows(1);
+            sheet.getRange(1, 1, 1, headers.length).setFontWeight("bold");
+          }
         }
       }
     });
@@ -155,12 +163,39 @@ var SheetsRepository = {
   },
 
   appendObject: function (sheetName, obj) {
-    var headers = SHEET_HEADERS[sheetName];
+    var sheet = this.getSheet(sheetName);
+    var configuredHeaders = SHEET_HEADERS[sheetName];
+    if (!configuredHeaders) {
+      throw new Error("Tabela desconhecida: " + sheetName);
+    }
+
+    var lastCol = sheet.getLastColumn();
+    var headers = configuredHeaders;
+
+    if (lastCol > 0) {
+      var row1 = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
+      if (row1 && row1.length > 0 && row1[0]) {
+        var headerList = row1.map(function (h) { return String(h).trim(); });
+        if (sheetName === "checkin_responses" && headerList.indexOf("appointment_id") === -1) {
+          sheet.getRange(1, 1, 1, configuredHeaders.length).setValues([configuredHeaders]);
+          sheet.setFrozenRows(1);
+          sheet.getRange(1, 1, 1, configuredHeaders.length).setFontWeight("bold");
+          headers = configuredHeaders;
+        } else {
+          headers = headerList;
+        }
+      }
+    } else {
+      sheet.getRange(1, 1, 1, configuredHeaders.length).setValues([configuredHeaders]);
+      sheet.setFrozenRows(1);
+      sheet.getRange(1, 1, 1, configuredHeaders.length).setFontWeight("bold");
+    }
+
     var row = headers.map(function (h) {
       return obj[h] !== undefined && obj[h] !== null ? obj[h] : "";
     });
 
-    this.getSheet(sheetName).appendRow(row);
+    sheet.appendRow(row);
   },
 
   getObjects: function (sheetName) {
@@ -250,12 +285,23 @@ var SheetsRepository = {
 
 
   updateObjectByRowNumber: function (sheetName, rowNumber, obj) {
-    var headers = SHEET_HEADERS[sheetName];
+    var sheet = this.getSheet(sheetName);
+    var configuredHeaders = SHEET_HEADERS[sheetName];
+    var lastCol = sheet.getLastColumn();
+    var headers = configuredHeaders;
+
+    if (lastCol > 0) {
+      var row1 = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
+      if (row1 && row1.length > 0 && row1[0]) {
+        headers = row1.map(function (h) { return String(h).trim(); });
+      }
+    }
+
     var row = headers.map(function (h) {
       return obj[h] !== undefined && obj[h] !== null ? obj[h] : "";
     });
 
-    this.getSheet(sheetName).getRange(rowNumber, 1, 1, row.length).setValues([row]);
+    sheet.getRange(rowNumber, 1, 1, row.length).setValues([row]);
   }
 };
 
@@ -322,20 +368,39 @@ var ErrorRepository = {
 var ScheduledRemindersRepository = {
   create: function (data) {
     var patient = data.patient || {};
+    var patientName = data.patient_name || data.patientName || data.name || patient.name || patient.patient_name || patient.patientName || "Paciente";
+    var patientEmail = data.patient_email || data.patientEmail || patient.email || patient.patient_email || "";
+    var patientId = data.patient_id || data.patientId || patient.id || "";
+
+    var htmlBody = data.html_body || "";
+    if (!htmlBody || htmlBody.indexOf("<strong></strong>") !== -1 || htmlBody.indexOf("<strong>undefined</strong>") !== -1) {
+      var reminderData = {
+        patient: patient,
+        patient_name: patientName,
+        patient_email: patientEmail,
+        patient_id: patientId,
+        protocol_name: data.protocol_name || "",
+        scheduled_for: data.scheduled_for || "",
+        reminder_type: data.reminder_type || "3_days_before",
+        appointment_scheduled_at: data.appointment_scheduled_at || data.scheduled_for || ""
+      };
+      htmlBody = Templates.applicationReminderEmail(reminderData);
+    }
+
     SheetsRepository.appendObject("scheduled_reminders", {
       created_at: Utils.nowIso(),
       request_id: data.request_id || "",
       clinic_id: data.clinic_id || "",
-      patient_id: data.patient_id || patient.id || "",
-      patient_email: data.patient_email || patient.email || "",
-      patient_name: data.patient_name || patient.name || "",
+      patient_id: patientId,
+      patient_email: patientEmail,
+      patient_name: patientName,
       appointment_id: data.appointment_id || "",
       protocol_name: data.protocol_name || "",
       scheduled_for: data.scheduled_for || "",
       reminder_type: data.reminder_type || "3_days_before",
       status: "PENDING",
       sent_at: "",
-      html_body: data.html_body || ""
+      html_body: htmlBody
     });
   },
 
@@ -422,7 +487,56 @@ var CheckinRepository = {
   },
 
   saveResponse: function (data) {
-    SheetsRepository.appendObject("checkin_responses", data);
+    var responseObj = {
+      submitted_at: data.submitted_at || Utils.nowIso(),
+      response_id: data.response_id || Utilities.getUuid(),
+      checkin_request_id: data.checkin_request_id || "",
+      clinic_id: data.clinic_id || "",
+      patient_id: data.patient_id || "",
+      patient_email: data.patient_email || "",
+      application_plan_id: data.application_plan_id || "",
+      procedure_id: data.procedure_id || "",
+      appointment_id: data.appointment_id || "",
+      feeling: data.feeling || "",
+      had_intercurrence: data.had_intercurrence || "",
+      local_discomfort: data.local_discomfort || "",
+      unexpected_symptoms: data.unexpected_symptoms || "",
+      wants_contact: data.wants_contact || "",
+      notes: data.notes || "",
+      synced: data.synced !== undefined && data.synced !== null ? String(data.synced) : "FALSE"
+    };
+
+    var sheet = SheetsRepository.getSheet("checkin_responses");
+    var configuredHeaders = SHEET_HEADERS.checkin_responses;
+    var lastCol = sheet.getLastColumn();
+    var headers = configuredHeaders;
+
+    if (lastCol > 0) {
+      var row1 = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
+      if (row1 && row1.length > 0 && row1[0]) {
+        var headerList = row1.map(function (h) { return String(h).trim(); });
+        var hasAppointmentId = headerList.indexOf("appointment_id") !== -1;
+        if (!hasAppointmentId) {
+          // Atualiza cabeçalhos da linha 1 para incluir appointment_id
+          sheet.getRange(1, 1, 1, configuredHeaders.length).setValues([configuredHeaders]);
+          sheet.setFrozenRows(1);
+          sheet.getRange(1, 1, 1, configuredHeaders.length).setFontWeight("bold");
+          headers = configuredHeaders;
+        } else {
+          headers = headerList;
+        }
+      }
+    } else {
+      sheet.getRange(1, 1, 1, configuredHeaders.length).setValues([configuredHeaders]);
+      sheet.setFrozenRows(1);
+      sheet.getRange(1, 1, 1, configuredHeaders.length).setFontWeight("bold");
+    }
+
+    var row = headers.map(function (h) {
+      return responseObj[h] !== undefined && responseObj[h] !== null ? responseObj[h] : "";
+    });
+
+    sheet.appendRow(row);
   },
 
   listResponses: function (filters) {

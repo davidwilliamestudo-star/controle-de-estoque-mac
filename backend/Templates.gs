@@ -57,13 +57,26 @@ var Templates = {
       '</div>';
   },
 
+  getPatientName: function (rowOrPayload) {
+    if (!rowOrPayload) return "Paciente";
+    var p = rowOrPayload.patient || {};
+    return rowOrPayload.patient_name ||
+      rowOrPayload.patientName ||
+      rowOrPayload.name ||
+      p.name ||
+      p.patient_name ||
+      p.patientName ||
+      "Paciente";
+  },
+
   applicationAppointmentEmail: function (payload, calendar) {
-    var protocol = payload.application.protocol_name || "Não informado";
-    var route = payload.application.route_name || payload.application.route_code;
+    var patientName = this.getPatientName(payload);
+    var protocol = (payload.application && payload.application.protocol_name) || payload.protocol_name || "Não informado";
+    var route = (payload.application && (payload.application.route_name || payload.application.route_code)) || payload.route_name || "";
 
     var content = '' +
       '<h1 style="margin:0 0 12px;font-size:24px;color:#1A5347;">Aplicação agendada</h1>' +
-      '<p style="font-size:15px;line-height:1.7;color:#374151;">Olá, <strong>' + this.escape(payload.patient.name) + '</strong>.</p>' +
+      '<p style="font-size:15px;line-height:1.7;color:#374151;">Olá, <strong>' + this.escape(patientName) + '</strong>.</p>' +
       '<p style="font-size:15px;line-height:1.7;color:#374151;">Sua aplicação foi agendada com sucesso.</p>' +
 
       '<div style="background:#FAFAFA;border:1px solid #E5E7EB;border-radius:14px;padding:18px;margin:22px 0;">' +
@@ -83,8 +96,9 @@ var Templates = {
   },
 
   applicationAppointmentText: function (payload, calendar) {
+    var patientName = this.getPatientName(payload);
     return [
-      "Olá, " + payload.patient.name + ".",
+      "Olá, " + patientName + ".",
       "",
       "Sua aplicação foi agendada.",
       "Data: " + this.formatDate(payload.application.scheduled_at),
@@ -99,9 +113,10 @@ var Templates = {
   },
 
   applicationUpdateEmail: function (payload, calendar) {
+    var patientName = this.getPatientName(payload);
     var content = '' +
       '<h1 style="margin:0 0 12px;font-size:24px;color:#1A5347;">Agendamento atualizado</h1>' +
-      '<p style="font-size:15px;line-height:1.7;color:#374151;">Olá, <strong>' + this.escape(payload.patient.name) + '</strong>.</p>' +
+      '<p style="font-size:15px;line-height:1.7;color:#374151;">Olá, <strong>' + this.escape(patientName) + '</strong>.</p>' +
       '<p style="font-size:15px;line-height:1.7;color:#374151;">Seu agendamento foi atualizado.</p>' +
       '<div style="background:#FAFAFA;border:1px solid #E5E7EB;border-radius:14px;padding:18px;margin:22px 0;">' +
         '<div><strong>Novo horário:</strong> ' + this.formatDateTime(payload.application.scheduled_at) + '</div>' +
@@ -115,9 +130,10 @@ var Templates = {
   },
 
   applicationCancelEmail: function (payload) {
+    var patientName = this.getPatientName(payload);
     var content = '' +
       '<h1 style="margin:0 0 12px;font-size:24px;color:#B91C1C;">Agendamento cancelado</h1>' +
-      '<p style="font-size:15px;line-height:1.7;color:#374151;">Olá, <strong>' + this.escape(payload.patient.name) + '</strong>.</p>' +
+      '<p style="font-size:15px;line-height:1.7;color:#374151;">Olá, <strong>' + this.escape(patientName) + '</strong>.</p>' +
       '<p style="font-size:15px;line-height:1.7;color:#374151;">Seu agendamento foi cancelado.</p>' +
       '<p style="font-size:14px;line-height:1.7;color:#6B7280;">Para reagendar, entre em contato com a clínica.</p>';
 
@@ -125,11 +141,12 @@ var Templates = {
   },
 
   applicationReminderEmail: function (row) {
-    var protocol = row.protocol_name || "Nao informado";
-    var appointmentDate = row.appointment_scheduled_at || row.appointment_date || row.scheduled_for;
+    var patientName = this.getPatientName(row);
+    var protocol = row.protocol_name || row.protocolName || (row.application && (row.application.protocol_name || row.application.protocolName)) || "Nao informado";
+    var appointmentDate = row.appointment_scheduled_at || row.appointment_date || row.scheduled_for || (row.application && row.application.scheduled_at);
     var content = '' +
       '<h1 style="margin:0 0 12px;font-size:24px;color:#1A5347;">Lembrete da sua aplica&ccedil;&atilde;o</h1>' +
-      '<p style="font-size:15px;line-height:1.7;color:#374151;">Ola, <strong>' + this.escape(row.patient_name) + '</strong>.</p>' +
+      '<p style="font-size:15px;line-height:1.7;color:#374151;">Ola, <strong>' + this.escape(patientName) + '</strong>.</p>' +
       '<p style="font-size:15px;line-height:1.7;color:#374151;">' + this.escape(this.reminderLeadText(row.reminder_type)) + '</p>' +
       '<div style="background:#FAFAFA;border:1px solid #E5E7EB;border-radius:14px;padding:18px;margin:22px 0;">' +
         '<div style="margin-bottom:8px;"><strong>Data e horario:</strong> ' + this.formatDateTime(appointmentDate) + '</div>' +
@@ -141,13 +158,15 @@ var Templates = {
   },
 
   applicationReminderText: function (row) {
-    var appointmentDate = row.appointment_scheduled_at || row.appointment_date || row.scheduled_for;
+    var patientName = this.getPatientName(row);
+    var protocol = row.protocol_name || row.protocolName || (row.application && (row.application.protocol_name || row.application.protocolName)) || "Nao informado";
+    var appointmentDate = row.appointment_scheduled_at || row.appointment_date || row.scheduled_for || (row.application && row.application.scheduled_at);
     return [
-      "Ola, " + row.patient_name + ".",
+      "Ola, " + patientName + ".",
       "",
       this.reminderLeadText(row.reminder_type),
       "Data e horario: " + this.formatDateTime(appointmentDate),
-      "Protocolo: " + (row.protocol_name || "Nao informado"),
+      "Protocolo: " + protocol,
       "",
       "Caso precise reagendar, entre em contato com a clinica.",
       "",

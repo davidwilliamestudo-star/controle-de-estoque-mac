@@ -2,16 +2,23 @@ import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
 export interface AppointmentData {
-  patientName: string;
+  patientName?: string;
+  patient_name?: string;
+  name?: string;
   patientEmail: string;
+  patient_email?: string;
   clinicName: string;
   appointmentDate: string | Date;
   protocolName?: string;
+  protocol_name?: string;
   appointmentType: string;
   professionalName?: string;
+  [key: string]: any;
 }
 
 export function generateAppointmentConfirmationHtml(data: AppointmentData): string {
+  const patientName = data.patientName || data.patient_name || data.name || (data.patient && (data.patient.name || data.patient.patient_name)) || "Paciente";
+  const clinicName = data.clinicName || "Clínica Dra. Ana Morong";
   const dateObj = typeof data.appointmentDate === "string" ? new Date(data.appointmentDate) : data.appointmentDate;
   const formattedDate = format(dateObj, "dd/MM/yyyy 'às' HH:mm", { locale: ptBR });
   
@@ -20,8 +27,8 @@ export function generateAppointmentConfirmationHtml(data: AppointmentData): stri
   // Assume 1 hour duration
   const endDateObj = new Date(dateObj.getTime() + 60 * 60 * 1000);
   const endDateStr = endDateObj.toISOString().replace(/-|:|\.\d\d\d/g, "");
-  const details = encodeURIComponent(`Agendamento de ${data.appointmentType} na clínica ${data.clinicName}.`);
-  const text = encodeURIComponent(`Aplicação - ${data.patientName}`);
+  const details = encodeURIComponent(`Agendamento de ${data.appointmentType} na clínica ${clinicName}.`);
+  const text = encodeURIComponent(`Aplicação - ${patientName}`);
   const calendarUrl = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${text}&dates=${startDateStr}/${endDateStr}&details=${details}`;
 
   return `
@@ -53,8 +60,8 @@ export function generateAppointmentConfirmationHtml(data: AppointmentData): stri
       <h1>Agendamento Confirmado!</h1>
     </div>
     <div class="content">
-      <div class="greeting">Olá, ${data.patientName}!</div>
-      <p>Seu agendamento na <strong>${data.clinicName}</strong> foi confirmado com sucesso. Abaixo estão os detalhes da sua sessão:</p>
+      <div class="greeting">Olá, ${patientName}!</div>
+      <p>Seu agendamento na <strong>${clinicName}</strong> foi confirmado com sucesso. Abaixo estão os detalhes da sua sessão:</p>
       
       <div class="info-card">
         <div class="info-row">
@@ -63,7 +70,7 @@ export function generateAppointmentConfirmationHtml(data: AppointmentData): stri
         </div>
         <div class="info-row">
           <span class="info-label">Procedimento</span>
-          <span class="info-value">${data.appointmentType} ${data.protocolName ? `(${data.protocolName})` : ''}</span>
+          <span class="info-value">${data.appointmentType} ${data.protocolName || data.protocol_name ? `(${data.protocolName || data.protocol_name})` : ''}</span>
         </div>
         ${data.professionalName ? `
         <div class="info-row">
@@ -77,7 +84,7 @@ export function generateAppointmentConfirmationHtml(data: AppointmentData): stri
       </div>
     </div>
     <div class="footer">
-      Esta é uma mensagem automática de ${data.clinicName}.<br>
+      Esta é uma mensagem automática de ${clinicName}.<br>
       Por favor, não responda este email.
     </div>
   </div>
@@ -86,9 +93,20 @@ export function generateAppointmentConfirmationHtml(data: AppointmentData): stri
   `;
 }
 
-export function generateAppointmentReminderHtml(data: AppointmentData): string {
+export function generateAppointmentReminderHtml(data: AppointmentData, reminderType?: string): string {
+  const patientName = data.patientName || data.patient_name || data.name || (data.patient && (data.patient.name || data.patient.patient_name)) || "Paciente";
+  const clinicName = data.clinicName || "Clínica Dra. Ana Morong";
   const dateObj = typeof data.appointmentDate === "string" ? new Date(data.appointmentDate) : data.appointmentDate;
   const formattedDate = format(dateObj, "dd/MM/yyyy 'às' HH:mm", { locale: ptBR });
+
+  let reminderLead = `Passando para lembrar que faltam poucos dias para a sua aplicação na <strong>${clinicName}</strong>.`;
+  if (reminderType === "4_hours_before") {
+    reminderLead = `Passando para lembrar que sua aplicação na <strong>${clinicName}</strong> será em aproximadamente 4 horas.`;
+  } else if (reminderType === "1_day_before") {
+    reminderLead = `Passando para lembrar que sua aplicação na <strong>${clinicName}</strong> será amanhã.`;
+  } else if (reminderType === "7_days_before") {
+    reminderLead = `Passando para lembrar que sua aplicação na <strong>${clinicName}</strong> está agendada para daqui a 7 dias.`;
+  }
 
   return `
 <!DOCTYPE html>
@@ -118,8 +136,8 @@ export function generateAppointmentReminderHtml(data: AppointmentData): string {
       <h1>Lembrete de Aplicação</h1>
     </div>
     <div class="content">
-      <div class="greeting">Olá, ${data.patientName}!</div>
-      <p>Passando para lembrar que faltam poucos dias para a sua aplicação na <strong>${data.clinicName}</strong>.</p>
+      <div class="greeting">Olá, ${patientName}!</div>
+      <p>${reminderLead}</p>
       
       <div class="info-card">
         <div class="info-row">
@@ -128,7 +146,7 @@ export function generateAppointmentReminderHtml(data: AppointmentData): string {
         </div>
         <div class="info-row">
           <span class="info-label">Procedimento</span>
-          <span class="info-value">${data.appointmentType} ${data.protocolName ? `(${data.protocolName})` : ''}</span>
+          <span class="info-value">${data.appointmentType} ${data.protocolName || data.protocol_name ? `(${data.protocolName || data.protocol_name})` : ''}</span>
         </div>
         ${data.professionalName ? `
         <div class="info-row">
@@ -140,7 +158,7 @@ export function generateAppointmentReminderHtml(data: AppointmentData): string {
       <p class="alert-text">Caso precise reagendar, entre em contato com a clínica o quanto antes.</p>
     </div>
     <div class="footer">
-      Esta é uma mensagem automática de ${data.clinicName}.<br>
+      Esta é uma mensagem automática de ${clinicName}.<br>
       Por favor, não responda este email.
     </div>
   </div>

@@ -35,25 +35,30 @@ export const appointmentIntegrationService = {
       return [];
     }
 
-    const htmlBody = generateAppointmentReminderHtml(data);
+    const patientName = data.patientName || (data as any).patient_name || (data as any).name || "Paciente";
+    const patientEmail = data.patientEmail || (data as any).patient_email || "";
 
-    return Promise.all(reminders.map((reminder) =>
-      appScriptIntegrationService.sendPayload({
+    return Promise.all(reminders.map((reminder) => {
+      const htmlBody = generateAppointmentReminderHtml(data, reminder.type);
+
+      return appScriptIntegrationService.sendPayload({
         action: "schedule_appointment_reminder",
         request_id: `schedule_appointment_reminder:${appointmentId}:${reminder.type}`,
         patient_id: patientId,
+        patient_name: patientName,
+        patient_email: patientEmail,
         patient: {
           id: patientId,
-          email: data.patientEmail,
-          name: data.patientName
+          email: patientEmail,
+          name: patientName
         },
         appointment_id: appointmentId,
-        protocol_name: data.protocolName || data.appointmentType,
+        protocol_name: data.protocolName || (data as any).protocol_name || data.appointmentType,
         scheduled_for: reminder.date.toISOString(),
         reminder_type: reminder.type,
         html_body: htmlBody
-      })
-    ));
+      });
+    }));
   },
 
   async scheduleReminder(data: AppointmentData, appointmentId: string, patientId: string) {
