@@ -8,6 +8,7 @@ import {
   PDFArray,
   PDFNumber,
 } from 'pdf-lib';
+import { formatCouncilRegister, normalizePdfText } from './pdfTextNormalizer';
 
 export interface IcpBrasilCertificateDetails {
   subjectCn: string;
@@ -33,6 +34,31 @@ export interface PadesAutoSignOutput {
 }
 
 export class DoctorAutoSignVaultService {
+  /**
+   * Converte a linha da tabela doctor_certificate_vault na identidade ICP-Brasil usada
+   * pelo carimbo visual (página do contrato) e pelo Quadro Probatório (Manifesto).
+   * Nunca devolve valores fictícios: campos ausentes retornam undefined.
+   */
+  static mapVaultRowToStampIdentity(row?: Record<string, any> | null): {
+    icp_subject_cn?: string;
+    icp_issuer_cn?: string;
+    icp_serial_hex?: string;
+    icp_thumbprint_sha256?: string;
+    council_register: string;
+  } {
+    const clean = (v: unknown): string | undefined => {
+      const t = typeof v === 'string' ? v.trim() : '';
+      return t ? t : undefined;
+    };
+    return {
+      icp_subject_cn: clean(row?.cert_subject_cn),
+      icp_issuer_cn: clean(row?.cert_issuer_cn),
+      icp_serial_hex: clean(row?.cert_serial_hex),
+      icp_thumbprint_sha256: clean(row?.cert_thumbprint_sha256),
+      council_register: formatCouncilRegister(clean(row?.crm_register)),
+    };
+  }
+
   /**
    * Converte ArrayBuffer / Uint8Array para Base64 de forma segura em qualquer runtime
    */
@@ -380,12 +406,14 @@ export class DoctorAutoSignVaultService {
       Type: PDFName.of('Sig'),
       Filter: PDFName.of('Adobe.PPKLite'),
       SubFilter: PDFName.of('adbe.pkcs7.detached'),
-      Name: PDFString.of(details.subjectCn),
+      Name: PDFString.of(normalizePdfText(details.subjectCn)),
       Location: PDFString.of(
         'Tv. do Motorista, nº 82, Canto, Florianópolis - SC, CEP 88075-550'
       ),
       Reason: PDFString.of(
-        `Assinatura Qualificada ICP-Brasil — ${params.documentTitle} (Código: ${params.verificationCode})`
+        normalizePdfText(
+          `Assinatura Qualificada ICP-Brasil — ${params.documentTitle} (Código: ${params.verificationCode})`
+        )
       ),
       ContactInfo: PDFString.of('financeiro@draanamorong.com.br | (48) 98857-2882'),
       M: PDFString.fromDate(now),

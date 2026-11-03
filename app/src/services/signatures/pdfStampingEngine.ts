@@ -1,6 +1,7 @@
 // src/services/signatures/pdfStampingEngine.ts
 import { PDFDocument, rgb, StandardFonts, PDFPage } from 'pdf-lib';
 import QRCode from 'qrcode';
+import { formatCouncilRegister, normalizePdfText, wrapTextToWidth } from './pdfTextNormalizer';
 
 export interface FieldCoordinateInput {
   id: string;
@@ -32,7 +33,10 @@ export interface SignerEvidenceInput {
   signed_at_brt: string;
   icp_subject_cn?: string;
   icp_issuer_ca?: string;
+  icp_issuer_cn?: string;
   icp_serial_number?: string;
+  icp_serial_hex?: string;
+  icp_thumbprint_sha256?: string;
 }
 
 export interface AuditTrailItemInput {
@@ -202,7 +206,7 @@ export class PdfStampingEngine {
           });
 
           page.drawText(
-            `${signer.icp_subject_cn || signer.full_name} (${signer.council_id || 'CRM/SC'})`,
+            normalizePdfText(`${signer.full_name} (${formatCouncilRegister(signer.council_id)})`),
             {
               x: pdfX + 8,
               y: pdfY + boxH - 22,
@@ -224,7 +228,7 @@ export class PdfStampingEngine {
           );
 
           page.drawText(
-            `Série: ${(signer.icp_serial_number || '').slice(0, 16)} | Data BRT: ${signer.signed_at_brt}`,
+            `Série: ${(signer.icp_serial_number || 'N/D').slice(0, 20)} | Data BRT: ${signer.signed_at_brt}`,
             {
               x: pdfX + 8,
               y: pdfY + 6,
@@ -399,14 +403,23 @@ export class PdfStampingEngine {
     });
 
     // Metadados do Documento e Hash Original
+    const cleanDocTitle = (req.documentTitle || 'Contrato de Prestação de Serviços Médicos')
+      .split('\n')[0]
+      .trim();
+
     let yCursor = mH - 98;
-    manifestPage.drawText(`Documento: ${req.documentTitle}`, {
-      x: 30,
-      y: yCursor,
-      size: 10,
-      font: fontBold,
-      color: rgb(0.08, 0.1, 0.15),
-    });
+    manifestPage.drawText(
+      normalizePdfText(
+        `Documento: ${cleanDocTitle.length > 65 ? cleanDocTitle.slice(0, 62) + '...' : cleanDocTitle}`
+      ),
+      {
+        x: 30,
+        y: yCursor,
+        size: 10,
+        font: fontBold,
+        color: rgb(0.08, 0.1, 0.15),
+      }
+    );
 
     yCursor -= 15;
     manifestPage.drawText(`ID Único do Documento: ${req.documentId}`, {
@@ -496,23 +509,14 @@ export class PdfStampingEngine {
         }
       );
 
-      manifestPage.drawText(
-        `Dispositivo/Navegador: ${signer.signer_user_agent.slice(0, 78)}`,
-        {
-          x: 40,
-          y: yCursor + 23,
-          size: 6.5,
-          font: fontRegular,
-          color: rgb(0.4, 0.45, 0.52),
-        }
-      );
-
-      if (signer.icp_subject_cn) {
+      if (signer.icp_subject_cn || signer.role === 'DRA_ANA') {
         manifestPage.drawText(
-          `Certificado Digital: ${signer.icp_subject_cn} | Série: ${signer.icp_serial_number}`,
+          normalizePdfText(
+            `Certificado Digital: ${signer.icp_subject_cn || signer.full_name} | Série: ${signer.icp_serial_hex || signer.icp_serial_number || 'N/D'}`
+          ),
           {
             x: 40,
-            y: yCursor + 10,
+            y: yCursor + 24,
             size: 6.5,
             font: fontBold,
             color: rgb(0.02, 0.44, 0.31),
@@ -530,6 +534,23 @@ export class PdfStampingEngine {
           height: 44,
         });
       }
+
+      const maxUaWidth = mW - 60 - (sigImage ? 120 : 25);
+      const uaLines = wrapTextToWidth(
+        `Dispositivo/Navegador: ${signer.signer_user_agent || 'Navegador Web'}`,
+        maxUaWidth,
+        (t) => fontRegular.widthOfTextAtSize(t, 6.2),
+        2
+      );
+      uaLines.forEach((uaLine, idx) => {
+        manifestPage.drawText(uaLine, {
+          x: 40,
+          y: yCursor + 12 - idx * 7,
+          size: 6.2,
+          font: fontRegular,
+          color: rgb(0.4, 0.45, 0.52),
+        });
+      });
 
       // Miniatura da Selfie Biométrica (se capturada)
       if (signer.selfie_photo_base64) {
@@ -587,6 +608,14 @@ export class PdfStampingEngine {
         color: rgb(0.45, 0.5, 0.56),
       }
     );
+
+    manifestPage.drawText('Anexo I - Manifesto de Certificação Digital (Página 1 de 1)', {
+      x: 30,
+      y: 34,
+      size: 7.5,
+      font: fontBold,
+      color: rgb(0.25, 0.33, 0.29),
+    });
 
     const signedPdfBytes = await pdfDoc.save();
     const signedSha256 = await this.sha256HexFromBytes(signedPdfBytes);

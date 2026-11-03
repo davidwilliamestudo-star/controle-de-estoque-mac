@@ -1,6 +1,7 @@
 // src/services/contracts/saude360ContractEngine.service.ts
 import { PDFDocument, StandardFonts, rgb, PDFImage } from 'pdf-lib';
 import fontkit from '@pdf-lib/fontkit';
+import { NO_LIGATURE_FONT_FEATURES, normalizePdfText } from '../signatures/pdfTextNormalizer';
 import {
   LETTERHEAD_PAGE1_BASE64,
   LETTERHEAD_PAGE2_BASE64,
@@ -199,7 +200,7 @@ export const SAUDE_360_CATALOG: Record<Saude360PlanId, Saude360PlanMetadata> = {
  */
 export const OFFICIAL_CONTRACT_MODEL_3_TEXT = `CONTRATO DE PRESTAÇÃO DE SERVIÇOS MÉDICOS E ACOMPANHAMENTO EM SAÚDE
 
-I – DAS PARTES
+I - DAS PARTES
 
 CONTRATADA:
 Razão Social / Nome: Dra. Ana Carla Morong
@@ -216,7 +217,7 @@ Endereço Residencial: {{endereco}}
 Bairro / Cidade / UF: {{bairro_cidade_uf}}   |   CEP: {{cep}}
 Telefone / WhatsApp: {{telefone}}   |   E-mail: {{email}}
 
-II – DO OBJETO E DA ESCOLHA DO PROGRAMA
+II - DO OBJETO E DA ESCOLHA DO PROGRAMA
 
 2.1. O presente contrato tem por objeto a prestação de serviços médicos individualizados em Medicina de Precisão e acompanhamento clínico integrativo pela CONTRATADA, estruturados na metodologia da Jornada Saúde 360®, mediante a escolha de um dos programas discriminados a seguir:
 
@@ -259,7 +260,7 @@ Especificações terapêuticas: {{especificacoes_terapeuticas}}.
 Fica expressamente consignado que a CONTRATADA não realiza e este contrato não contempla procedimentos de soroterapia, infusões endovenosas ou quaisquer terapias de administração parenteral por via endovenosa.
 As prescrições médicas emitidas pela CONTRATADA (incluindo reposições hormonais individualizadas, nutracêuticos, medicações orais ou aplicações intramusculares em consultório, quando estritamente indicadas) observarão as normas técnicas do Conselho Federal de Medicina (CFM) e da ANVISA, sendo precedidas de criteriosa avaliação clínica e do respectivo Termo de Consentimento Livre e Esclarecido.
 
-III – DO VALOR E DAS CONDIÇÕES DE PAGAMENTO
+III - DO VALOR E DAS CONDIÇÕES DE PAGAMENTO
 
 3.1. Em contraprestação aos serviços médicos acordados na Cláusula II, o(a) CONTRATANTE pagará à CONTRATADA o valor total de R$ {{valor_plano}} ({{valor_plano_extenso}}), conforme a modalidade de pagamento selecionada abaixo:
 
@@ -281,16 +282,16 @@ b) Medicamentos de prescrição comercial, manipulados ou suplementações adqui
 c) Procedimentos hospitalares, internações ou atendimentos de pronto-socorro;
 d) Deslocamentos e transporte do(a) paciente.
 
-IV – DO CRONOGRAMA, AGENDAMENTOS E REMARCAÇÕES
+IV - DO CRONOGRAMA, AGENDAMENTOS E REMARCAÇÕES
 
-4.1. Vigência do Contrato: O plano contratado possui prazo de vigência correspondente à sua duração estipulada na Cláusula II ({{vigencia_contrato}}), a contar da data de assinatura deste instrumento ou da data da consulta inicial. Todas as consultas e avaliações integrantes do pacote deverão ser agendadas e fruídas dentro deste intervalo de vigência.
+4.1. Vigência do Contrato: O plano contratado possui prazo de vigência correspondente à sua duração estipulada na Cláusula II de {{vigencia_contrato}}, a contar da data de assinatura deste instrumento ou da data da consulta inicial. Todas as consultas e avaliações integrantes do pacote deverão ser agendadas e fruídas dentro deste intervalo de vigência.
 4.2. Agendamento das Consultas: Os encontros médicos serão agendados conforme o cronograma do programa contratado e a mútua conveniência de agenda das partes.
 4.3. Regras de Cancelamento e Remarcação:
 - Consultas Médicas: Qualquer necessidade de remarcação deverá ser informada pelo(a) PACIENTE com antecedência mínima de 48 (quarenta e oito) horas úteis.
 - Avaliações em Consultório / Bioimpedâncias / Procedimentos: O pedido de remarcação deverá ocorrer com antecedência mínima de 24 (vinte e quatro) horas úteis.
 - Faltas Injustificadas: O não comparecimento no dia e horário agendados sem a comunicação prévia nos prazos supracitados importará na perda do respectivo encontro agendado, sendo a consulta considerada disponibilizada e computada como realizada para todos os efeitos, não havendo reposição extraordinária ou dedução financeira proporcional.
 
-V – DAS OBRIGAÇÕES DAS PARTES
+V - DAS OBRIGAÇÕES DAS PARTES
 
 5.1. Obrigações do(a) CONTRATANTE (Paciente):
 a) Honrar pontualmente os valores e formas de pagamento avençados;
@@ -304,12 +305,12 @@ a) Prestar os serviços com o máximo rigor científico, ética médica e atenç
 b) Disponibilizar os agendamentos previstos no programa e fornecer os esclarecimentos cabíveis quanto às estratégias adotadas;
 c) Zelar pela integridade, sigilo e guarda do prontuário médico do(a) paciente.
 
-VI – DA NATUREZA DA OBRIGAÇÃO MÉDICA E DOS RESULTADOS
+VI - DA NATUREZA DA OBRIGAÇÃO MÉDICA E DOS RESULTADOS
 
 6.1. Por imperativo bioético e determinação legal e do Conselho Federal de Medicina, a prestação de serviços médicos consubstancia obrigação de meio e não de resultado.
 6.2. O corpo humano responde de forma singular e multifatorial a qualquer intervenção, dependendo intimamente da individualidade biológica, da genética, do histórico metabólico e, crucialmente, do engajamento ativo do(a) PACIENTE no seguimento das diretrizes médicas e comportamentais. Portanto, a CONTRATADA não assegura, não promete e não quantifica resultados pré-fixados, tais como percentuais milagrosos de redução ponderal ou metas estéticas específicas.
 
-VII – DA RESCISÃO CONTRATUAL, POLÍTICA DE RETENÇÃO E ABANDONO
+VII - DA RESCISÃO CONTRATUAL, POLÍTICA DE RETENÇÃO E ABANDONO
 
 7.1. Desistência Antes do Início: Na hipótese de o(a) CONTRATANTE requerer formalmente a desistência antes da realização da primeira consulta ou de qualquer procedimento clínico, o valor pago será devolvido com retenção de taxa administrativa de 10% (dez por cento) do valor total do contrato para cobrir despesas financeiras e operacionais de contratação.
 7.2. Rescisão no Decorrer do Programa: Caso o(a) CONTRATANTE solicite a rescisão imotivada do contrato após o início dos atendimentos:
@@ -318,21 +319,21 @@ b) Sobre o saldo remanescente decorrente do cálculo anterior, incidirá multa r
 c) O saldo credor líquido apurado, se houver, será devolvido ao(à) CONTRATANTE no prazo de até 15 (quinze) dias úteis via transferência bancária.
 7.3. Abandono de Tratamento: Considerar-se-á abandono unilateral de tratamento quando o(a) PACIENTE, por sua exclusiva vontade ou desídia, deixar de agendar suas consultas por mais de 60 (sessenta) dias consecutivos, sem justificativa médica plausível ou sem manter contato com a clínica, ou quando esgotado o prazo de vigência do contrato sem utilização das consultas contratadas. Configurado o abandono, cessa a responsabilidade médica da CONTRATADA quanto à continuidade clínica e não haverá direito à devolução de valores remanescentes.
 
-VIII – DO SIGILO PROFISSIONAL E PROTEÇÃO DE DADOS (LGPD)
+VIII - DO SIGILO PROFISSIONAL E PROTEÇÃO DE DADOS (LGPD)
 
 8.1. A CONTRATADA e sua equipe estão vinculadas ao mais estrito sigilo médico profissional e às exigências da Lei Geral de Proteção de Dados (Lei nº 13.709/2018).
 8.2. O(a) CONTRATANTE autoriza o tratamento e arquivamento de seus dados pessoais e dados de saúde com finalidade exclusiva de assistência médica, prontuário clínico eletrônico, comunicações de agendamento e emissão de notas fiscais e controle financeiro.
 
-IX – DOS PROTOCOLOS DE SEGURANÇA E URGÊNCIA
+IX - DOS PROTOCOLOS DE SEGURANÇA E URGÊNCIA
 
 9.1. A CONTRATADA adota protocolos de segurança para consultas e procedimentos clínicos em conformidade com as diretrizes das sociedades médicas e conselhos profissionais.
 9.2. Caso o(a) PACIENTE necessite de pronto atendimento de urgência ou emergência fora do horário de consultório ou que demande suporte hospitalar intensivo, declara-se ciente de que tais serviços deverão ser buscados em rede hospitalar ou pronto-socorro de sua preferência ou de seu plano de saúde, não estando os custos de assistência hospitalar incluídos no presente contrato.
 
-X – DO FORO
+X - DO FORO
 
 10.1. Para dirimir quaisquer questões ou conflitos oriundos da interpretação ou execução deste contrato, as partes elegem a Comarca de Florianópolis / SC, com expressa renúncia a qualquer outro foro, por mais privilegiado que seja ou venha a ser.
 
-E, por estarem plenamente esclarecidas, de comum acordo e conformes em todos os seus termos, firmam o presente Contrato de Prestação de Serviços Médicos em 2 (duas) vias de igual teor e forma.
+E, por estarem plenamente esclarecidas, de comum acordo e conformes em todos os seus termos, firmam o presente Contrato de Prestação de Serviços Médicos em via digital única, assinada eletronicamente pelas partes com certificação criptográfica SHA-256 e padrão ICP-Brasil (MP nº 2.200-2/2001 e Lei nº 14.063/2020).
 
 Florianópolis - SC, {{data_extenso}}.
 
@@ -502,12 +503,88 @@ export interface OfficialContractTagMap {
  */
 export function applyTagsToContractTemplate(
   template: string,
-  tags: OfficialContractTagMap
+  rawTags: OfficialContractTagMap
 ): string {
-  return template.replace(/\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g, (_, key: string) => {
+  const tags: OfficialContractTagMap = { ...rawTags };
+
+  const isPersonalizado = String(tags.chk_personalizado || '').toUpperCase().includes('X');
+  if (!isPersonalizado) {
+    if (!tags.semanas_tratamento || tags.semanas_tratamento === '---' || tags.semanas_tratamento === '--') {
+      tags.semanas_tratamento = 'Não aplicável nesta modalidade';
+    }
+    if (!tags.duracao_personalizada || tags.duracao_personalizada === '---' || tags.duracao_personalizada === '--') {
+      tags.duracao_personalizada = 'Não aplicável nesta modalidade';
+    }
+    if (!tags.consulta_seg || tags.consulta_seg === '---' || tags.consulta_seg === '--') {
+      tags.consulta_seg = 'Não aplicável nesta modalidade';
+    }
+    if (!tags.frequencia_procedimentos || tags.frequencia_procedimentos === '---' || tags.frequencia_procedimentos === '--') {
+      tags.frequencia_procedimentos = 'Não aplicável nesta modalidade';
+    }
+    if (!tags.especificacoes_terapeuticas || tags.especificacoes_terapeuticas === '---' || tags.especificacoes_terapeuticas === '--') {
+      tags.especificacoes_terapeuticas = 'Não aplicável nesta modalidade';
+    }
+  }
+
+  const isCartao = String(tags.chk_cartao || '').toUpperCase().includes('X');
+  if (!isCartao) {
+    if (!tags.num_parcelas_cartao || tags.num_parcelas_cartao === '---' || tags.num_parcelas_cartao === '--') {
+      tags.num_parcelas_cartao = 'Não aplicável';
+    }
+    if (!tags.valor_parcela_cartao || tags.valor_parcela_cartao === '---' || tags.valor_parcela_cartao === '--') {
+      tags.valor_parcela_cartao = 'Não aplicável nesta modalidade';
+    }
+  }
+
+  const isPix = String(tags.chk_pix_parcelado || '').toUpperCase().includes('X');
+  if (!isPix) {
+    if (!tags.num_parcelas_pix || tags.num_parcelas_pix === '---' || tags.num_parcelas_pix === '--') {
+      tags.num_parcelas_pix = 'Não aplicável';
+    }
+    if (!tags.valor_parcela_pix || tags.valor_parcela_pix === '---' || tags.valor_parcela_pix === '--') {
+      tags.valor_parcela_pix = 'Não aplicável nesta modalidade';
+    }
+    if (!tags.dia_vencimento_pix || tags.dia_vencimento_pix === '---' || tags.dia_vencimento_pix === '--') {
+      tags.dia_vencimento_pix = 'Não aplicável';
+    }
+  }
+
+  let text = template.replace(/\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g, (_, key: string) => {
     const k = key as keyof OfficialContractTagMap;
     return tags[k] !== undefined ? String(tags[k]) : `{{${key}}}`;
   });
+
+  // Linhas de opções de pagamento não marcadas: exibe informativo limpo sem placeholders vazios
+  if (!isCartao) {
+    text = text.replace(
+      /\[\s*\]\s*Cartão de Crédito Parcelado:[^\n]+/g,
+      '[ ] Cartão de Crédito Parcelado: Não aplicável nesta modalidade.'
+    );
+  }
+  if (!isPix) {
+    text = text.replace(
+      /\[\s*\]\s*PIX Parcelado \/ Recorrência:[^\n]+/g,
+      '[ ] PIX Parcelado / Recorrência: Não aplicável nesta modalidade.'
+    );
+  }
+  if (!isPersonalizado) {
+    text = text.replace(
+      /\[\s*\]\s*PROGRAMA PERSONALIZADO \/ PROTOCOLO CLÍNICO SEMANAL[\s\S]*?(?=\n\n2\.2\. Diretrizes)/,
+      '[ ] PROGRAMA PERSONALIZADO / PROTOCOLO CLÍNICO SEMANAL: Não aplicável nesta modalidade.'
+    );
+  }
+
+  // Previne duplicidade de parênteses em vigência
+  text = text.replace(/\((\d+\s*\([a-zçã]+\)\s*meses(?:\s*corridos)?)\)/gi, 'de $1');
+
+  // Padroniza títulos de cláusulas I - DAS PARTES e X - DO FORO
+  text = text.replace(/^([IVX]+)\s*[-–—]\s*/gm, '$1 - ');
+
+  // Elimina traços vazios remanescentes
+  text = text.replace(/R\$\s*---/g, 'Não aplicável nesta modalidade');
+  text = text.replace(/\s*---\s*/g, ' Não aplicável nesta modalidade ');
+
+  return text;
 }
 
 /**
@@ -515,15 +592,14 @@ export function applyTagsToContractTemplate(
  * Evita exceções do pdf-lib com caracteres fora do charset WinAnsi.
  */
 function sanitizeTextForHelvetica(text: string): string {
-  return text
+  return normalizePdfText(text)
     .replace(/[–—]/g, '-')
     .replace(/[""]/g, '"')
     .replace(/['']/g, "'")
     .replace(/[•·]/g, '*')
     .replace(/\u00A0/g, ' ')
     .replace(/…/g, '...')
-    .replace(/[\u200B-\u200D\uFEFF]/g, '')
-    .normalize('NFC');
+    .replace(/[\u200B-\u200D\uFEFF]/g, '');
 }
 
 /**
@@ -620,9 +696,9 @@ export async function generateContractPdfBase64(
         boldRes.arrayBuffer(),
         popRes.arrayBuffer(),
       ]);
-      fontRegular = await pdfDoc.embedFont(new Uint8Array(regBuf));
-      fontBold = await pdfDoc.embedFont(new Uint8Array(boldBuf));
-      fontFooter = await pdfDoc.embedFont(new Uint8Array(popBuf));
+      fontRegular = await pdfDoc.embedFont(new Uint8Array(regBuf), { features: NO_LIGATURE_FONT_FEATURES });
+      fontBold = await pdfDoc.embedFont(new Uint8Array(boldBuf), { features: NO_LIGATURE_FONT_FEATURES });
+      fontFooter = await pdfDoc.embedFont(new Uint8Array(popBuf), { features: NO_LIGATURE_FONT_FEATURES });
     } else {
       throw new Error('Fontes TTF não disponíveis via HTTP');
     }
@@ -673,19 +749,21 @@ export async function generateContractPdfBase64(
   };
 
   const widthOf = (font: any, text: string, size: number): number => {
+    const cleanText = normalizePdfText(text);
     try {
-      return font.widthOfTextAtSize(text, size);
+      return font.widthOfTextAtSize(cleanText, size);
     } catch {
-      return font.widthOfTextAtSize(text.replace(/[^\x00-\x7F]/g, ''), size);
+      return font.widthOfTextAtSize(cleanText.replace(/[^\x00-\x7F]/g, ''), size);
     }
   };
 
   const drawSafe = (text: string, x: number, yy: number, size: number, font: any) => {
+    const cleanText = normalizePdfText(text);
     const opts = { x, y: yy, size, font, color: rgb(0.12, 0.14, 0.17) };
     try {
-      page.drawText(text, opts);
+      page.drawText(cleanText, opts);
     } catch {
-      page.drawText(text.replace(/[^\x00-\x7F]/g, ''), opts);
+      page.drawText(cleanText.replace(/[^\x00-\x7F]/g, ''), opts);
     }
   };
 

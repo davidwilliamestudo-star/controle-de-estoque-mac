@@ -62,6 +62,14 @@ export async function fillDocxContract(
     return ' ';
   };
 
+  // Normaliza campos vazios ou placeholders para texto amigável
+  const cleanField = (val: any, fallback = 'Não aplicável nesta modalidade'): string => {
+    if (val == null) return fallback;
+    const str = String(val).trim();
+    if (str === '' || str === '---' || str === '--' || str === 'R$ ---') return fallback;
+    return str;
+  };
+
   // Mapeamento normalizado e sanitizado de todas as chaves do contrato oficial
   const replacements: Record<string, string> = {
     '{{nome}}': escapeXml(tags.nome || ''),
@@ -82,29 +90,29 @@ export async function fillDocxContract(
     '{{chk_personalizado}}': formatCheckbox(tags.chk_personalizado),
 
     // Especificações clínicas
-    '{{semanas_tratamento}}': escapeXml(tags.semanas_tratamento || ''),
-    '{{duracao_personalizada}}': escapeXml(tags.duracao_personalizada || ''),
-    '{{consulta_seg}}': escapeXml(tags.consulta_seg || ''),
-    '{{frequencia_procedimentos}}': escapeXml(tags.frequencia_procedimentos || ''),
-    '{{especificacoes_terapeuticas}}': escapeXml(tags.especificacoes_terapeuticas || ''),
+    '{{semanas_tratamento}}': escapeXml(cleanField(tags.semanas_tratamento)),
+    '{{duracao_personalizada}}': escapeXml(cleanField(tags.duracao_personalizada)),
+    '{{consulta_seg}}': escapeXml(cleanField(tags.consulta_seg)),
+    '{{frequencia_procedimentos}}': escapeXml(cleanField(tags.frequencia_procedimentos)),
+    '{{especificacoes_terapeuticas}}': escapeXml(cleanField(tags.especificacoes_terapeuticas)),
 
     // Financeiro
     '{{valor_plano}}': escapeXml(tags.valor_plano || ''),
     '{{valor_plano_extenso}}': escapeXml(tags.valor_plano_extenso || ''),
     '{{chk_avista}}': formatCheckbox(tags.chk_avista),
-    '{{valor_avista}}': escapeXml(tags.valor_avista || ''),
+    '{{valor_avista}}': escapeXml(cleanField(tags.valor_avista)),
     '{{chk_cartao}}': formatCheckbox(tags.chk_cartao),
-    '{{num_parcelas_cartao}}': escapeXml(tags.num_parcelas_cartao || ''),
-    '{{valor_parcela_cartao}}': escapeXml(tags.valor_parcela_cartao || ''),
+    '{{num_parcelas_cartao}}': escapeXml(cleanField(tags.num_parcelas_cartao, 'Não aplicável')),
+    '{{valor_parcela_cartao}}': escapeXml(cleanField(tags.valor_parcela_cartao)),
     '{{chk_pix_parcelado}}': formatCheckbox(tags.chk_pix_parcelado),
-    '{{num_parcelas_pix}}': escapeXml(tags.num_parcelas_pix || ''),
-    '{{valor_parcela_pix}}': escapeXml(tags.valor_parcela_pix || ''),
-    '{{dia_vencimento_pix}}': escapeXml(tags.dia_vencimento_pix || ''),
+    '{{num_parcelas_pix}}': escapeXml(cleanField(tags.num_parcelas_pix, 'Não aplicável')),
+    '{{valor_parcela_pix}}': escapeXml(cleanField(tags.valor_parcela_pix)),
+    '{{dia_vencimento_pix}}': escapeXml(cleanField(tags.dia_vencimento_pix, 'Não aplicável')),
 
     // Disposições gerais e assinaturas
     '{{vigencia_contrato}}': escapeXml(tags.vigencia_contrato || ''),
     '{{data_extenso}}': escapeXml(tags.data_extenso || ''),
-    '{{crm_dra}}': escapeXml(tags.crm_dra || '54.811.772/0001-32'),
+    '{{crm_dra}}': escapeXml(tags.crm_dra || 'CRM/SC 28412'),
   };
 
   // Aplica todas as substituições de chaves

@@ -1333,11 +1333,11 @@ app.post("/signatures/documents", authMiddleware, async (c) => {
     statements.push(
       c.env.DB.prepare(
         `INSERT INTO signature_audit_trails (
-          id, document_id, signer_id, event_name, event_description,
+          id, document_id, signer_id, event_name, event_type, event_description,
           actor_name, actor_cpf, ip_address, user_agent,
           pdf_sha256_snapshot, previous_trail_hash, current_trail_hash,
           occurred_at_utc, occurred_at_brt
-        ) VALUES (?, ?, NULL, 'document.created', ?, ?, ?, ?, ?, ?, 'GENESIS_0000000000000000', ?, ?, ?)`
+        ) VALUES (?, ?, NULL, 'document.created', 'DOCUMENT_CREATED', ?, ?, ?, ?, ?, ?, 'GENESIS_0000000000000000', ?, ?, ?)`
       ).bind(
         genesisTrailId,
         docId,
@@ -1848,11 +1848,29 @@ app.post("/assinar/:token", async (c) => {
       signer.id
     ).run();
 
+    // Cofre ICP-Brasil da Dra. Ana (somente leitura aqui; descriptografia ocorre mais abaixo)
+    const isDoctorSigner = String(signer.role) === 'DRA_ANA';
+    const autoVault = await c.env.DB.prepare(
+      `SELECT * FROM doctor_certificate_vault WHERE id = 'dra_ana_default_cert' AND auto_sign_enabled = 1 LIMIT 1`
+    ).first<Record<string, any>>();
+    const doctorUsesVault = isDoctorSigner && Boolean(autoVault);
+
+    const signerEventType = isDoctorSigner
+      ? doctorUsesVault
+        ? 'DOCTOR_AUTO_ICP_SIGNED'
+        : 'DOCTOR_SIGNED'
+      : 'PATIENT_SIGNED';
+    const signerEventDescription = isDoctorSigner
+      ? doctorUsesVault
+        ? `Assinado digitalmente (PAdES / ICP-Brasil A1 Automático) por ${signer.full_name}`
+        : `Assinado eletronicamente por ${signer.full_name}`
+      : `Assinado eletronicamente por ${signer.full_name}`;
+
     // Registra evento na trilha de auditoria
     const patientTrailId = crypto.randomUUID();
     const patientTrailHash = await PdfStampingEngineService.computeSha256Hex(
       new TextEncoder().encode(
-        `${patientTrailId}|${doc.id}|PATIENT_SIGNED|${doc.original_pdf_sha256}|${nowUtc}`
+        `${patientTrailId}|${doc.id}|${signerEventType}|${doc.original_pdf_sha256}|${nowUtc}`
       )
     );
 
@@ -1862,12 +1880,13 @@ app.post("/assinar/:token", async (c) => {
         actor_name, actor_cpf, actor_tax_id, ip_address, user_agent, geolocation_json,
         pdf_sha256_snapshot, previous_trail_hash, current_trail_hash,
         occurred_at_utc, occurred_at_brt
-      ) VALUES (?, ?, ?, 'document.signed', 'PATIENT_SIGNED', ?, ?, ?, ?, ?, ?, ?, ?, 'CHAIN', ?, ?, ?)`
+      ) VALUES (?, ?, ?, 'document.signed', ?, ?, ?, ?, ?, ?, ?, ?, ?, 'CHAIN', ?, ?, ?)`
     ).bind(
       patientTrailId,
       doc.id,
       signer.id,
-      `Assinado eletronicamente por ${signer.full_name}`,
+      signerEventType,
+      signerEventDescription,
       signer.full_name,
       signer.cpf || signer.cpf_cnpj || "",
       signer.cpf_cnpj || signer.cpf || "",
@@ -1885,13 +1904,11 @@ app.post("/assinar/:token", async (c) => {
       `SELECT * FROM document_signers WHERE document_id = ? AND role = 'DRA_ANA' LIMIT 1`
     ).bind(doc.id).first<Record<string, any>>();
 
-    const vault = await c.env.DB.prepare(
-      `SELECT * FROM doctor_certificate_vault WHERE id = 'dra_ana_default_cert' AND auto_sign_enabled = 1 LIMIT 1`
-    ).first<Record<string, any>>();
+    const vault = autoVault;
 
     let decryptedCertCredentials: { pfxBase64: string; password: string } | null = null;
 
-    if (doctorSigner && doctorSigner.status === 'pending' && vault) {
+    if (doctorSigner && (doctorSigner.status === 'pending' || isDoctorSigner) && vault) {
       const masterSecret = getVaultMasterKey(c);
       try {
         decryptedCertCredentials = await DoctorAutoSignVaultService.decryptPfxAndPassword({
@@ -1955,7 +1972,7 @@ app.post("/assinar/:token", async (c) => {
           docTrailId,
           doc.id,
           doctorSigner.id,
-          `Contra-assinatura Qualificada ICP-Brasil aplicada automaticamente (Titular: ${vault.cert_subject_cn} | Série: ${vault.cert_serial_hex})`,
+          `Assinado digitalmente (PAdES / ICP-Brasil A1 Automático) por Dra. Ana Carla Morong`,
           doc.original_pdf_sha256,
           patientTrailHash,
           docTrailHash,
@@ -2039,7 +2056,9 @@ app.post("/assinar/:token", async (c) => {
         signer_user_agent: String(s.signer_user_agent || userAgent),
         signer_lat: s.signer_lat ? Number(s.signer_lat) : null,
         signer_lng: s.signer_lng ? Number(s.signer_lng) : null,
-        signed_at_brt: nowBrt,
+        signed_at_brt: s.signed_at
+          ? new Date(s.signed_at).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })
+          : nowBrt,
       })),
       auditTrails: (trailsRes.results || []).map((t: any) => ({
         event_type: String(t.event_type || t.event_name),

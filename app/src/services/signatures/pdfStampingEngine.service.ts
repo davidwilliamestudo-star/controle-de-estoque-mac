@@ -1,6 +1,12 @@
 // src/services/signatures/pdfStampingEngine.service.ts
 import { PDFDocument, rgb, StandardFonts, PDFPage } from 'pdf-lib';
 import QRCode from 'qrcode';
+import {
+  formatCouncilRegister,
+  normalizeAuditEventType,
+  normalizePdfText,
+  wrapTextToWidth,
+} from './pdfTextNormalizer';
 
 export interface NormalizedFieldInput {
   id: string;
@@ -179,18 +185,24 @@ export class PdfStampingEngineService {
             color: rgb(0.96, 0.99, 0.97),
           });
 
-          page.drawText('ASSINADO DIGITALMENTE — PADRÃO ICP-BRASIL', {
-            x: pdfX + 8,
-            y: pdfY + boxH - 12,
-            size: 6.2,
-            font: fontBold,
-            color: rgb(0.02, 0.45, 0.32),
-          });
-
           page.drawText(
-            `${signer.icp_subject_cn || signer.full_name} (${
-              signer.council_register || 'CRM/SC'
-            })`,
+            signer.icp_serial_hex
+              ? 'ASSINADO DIGITALMENTE — PADRÃO ICP-BRASIL'
+              : 'ASSINADO ELETRONICAMENTE — CONTRATADA',
+            {
+              x: pdfX + 8,
+              y: pdfY + boxH - 12,
+              size: 6.2,
+              font: fontBold,
+              color: rgb(0.02, 0.45, 0.32),
+            }
+          );
+
+          // Linha 1 do carimbo: nome completo da contratada + CRM/SC com número
+          page.drawText(
+            normalizePdfText(
+              `${signer.full_name} (${formatCouncilRegister(signer.council_register)})`
+            ),
             {
               x: pdfX + 8,
               y: pdfY + boxH - 22,
@@ -201,9 +213,11 @@ export class PdfStampingEngineService {
           );
 
           page.drawText(
-            `CNPJ: 54.811.772/0001-32 | AC: ${(
-              signer.icp_issuer_cn || 'ICP-Brasil'
-            ).slice(0, 28)}`,
+            normalizePdfText(
+              `CNPJ: 54.811.772/0001-32 | AC: ${(
+                signer.icp_issuer_cn || 'ICP-Brasil'
+              ).slice(0, 28)}`
+            ),
             {
               x: pdfX + 8,
               y: pdfY + boxH - 32,
@@ -214,9 +228,11 @@ export class PdfStampingEngineService {
           );
 
           page.drawText(
-            `Série: ${(signer.icp_serial_hex || '').slice(0, 16)} | Data BRT: ${
-              signer.signed_at_brt
-            }`,
+            normalizePdfText(
+              `Série: ${(signer.icp_serial_hex || 'N/D').slice(0, 20)} | Data BRT: ${
+                signer.signed_at_brt
+              }`
+            ),
             {
               x: pdfX + 8,
               y: pdfY + 6,
@@ -395,14 +411,23 @@ export class PdfStampingEngineService {
     }
 
     // Dados do Documento e Hash Original
+    const cleanDocTitle = (params.documentTitle || 'Contrato de Prestação de Serviços Médicos')
+      .split('\n')[0]
+      .trim();
+
     let cursorY = mH - 98;
-    manifestPage.drawText(`Documento: ${params.documentTitle}`, {
-      x: 30,
-      y: cursorY,
-      size: 9.8,
-      font: fontBold,
-      color: rgb(0.08, 0.1, 0.15),
-    });
+    manifestPage.drawText(
+      normalizePdfText(
+        `Documento: ${cleanDocTitle.length > 65 ? cleanDocTitle.slice(0, 62) + '...' : cleanDocTitle}`
+      ),
+      {
+        x: 30,
+        y: cursorY,
+        size: 9.8,
+        font: fontBold,
+        color: rgb(0.08, 0.1, 0.15),
+      }
+    );
 
     cursorY -= 14;
     manifestPage.drawText(`UUID do Documento: ${params.documentId}`, {
@@ -456,12 +481,19 @@ export class PdfStampingEngineService {
         color: rgb(0.98, 0.99, 1),
       });
 
+      const isIcpSigner = signer.legal_level === 'QUALIFIED_ICP' || signer.role === 'DRA_ANA';
+      const hasRealIcpCert = Boolean(signer.icp_serial_hex);
+
       manifestPage.drawText(
-        `${signer.full_name} — ${
-          signer.role === 'DRA_ANA'
-            ? 'CONTRATADA (Assinatura Qualificada ICP-Brasil Automática)'
-            : 'CONTRATANTE / PACIENTE (Assinatura Eletrônica Avançada)'
-        }`,
+        normalizePdfText(
+          `${signer.full_name} — ${
+            signer.role === 'DRA_ANA'
+              ? hasRealIcpCert
+                ? 'CONTRATADA (Assinatura Qualificada ICP-Brasil)'
+                : 'CONTRATADA (Assinatura Eletrônica)'
+              : 'CONTRATANTE / PACIENTE (Assinatura Eletrônica Avançada)'
+          }`
+        ),
         {
           x: 40,
           y: cursorY + 67,
@@ -472,7 +504,9 @@ export class PdfStampingEngineService {
       );
 
       manifestPage.drawText(
-        `CPF/CNPJ: ${signer.cpf_cnpj}   |   Data/Hora Oficial de Brasília: ${signer.signed_at_brt}`,
+        normalizePdfText(
+          `CPF/CNPJ: ${signer.cpf_cnpj}   |   Data/Hora Oficial de Brasília: ${signer.signed_at_brt}`
+        ),
         {
           x: 40,
           y: cursorY + 53,
@@ -482,9 +516,11 @@ export class PdfStampingEngineService {
         }
       );
 
-      if (signer.legal_level === 'QUALIFIED_ICP' || signer.role === 'DRA_ANA') {
+      if (isIcpSigner) {
         manifestPage.drawText(
-          `Certificado ICP-Brasil: ${signer.icp_subject_cn || signer.full_name} | Emissor: ${signer.icp_issuer_cn || 'AC ICP-Brasil'}`,
+          normalizePdfText(
+            `Certificado ICP-Brasil: ${signer.icp_subject_cn || signer.full_name} | Emissor: ${signer.icp_issuer_cn || 'N/D'}`
+          ),
           {
             x: 40,
             y: cursorY + 39,
@@ -494,13 +530,15 @@ export class PdfStampingEngineService {
           }
         );
         manifestPage.drawText(
-          `Serial Number: ${signer.icp_serial_hex || 'A1-ICP'} | Thumbprint SHA-256: ${(
-            signer.icp_thumbprint_sha256 || 'ICP-SHA256'
-          ).slice(0, 32)}...`,
+          normalizePdfText(
+            `Serial Number: ${signer.icp_serial_hex || 'N/D'} | Thumbprint SHA-256: ${
+              signer.icp_thumbprint_sha256 || 'N/D'
+            }`
+          ),
           {
             x: 40,
             y: cursorY + 26,
-            size: 6.5,
+            size: 5.4,
             font: fontRegular,
             color: rgb(0.25, 0.3, 0.38),
           }
@@ -511,7 +549,7 @@ export class PdfStampingEngineService {
             ? `GPS: ${signer.signer_lat.toFixed(5)}, ${signer.signer_lng.toFixed(5)}`
             : 'GPS: Não compartilhado';
         manifestPage.drawText(
-          `IP de Origem: ${signer.signer_ip}   |   ${geo}`,
+          normalizePdfText(`IP de Origem: ${signer.signer_ip}   |   ${geo}`),
           {
             x: 40,
             y: cursorY + 39,
@@ -521,17 +559,6 @@ export class PdfStampingEngineService {
           }
         );
       }
-
-      manifestPage.drawText(
-        `Ambiente/Agente: ${(signer.signer_user_agent || 'Navegador Web').slice(0, 75)}`,
-        {
-          x: 40,
-          y: cursorY + 12,
-          size: 6.3,
-          font: fontRegular,
-          color: rgb(0.42, 0.46, 0.52),
-        }
-      );
 
       // Desenha miniatura da rubrica no card
       const sigImg = embeddedSigImages[signer.id];
@@ -543,6 +570,25 @@ export class PdfStampingEngineService {
           height: 42,
         });
       }
+
+      // User-Agent com quebra automática (até 2 linhas) dentro da margem segura do cartão
+      const uaSize = 6.3;
+      const maxUaWidth = mW - 60 - (sigImg ? 120 : 25);
+      const uaLines = wrapTextToWidth(
+        `Ambiente/Agente: ${signer.signer_user_agent || 'Navegador Web'}`,
+        maxUaWidth,
+        (s) => fontRegular.widthOfTextAtSize(s, uaSize),
+        2
+      );
+      uaLines.forEach((uaLine, idx) => {
+        manifestPage.drawText(uaLine, {
+          x: 40,
+          y: cursorY + 12 - idx * 8,
+          size: uaSize,
+          font: fontRegular,
+          color: rgb(0.42, 0.46, 0.52),
+        });
+      });
     }
 
     // Trilha de Auditoria
@@ -555,20 +601,36 @@ export class PdfStampingEngineService {
       color: rgb(0.06, 0.09, 0.16),
     });
 
-    for (const trail of params.auditTrails.slice(0, 8)) {
-      cursorY -= 14;
-      if (cursorY < 40) break;
-      manifestPage.drawText(
-        `[${trail.occurred_at_brt}] ${trail.event_type} — ${trail.actor_name} — ${trail.event_description} (Hash: ${(trail.current_trail_hash || '').slice(0, 12)})`,
-        {
+    const trailSize = 6.5;
+    for (const trail of params.auditTrails.slice(0, 10)) {
+      const trailLines = wrapTextToWidth(
+        `[${trail.occurred_at_brt}] ${normalizeAuditEventType(trail.event_type)} — ${trail.actor_name} — ${trail.event_description} (Hash: ${(trail.current_trail_hash || '').slice(0, 12)})`,
+        mW - 60,
+        (s) => fontRegular.widthOfTextAtSize(s, trailSize),
+        2
+      );
+      for (const trailLine of trailLines) {
+        cursorY -= 9.5;
+        if (cursorY < 48) break;
+        manifestPage.drawText(trailLine, {
           x: 30,
           y: cursorY,
-          size: 6.5,
+          size: trailSize,
           font: fontRegular,
           color: rgb(0.26, 0.3, 0.36),
-        }
-      );
+        });
+      }
+      cursorY -= 3;
     }
+
+    // Identificação da página como anexo (numeração dedicada ao Manifesto)
+    manifestPage.drawText('Anexo I - Manifesto de Certificação Digital (Página 1 de 1)', {
+      x: 30,
+      y: 24,
+      size: 7.5,
+      font: fontBold,
+      color: rgb(0.25, 0.33, 0.29),
+    });
 
     return pdfDoc.save({ useObjectStreams: false });
   }

@@ -309,22 +309,22 @@ export const ContractPreparationAndSignatureModal: React.FC<
     chk_signature: ' ',
     chk_life: ' ',
     chk_personalizado: ' ',
-    semanas_tratamento: '---',
-    duracao_personalizada: '---',
-    consulta_seg: '---',
-    frequencia_procedimentos: '---',
-    especificacoes_terapeuticas: '---',
+    semanas_tratamento: 'Não aplicável nesta modalidade',
+    duracao_personalizada: 'Não aplicável nesta modalidade',
+    consulta_seg: 'Não aplicável nesta modalidade',
+    frequencia_procedimentos: 'Não aplicável nesta modalidade',
+    especificacoes_terapeuticas: 'Não aplicável nesta modalidade',
     valor_plano: '11.900,00',
     valor_plano_extenso: numberToExtensoBRL(11900.0),
     chk_avista: 'X',
     valor_avista: '11.900,00',
     chk_cartao: ' ',
-    num_parcelas_cartao: '--',
-    valor_parcela_cartao: '---',
+    num_parcelas_cartao: 'Não aplicável',
+    valor_parcela_cartao: 'Não aplicável nesta modalidade',
     chk_pix_parcelado: ' ',
-    num_parcelas_pix: '--',
-    valor_parcela_pix: '---',
-    dia_vencimento_pix: '--',
+    num_parcelas_pix: 'Não aplicável',
+    valor_parcela_pix: 'Não aplicável nesta modalidade',
+    dia_vencimento_pix: 'Não aplicável',
     vigencia_contrato: '6 (seis) meses corridos',
     data_extenso: formatDataExtensoBR(new Date()),
     crm_dra: crmDra || '____',
@@ -439,37 +439,37 @@ export const ContractPreparationAndSignatureModal: React.FC<
       chk_life: planId === 'LIFE_ANUAL' ? 'X' : ' ',
       chk_personalizado: planId === 'PERSONALIZADO' ? 'X' : ' ',
 
-      semanas_tratamento: planId === 'PERSONALIZADO' ? '12 (doze) semanas' : '---',
+      semanas_tratamento: planId === 'PERSONALIZADO' ? '12 (doze) semanas' : 'Não aplicável nesta modalidade',
       duracao_personalizada:
         planId === 'PERSONALIZADO'
           ? 'a contar da adesão, com reavaliações mensais'
-          : '---',
+          : 'Não aplicável nesta modalidade',
       consulta_seg:
-        planId === 'PERSONALIZADO' ? plan.consultationsSchedule : '---',
+        planId === 'PERSONALIZADO' ? plan.consultationsSchedule : 'Não aplicável nesta modalidade',
       frequencia_procedimentos:
-        planId === 'PERSONALIZADO' ? plan.includesSummary : '---',
+        planId === 'PERSONALIZADO' ? plan.includesSummary : 'Não aplicável nesta modalidade',
       especificacoes_terapeuticas:
-        planId === 'PERSONALIZADO' ? plan.clinicalObjectives : '---',
+        planId === 'PERSONALIZADO' ? plan.clinicalObjectives : 'Não aplicável nesta modalidade',
 
       vigencia_contrato: plan.durationLabel,
       valor_plano: formattedTotal,
       valor_plano_extenso: numberToExtensoBRL(nextTotal),
 
       chk_avista: nextModality === 'AVISTA' ? 'X' : ' ',
-      valor_avista: nextModality === 'AVISTA' ? formattedTotal : '---',
+      valor_avista: nextModality === 'AVISTA' ? formattedTotal : 'Não aplicável nesta modalidade',
 
       chk_cartao: nextModality === 'CARTAO' ? 'X' : ' ',
-      num_parcelas_cartao: nextModality === 'CARTAO' ? String(nextCount) : '--',
+      num_parcelas_cartao: nextModality === 'CARTAO' ? String(nextCount) : 'Não aplicável',
       valor_parcela_cartao:
-        nextModality === 'CARTAO' ? formattedInstallment : '---',
+        nextModality === 'CARTAO' ? formattedInstallment : 'Não aplicável nesta modalidade',
 
       chk_pix_parcelado: nextModality === 'PIX_PARCELADO' ? 'X' : ' ',
       num_parcelas_pix:
-        nextModality === 'PIX_PARCELADO' ? String(nextCount) : '--',
+        nextModality === 'PIX_PARCELADO' ? String(nextCount) : 'Não aplicável',
       valor_parcela_pix:
-        nextModality === 'PIX_PARCELADO' ? formattedInstallment : '---',
+        nextModality === 'PIX_PARCELADO' ? formattedInstallment : 'Não aplicável nesta modalidade',
       dia_vencimento_pix:
-        nextModality === 'PIX_PARCELADO' ? String(pixDueDay) : '--',
+        nextModality === 'PIX_PARCELADO' ? String(pixDueDay) : 'Não aplicável',
       crm_dra: crmDra || prev.crm_dra,
     }));
   };
